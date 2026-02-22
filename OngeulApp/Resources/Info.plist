@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+    <key>CFBundleName</key>
+    <string>Ongeul</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Ongeul</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+
+    <key>LSBackgroundOnly</key>
+    <true/>
+
+    <key>InputMethodConnectionName</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)_Connection</string>
+
+    <key>InputMethodServerControllerClass</key>
+    <string>$(PRODUCT_MODULE_NAME).OngeulInputController</string>
+
+    <key>InputMethodServerDelegateClass</key>
+    <string>$(PRODUCT_MODULE_NAME).OngeulInputController</string>
+
+    <key>ComponentInputModeDict</key>
+    <dict>
+        <key>tsInputModeListKey</key>
+        <dict>
+            <key>com.example.inputmethod.Ongeul.Korean</key>
+            <dict>
+                <key>TISIntendedLanguage</key>
+                <string>ko</string>
+                <key>TISInputSourceID</key>
+                <string>com.example.inputmethod.Ongeul.Korean</string>
+            </dict>
+        </dict>
+        <key>tsVisibleInputModeOrderedArrayKey</key>
+        <array>
+            <string>com.example.inputmethod.Ongeul.Korean</string>
+        </array>
+    </dict>
+
+    <key>tsInputMethodCharacterRepertoireKey</key>
+    <array>
+        <string>Hang</string>
+        <string>Latn</string>
+    </array>
+
+    <key>tsInputMethodIconFileKey</key>
+    <string>icon.tiff</string>
+</dict>
+</plist>

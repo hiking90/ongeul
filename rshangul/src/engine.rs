@@ -56,7 +56,9 @@ impl EngineState {
             Some(ch) => ch,
             None => {
                 // 레이아웃에 없는 키 → 현재 조합 확정 후 패스스루
-                return automata.flush();
+                let mut result = automata.flush();
+                result.handled = false;
+                return result;
             }
         };
 

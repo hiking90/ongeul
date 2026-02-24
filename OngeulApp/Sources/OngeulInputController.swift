@@ -17,26 +17,92 @@ private enum KeyCode {
     static let arrowUp: UInt16    = 126
 }
 
+// MARK: - Mode Indicator (커서 근처 한/영 표시)
+
+private final class ModeIndicator {
+    static let shared = ModeIndicator()
+
+    private let panel: NSPanel
+    private let label: NSTextField
+    private var hideTimer: Timer?
+
+    private init() {
+        let size = NSSize(width: 32, height: 24)
+        panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        // IME 프로세스에서 다른 앱 위에 표시되려면 충분히 높은 윈도우 레벨 필요
+        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        panel.isReleasedWhenClosed = false
+
+        let bg = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+        bg.material = .hudWindow
+        bg.state = .active
+        bg.wantsLayer = true
+        bg.layer?.cornerRadius = 4
+
+        label = NSTextField(labelWithString: "")
+        label.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        label.alignment = .center
+        label.textColor = .labelColor
+        label.frame = NSRect(origin: .zero, size: size)
+
+        bg.addSubview(label)
+        panel.contentView = bg
+    }
+
+    func show(mode: InputMode, cursorRect: NSRect) {
+        label.stringValue = mode == .korean ? "한" : "A"
+
+        // 커서 아래쪽에 표시
+        let origin = NSPoint(
+            x: cursorRect.origin.x,
+            y: cursorRect.origin.y - panel.frame.height - 4
+        )
+        panel.setFrameOrigin(origin)
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+
+        os_log("ModeIndicator: mode=%{public}@ origin=(%.0f, %.0f) cursorRect=(%.0f, %.0f, %.0f, %.0f)",
+               log: log, type: .debug,
+               mode == .korean ? "ko" : "en",
+               origin.x, origin.y,
+               cursorRect.origin.x, cursorRect.origin.y,
+               cursorRect.size.width, cursorRect.size.height)
+
+        hideTimer?.invalidate()
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.2
+                self.panel.animator().alphaValue = 0
+            }, completionHandler: {
+                self.panel.orderOut(nil)
+            })
+        }
+    }
+}
+
+// MARK: - Input Controller
+
 @objc(OngeulInputController)
 class OngeulInputController: IMKInputController {
     private let engine = HangulEngine()
+    private var activeLayoutId: String = "2-standard"
     private var loadedLayoutId: String?
     private var rightCmdPending = false
 
-    /// menu()에서 self를 강하게 유지하여 메뉴 액션 시점에 컨트롤러가 해제되지 않도록 한다.
-    private static var menuOwner: OngeulInputController?
-
     private static let defaultLayoutId = "2-standard"
-    private static let layoutKey = "selectedLayoutId"
-    private static let layouts: [(id: String, name: String)] = [
-        ("2-standard", "두벌식 표준"),
-        ("3-390", "세벌식 390"),
-        ("3-final", "세벌식 최종"),
-    ]
-
-    private var currentLayoutId: String {
-        UserDefaults.standard.string(forKey: Self.layoutKey) ?? Self.defaultLayoutId
-    }
+    private static let modePrefix = "com.example.inputmethod.Ongeul."
+    private static let imInputModeTag: Int = 0x696D696D // 'imim'
+    private static let validLayoutIds: Set<String> = ["2-standard", "3-390", "3-final"]
 
     // MARK: - Lifecycle
 
@@ -53,6 +119,30 @@ class OngeulInputController: IMKInputController {
         super.deactivateServer(sender)
     }
 
+    // MARK: - Input Mode Switching (setValue:forTag:client:)
+
+    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        super.setValue(value, forTag: tag, client: sender)
+
+        guard tag == Self.imInputModeTag,
+              let modeId = value as? String,
+              modeId.hasPrefix(Self.modePrefix) else { return }
+
+        let layoutId = String(modeId.dropFirst(Self.modePrefix.count))
+        guard Self.validLayoutIds.contains(layoutId) else { return }
+
+        // 이전 조합 flush (레이아웃 변경 시)
+        if loadedLayoutId != nil && loadedLayoutId != layoutId {
+            let result = engine.flush()
+            if let client = self.client() {
+                applyResult(result, to: client)
+            }
+        }
+
+        activeLayoutId = layoutId
+        loadLayoutIfNeeded()
+    }
+
     // MARK: - Key Event Handling
 
     override func recognizedEvents(_ sender: Any!) -> Int {
@@ -66,6 +156,8 @@ class OngeulInputController: IMKInputController {
             return false
         }
 
+        loadLayoutIfNeeded()
+
         if event.type == .flagsChanged {
             return handleFlagsChanged(event, client: client)
         }
@@ -77,78 +169,43 @@ class OngeulInputController: IMKInputController {
         return false
     }
 
-    // MARK: - Menu: 자판 선택
-
-    override func menu() -> NSMenu! {
-        Self.menuOwner = self
-        let menu = NSMenu(title: "Ongeul")
-        for layout in Self.layouts {
-            let item = NSMenuItem(
-                title: layout.name,
-                action: #selector(selectLayout(_:)),
-                keyEquivalent: ""
-            )
-            item.representedObject = layout.id
-            item.target = self
-            item.state = (layout.id == currentLayoutId) ? .on : .off
-            menu.addItem(item)
-        }
-        return menu
-    }
-
-    @objc private func selectLayout(_ sender: NSMenuItem) {
-        guard let layoutId = sender.representedObject as? String,
-              layoutId != currentLayoutId else { return }
-
-        // 현재 조합 flush
-        let flushResult = engine.flush()
-        if let client = self.client() {
-            applyResult(flushResult, to: client)
-        }
-
-        // 새 레이아웃 로드
-        guard let url = Bundle.main.url(forResource: layoutId, withExtension: "json5"),
-              let json = try? String(contentsOf: url, encoding: .utf8) else {
-            NSLog("[Ongeul] Failed to load layout file: \(layoutId).json5")
-            return
-        }
-
-        do {
-            try engine.loadLayout(json: json)
-            engine.setMode(mode: .korean)
-            loadedLayoutId = layoutId
-            UserDefaults.standard.set(layoutId, forKey: Self.layoutKey)
-            NSLog("[Ongeul] Layout switched to: \(layoutId)")
-        } catch {
-            NSLog("[Ongeul] Failed to parse layout: \(error)")
-        }
-    }
-
     // MARK: - Private: Right Command → 한/영 전환
 
     private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
-        os_log("flagsChanged: keyCode=%{public}d flags=0x%{public}lx", log: log, type: .default, event.keyCode, event.modifierFlags.rawValue)
-
         if event.keyCode == KeyCode.rightCommand {
             if event.modifierFlags.contains(.command) {
-                // Right Command 눌림 → 탭 후보 등록
                 rightCmdPending = true
             } else if rightCmdPending {
-                // Right Command 단독 탭 → 한영 전환
                 rightCmdPending = false
                 let result = engine.toggleMode()
-                let newMode = engine.getMode()
-                os_log("toggleMode → mode=%{public}@ committed=%{public}@", log: log, type: .default,
-                       String(describing: newMode), result.committed ?? "(nil)")
                 applyResult(result, to: client)
+                showModeIndicator(client: client)
                 return true
             }
             return false
         }
 
-        // 다른 modifier 변경 → 탭 후보 취소
         rightCmdPending = false
         return false
+    }
+
+    // MARK: - Private: Mode Indicator
+
+    private func showModeIndicator(client: any IMKTextInput) {
+        let selRange = client.selectedRange()
+        var actualRange = NSRange()
+        let cursorRect = client.firstRect(
+            forCharacterRange: selRange,
+            actualRange: &actualRange
+        )
+        guard cursorRect.origin.x.isFinite && cursorRect.origin.y.isFinite,
+              cursorRect != .zero else {
+            os_log("showModeIndicator: invalid cursorRect, selRange=(%d, %d)",
+                   log: log, type: .debug, selRange.location, selRange.length)
+            return
+        }
+
+        ModeIndicator.shared.show(mode: engine.getMode(), cursorRect: cursorRect)
     }
 
     // MARK: - Private: Key Processing
@@ -262,22 +319,20 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Layout Loading
 
     private func loadLayoutIfNeeded() {
-        let layoutId = currentLayoutId
-        guard loadedLayoutId != layoutId else { return }
+        guard loadedLayoutId != activeLayoutId else { return }
 
-        guard let url = Bundle.main.url(forResource: layoutId, withExtension: "json5"),
+        guard let url = Bundle.main.url(forResource: activeLayoutId, withExtension: "json5"),
               let json = try? String(contentsOf: url, encoding: .utf8) else {
-            NSLog("[Ongeul] Failed to load keyboard layout file: \(layoutId).json5")
+            os_log("Failed to load layout: %{public}@.json5", log: log, type: .error, activeLayoutId)
             return
         }
 
         do {
             try engine.loadLayout(json: json)
             engine.setMode(mode: .korean)
-            loadedLayoutId = layoutId
-            NSLog("[Ongeul] Layout loaded: \(layoutId)")
+            loadedLayoutId = activeLayoutId
         } catch {
-            NSLog("[Ongeul] Failed to parse keyboard layout: \(error)")
+            os_log("Failed to parse layout: %{public}@", log: log, type: .error, String(describing: error))
         }
     }
 }

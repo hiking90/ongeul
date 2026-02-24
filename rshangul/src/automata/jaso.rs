@@ -95,7 +95,14 @@ impl Automata for JasoAutomata {
             }
             JasoClass::Choseong(l_idx) => {
                 if let Some(current_l) = self.buffer.choseong {
-                    // 이미 초성 있음 → 쌍자음 조합 시도
+                    // 중성이 이미 있으면 음절 진행 중 → 확정 + 새 초성
+                    if self.buffer.jungseong.is_some() {
+                        let committed = self.commit_current();
+                        self.buffer.choseong = Some(l_idx);
+                        self.buffer.state = AutomataState::Choseong;
+                        return AutomataResult::handled(committed, self.buffer.to_string());
+                    }
+                    // 초성만 있음 → 쌍자음 조합 시도
                     let current_ch = Self::l_char(current_l);
                     let new_ch = Self::l_char(l_idx);
                     if let Some(combined) = layout.combine(current_ch, new_ch)
@@ -424,6 +431,18 @@ mod tests {
         let result = automata.flush();
         assert_eq!(result.committed, Some("한".to_string()));
         assert_eq!(result.composing, None);
+    }
+
+    #[test]
+    fn test_choseong_after_complete_syllable() {
+        // "된" + ㄷ초 → committed="된", composing="ㄷ" (쌍자음 안 됨)
+        // ㄷ초(u) ㅗ중(v) ㅣ중(d) ㄴ종(s) ㄷ초(u)
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) =
+            process_keys(&mut automata, &layout, &["u", "v", "d", "s", "u"]);
+        assert_eq!(committed, "된");
+        assert_eq!(composing, Some("ㄷ".to_string()));
     }
 
     #[test]

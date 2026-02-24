@@ -117,12 +117,28 @@ fn test_mode_toggle() {
     let engine = create_engine();
     assert_eq!(engine.get_mode(), InputMode::Korean);
 
-    let mode = engine.toggle_mode();
-    assert_eq!(mode, InputMode::English);
+    let result = engine.toggle_mode();
+    assert!(result.handled);
+    assert_eq!(engine.get_mode(), InputMode::English);
 
-    // 영문 모드에서는 키 처리 안함
+    // 영문 모드에서는 키를 그대로 committed로 반환 (단독 입력 소스 전략)
     let result = engine.process_key("r".to_string());
-    assert!(!result.handled);
+    assert!(result.handled);
+    assert_eq!(result.committed, Some("r".to_string()));
+    assert_eq!(result.composing, None);
+}
+
+#[test]
+fn test_mode_toggle_flushes_composing() {
+    // 한글 조합 중 toggle → 조합 텍스트가 committed로 반환
+    let engine = create_engine();
+    process_keys(&engine, &["g", "k"]); // "하" 조합 중
+
+    let result = engine.toggle_mode();
+    assert_eq!(result.committed, Some("하".to_string()));
+    assert_eq!(result.composing, None);
+    assert!(result.handled);
+    assert_eq!(engine.get_mode(), InputMode::English);
 }
 
 #[test]

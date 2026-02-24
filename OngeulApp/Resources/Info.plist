@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <string>com.example.inputmethod.Ongeul</string>
 
     <key>CFBundleName</key>
     <string>Ongeul</string>
@@ -22,7 +22,7 @@
     <string>APPL</string>
 
     <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
+    <string>Ongeul</string>
 
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
@@ -31,13 +31,13 @@
     <true/>
 
     <key>InputMethodConnectionName</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)_Connection</string>
+    <string>com.example.inputmethod.Ongeul_Connection</string>
 
     <key>InputMethodServerControllerClass</key>
-    <string>$(PRODUCT_MODULE_NAME).OngeulInputController</string>
+    <string>Ongeul.OngeulInputController</string>
 
     <key>InputMethodServerDelegateClass</key>
-    <string>$(PRODUCT_MODULE_NAME).OngeulInputController</string>
+    <string>Ongeul.OngeulInputController</string>
 
     <key>ComponentInputModeDict</key>
     <dict>
@@ -64,6 +64,6 @@
     </array>
 
     <key>tsInputMethodIconFileKey</key>
-    <string>icon.tiff</string>
+    <string>icon_ko.tiff</string>
 </dict>
 </plist>

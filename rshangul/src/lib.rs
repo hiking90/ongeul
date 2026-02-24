@@ -20,6 +20,13 @@ pub struct ProcessResult {
     pub handled: bool,
 }
 
+/// 엔진 에러 (UniFFI → Swift 전달용)
+#[derive(uniffi::Error, Debug, thiserror::Error)]
+pub enum EngineError {
+    #[error("{message}")]
+    LayoutError { message: String },
+}
+
 /// 입력 모드 (UniFFI enum)
 #[derive(uniffi::Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputMode {
@@ -68,9 +75,11 @@ impl HangulEngine {
     }
 
     /// JSON5 문자열로 자판 레이아웃을 로드한다.
-    pub fn load_layout(&self, json: String) -> Result<(), String> {
+    pub fn load_layout(&self, json: String) -> Result<(), EngineError> {
         let mut state = self.state.lock().unwrap();
-        state.load_layout(&json)
+        state
+            .load_layout(&json)
+            .map_err(|e| EngineError::LayoutError { message: e })
     }
 
     /// 입력 모드를 설정한다.
@@ -89,16 +98,25 @@ impl HangulEngine {
         state.mode.into()
     }
 
-    /// 입력 모드를 토글한다.
-    pub fn toggle_mode(&self) -> InputMode {
+    /// 입력 모드를 토글한다. flush 결과를 포함한 ProcessResult를 반환한다.
+    pub fn toggle_mode(&self) -> ProcessResult {
         let mut state = self.state.lock().unwrap();
         if state.mode == engine::InputMode::Korean {
-            let _ = state.flush();
+            let result = state.flush();
             state.mode = engine::InputMode::English;
+            ProcessResult {
+                committed: result.committed,
+                composing: result.composing,
+                handled: true,
+            }
         } else {
             state.mode = engine::InputMode::Korean;
+            ProcessResult {
+                committed: None,
+                composing: None,
+                handled: true,
+            }
         }
-        state.mode.into()
     }
 
     /// 키 레이블을 처리한다. (예: "q", "Q", "k")

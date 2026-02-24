@@ -42,8 +42,9 @@ impl EngineState {
 
     /// 키 레이블을 처리한다.
     pub fn process_key(&mut self, key: &str) -> AutomataResult {
+        // 영문 모드: 키를 그대로 committed로 반환 (단독 입력 소스 전략)
         if self.mode == InputMode::English {
-            return AutomataResult::not_handled();
+            return AutomataResult::handled(Some(key.to_string()), None);
         }
 
         let (layout, automata) = match (&self.layout, &mut self.automata) {

@@ -154,11 +154,14 @@ fn test_390_eui() {
 fn test_390_mode_toggle() {
     let engine = create_engine_390();
     assert_eq!(engine.get_mode(), InputMode::Korean);
-    let mode = engine.toggle_mode();
-    assert_eq!(mode, InputMode::English);
+    let result = engine.toggle_mode();
+    assert!(result.handled);
+    assert_eq!(engine.get_mode(), InputMode::English);
 
+    // 영문 모드: 키를 그대로 committed로 반환
     let result = engine.process_key("k".to_string());
-    assert!(!result.handled);
+    assert!(result.handled);
+    assert_eq!(result.committed, Some("k".to_string()));
 }
 
 // ── 세벌식 최종 테스트 ──

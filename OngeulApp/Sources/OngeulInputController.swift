@@ -27,7 +27,7 @@ private final class ModeIndicator {
     private var hideTimer: Timer?
 
     private init() {
-        let size = NSSize(width: 32, height: 24)
+        let size = NSSize(width: 24, height: 20)
         panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -46,13 +46,20 @@ private final class ModeIndicator {
         bg.material = .hudWindow
         bg.state = .active
         bg.wantsLayer = true
-        bg.layer?.cornerRadius = 4
+        bg.layer?.cornerRadius = 3
 
         label = NSTextField(labelWithString: "")
-        label.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        label.font = NSFont.systemFont(ofSize: 11, weight: .medium)
         label.alignment = .center
         label.textColor = .labelColor
-        label.frame = NSRect(origin: .zero, size: size)
+        // 수직 가운데 정렬: 폰트 높이를 고려하여 y 오프셋 조정
+        let labelHeight: CGFloat = 14
+        label.frame = NSRect(
+            x: 0,
+            y: (size.height - labelHeight) / 2,
+            width: size.width,
+            height: labelHeight
+        )
 
         bg.addSubview(label)
         panel.contentView = bg
@@ -61,17 +68,26 @@ private final class ModeIndicator {
     func show(mode: InputMode, cursorRect: NSRect) {
         label.stringValue = mode == .korean ? "한" : "A"
 
-        // 커서 아래쪽에 표시
-        let origin = NSPoint(
-            x: cursorRect.origin.x,
-            y: cursorRect.origin.y - panel.frame.height - 4
-        )
+        // 커서 아래쪽에 표시하되, 화면 밖이면 위쪽에 표시
+        // 다음 줄 텍스트와 겹치지 않도록 한 줄 높이만큼 건너뛰기
+        let gap: CGFloat = 4
+        let lineHeight = max(cursorRect.size.height, 14)
+        let belowY = cursorRect.origin.y - lineHeight - panel.frame.height - gap
+        let aboveY = cursorRect.origin.y + cursorRect.size.height + gap
+
+        let screen = NSScreen.main?.visibleFrame ?? .zero
+        let y = belowY >= screen.minY ? belowY : aboveY
+
+        // 커서 중앙 아래(또는 위)에 배치
+        let x = max(screen.minX, cursorRect.origin.x - panel.frame.width / 2)
+
+        let origin = NSPoint(x: x, y: y)
         panel.setFrameOrigin(origin)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
 
         os_log("ModeIndicator: mode=%{public}@ origin=(%.0f, %.0f) cursorRect=(%.0f, %.0f, %.0f, %.0f)",
-               log: log, type: .debug,
+               log: log, type: .default,
                mode == .korean ? "ko" : "en",
                origin.x, origin.y,
                cursorRect.origin.x, cursorRect.origin.y,
@@ -179,6 +195,9 @@ class OngeulInputController: IMKInputController {
                 rightCmdPending = false
                 let result = engine.toggleMode()
                 applyResult(result, to: client)
+                let newMode = engine.getMode()
+                os_log("toggleMode → %{public}@", log: log, type: .default,
+                       newMode == .korean ? "korean" : "english")
                 showModeIndicator(client: client)
                 return true
             }
@@ -192,20 +211,47 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Mode Indicator
 
     private func showModeIndicator(client: any IMKTextInput) {
-        let selRange = client.selectedRange()
+        var rect = cursorRect(from: client)
+        let source: String
+
+        // firstRect가 (0,0,0,0) 또는 거의 0에 가까운 값을 반환하면 유효하지 않은 좌표로 판단
+        let isInvalid = rect.origin.x < 1 && rect.origin.y < 1
+            && rect.size.width < 1 && rect.size.height < 1
+        if isInvalid {
+            let mouse = NSEvent.mouseLocation
+            rect = NSRect(x: mouse.x, y: mouse.y, width: 0, height: 0)
+            source = "mouse"
+        } else {
+            source = "firstRect"
+        }
+
+        os_log("showModeIndicator: source=%{public}@ rect=(%.0f, %.0f, %.0f, %.0f)",
+               log: log, type: .default,
+               source, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
+
+        ModeIndicator.shared.show(mode: engine.getMode(), cursorRect: rect)
+    }
+
+    private func cursorRect(from client: any IMKTextInput) -> NSRect {
+        var selRange = client.selectedRange()
+        os_log("cursorRect: selectedRange=(%d, %d)", log: log, type: .default,
+               selRange.location, selRange.length)
+        if selRange.location == NSNotFound {
+            selRange = NSRange(location: 0, length: 0)
+        }
         var actualRange = NSRange()
-        let cursorRect = client.firstRect(
+        let rect = client.firstRect(
             forCharacterRange: selRange,
             actualRange: &actualRange
         )
-        guard cursorRect.origin.x.isFinite && cursorRect.origin.y.isFinite,
-              cursorRect != .zero else {
-            os_log("showModeIndicator: invalid cursorRect, selRange=(%d, %d)",
-                   log: log, type: .debug, selRange.location, selRange.length)
-            return
+        os_log("cursorRect: firstRect=(%.0f, %.0f, %.0f, %.0f) actualRange=(%d, %d)",
+               log: log, type: .default,
+               rect.origin.x, rect.origin.y, rect.size.width, rect.size.height,
+               actualRange.location, actualRange.length)
+        guard rect.origin.x.isFinite && rect.origin.y.isFinite else {
+            return .zero
         }
-
-        ModeIndicator.shared.show(mode: engine.getMode(), cursorRect: cursorRect)
+        return rect
     }
 
     // MARK: - Private: Key Processing
@@ -302,12 +348,16 @@ class OngeulInputController: IMKInputController {
         }
 
         if let composing = result.composing {
+            let styled = NSAttributedString(string: composing, attributes: [
+                .underlineStyle: 0,
+                .backgroundColor: NSColor.clear,
+            ])
             client.setMarkedText(
-                composing as NSString,
+                styled,
                 selectionRange: NSRange(location: composing.count, length: 0),
                 replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
             )
-        } else if result.committed != nil {
+        } else {
             client.setMarkedText(
                 "" as NSString,
                 selectionRange: NSRange(location: 0, length: 0),

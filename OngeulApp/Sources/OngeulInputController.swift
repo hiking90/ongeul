@@ -29,11 +29,26 @@ class OngeulInputController: IMKInputController {
             return false
         }
 
+        if event.type == .flagsChanged {
+            return handleFlagsChanged(event, client: client)
+        }
+
         if event.type == .keyDown {
             return handleKeyDown(event, client: client)
         }
 
         return false
+    }
+
+    // MARK: - Private: CapsLock → 한/영 전환
+
+    private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
+        // CapsLock keyCode == 57
+        guard event.keyCode == 57 else { return false }
+
+        let result = engine.toggleMode()
+        applyResult(result, to: client)
+        return true
     }
 
     // MARK: - Private: Key Processing
@@ -46,13 +61,6 @@ class OngeulInputController: IMKInputController {
             let result = engine.flush()
             applyResult(result, to: client)
             return false
-        }
-
-        // 한/영 전환
-        if modifiers.contains(.capsLock) {
-            let result = engine.toggleMode()
-            applyResult(result, to: client)
-            return true
         }
 
         // Backspace

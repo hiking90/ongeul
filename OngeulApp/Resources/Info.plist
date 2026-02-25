@@ -52,6 +52,18 @@
                 <string>ko</string>
                 <key>TISInputSourceID</key>
                 <string>com.example.inputmethod.Ongeul.2-standard</string>
+                <key>tsInputModeMenuIconFileKey</key>
+                <string>icon_menubar.tiff</string>
+                <key>tsInputModeAlternateMenuIconFileKey</key>
+                <string>icon_ko.tiff</string>
+                <key>tsInputModePaletteIconFileKey</key>
+                <string>icon_ko.tiff</string>
+                <key>tsInputModeIsVisibleKey</key>
+                <true/>
+                <key>tsInputModeScriptKey</key>
+                <string>smKorean</string>
+                <key>tsInputModePrimaryInScriptKey</key>
+                <true/>
             </dict>
             <key>com.example.inputmethod.Ongeul.3-390</key>
             <dict>
@@ -59,6 +71,16 @@
                 <string>ko</string>
                 <key>TISInputSourceID</key>
                 <string>com.example.inputmethod.Ongeul.3-390</string>
+                <key>tsInputModeMenuIconFileKey</key>
+                <string>icon_menubar.tiff</string>
+                <key>tsInputModeAlternateMenuIconFileKey</key>
+                <string>icon_ko.tiff</string>
+                <key>tsInputModePaletteIconFileKey</key>
+                <string>icon_ko.tiff</string>
+                <key>tsInputModeIsVisibleKey</key>
+                <true/>
+                <key>tsInputModeScriptKey</key>
+                <string>smKorean</string>
             </dict>
             <key>com.example.inputmethod.Ongeul.3-final</key>
             <dict>
@@ -66,6 +88,16 @@
                 <string>ko</string>
                 <key>TISInputSourceID</key>
                 <string>com.example.inputmethod.Ongeul.3-final</string>
+                <key>tsInputModeMenuIconFileKey</key>
+                <string>icon_menubar.tiff</string>
+                <key>tsInputModeAlternateMenuIconFileKey</key>
+                <string>icon_ko.tiff</string>
+                <key>tsInputModePaletteIconFileKey</key>
+                <string>icon_ko.tiff</string>
+                <key>tsInputModeIsVisibleKey</key>
+                <true/>
+                <key>tsInputModeScriptKey</key>
+                <string>smKorean</string>
             </dict>
         </dict>
         <key>tsVisibleInputModeOrderedArrayKey</key>
@@ -84,6 +116,15 @@
 
     <key>tsInputMethodIconFileKey</key>
     <string>icon_ko.tiff</string>
+
+    <key>TISIconIsTemplate</key>
+    <true/>
+
+    <key>TISIconLabels</key>
+    <dict>
+        <key>Primary</key>
+        <string>온</string>
+    </dict>
 
 </dict>
 </plist>

@@ -1,6 +1,7 @@
 /// 엔진 내부 상태: 입력 모드, 레이아웃, 오토마타를 관리한다.
 use crate::automata::{self, Automata, AutomataResult};
 use crate::layout::KeyboardLayout;
+use crate::unicode;
 
 /// 입력 모드
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,6 +62,14 @@ impl EngineState {
                 return result;
             }
         };
+
+        // 비자모 문자 (숫자, 기호 등): 오토마타를 거치지 않고 직접 처리
+        if !unicode::is_korean_jamo(ch) {
+            let flush = automata.flush();
+            let mut committed = flush.committed.unwrap_or_default();
+            committed.push(ch);
+            return AutomataResult::handled(Some(committed), None);
+        }
 
         automata.process(ch, layout)
     }

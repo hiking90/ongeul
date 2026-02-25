@@ -329,6 +329,18 @@ class OngeulInputController: IMKInputController {
         }
 
         let ch = chars.first!
+        let modifiers = event.modifierFlags
+
+        // CapsLock 보정: 한글 모드에서 CapsLock이 Shift처럼 작동하지 않도록
+        if ch.isASCII && ch.isLetter {
+            let capsLock = modifiers.contains(.capsLock)
+            let shift = modifiers.contains(.shift)
+            if capsLock && !shift {
+                return String(ch).lowercased()   // CapsLock만 → 소문자 복원
+            } else if capsLock && shift {
+                return String(ch).uppercased()   // CapsLock+Shift → 대문자 복원
+            }
+        }
 
         if ch.isASCII && (ch.isLetter || ch.isNumber || ch.isPunctuation || ch.isSymbol) {
             return String(ch)

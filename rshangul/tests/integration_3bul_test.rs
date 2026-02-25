@@ -164,6 +164,59 @@ fn test_390_mode_toggle() {
     assert_eq!(result.committed, Some("k".to_string()));
 }
 
+// ── 세벌식 390 Shift 매핑 테스트 ──
+
+#[test]
+fn test_390_shift_number_standalone() {
+    // Shift 숫자: U→7, J→4, M→1
+    let engine = create_engine_390();
+    let (committed, composing) = process_keys(&engine, &["U"]);
+    assert_eq!(committed, "7");
+    assert_eq!(composing, None);
+
+    let (committed, composing) = process_keys(&engine, &["J"]);
+    assert_eq!(committed, "4");
+    assert_eq!(composing, None);
+
+    let (committed, composing) = process_keys(&engine, &["M"]);
+    assert_eq!(committed, "1");
+    assert_eq!(composing, None);
+}
+
+#[test]
+fn test_390_shift_number_flush_composing() {
+    // 조합 중 Shift 숫자 → 조합 확정 + 숫자 커밋
+    let engine = create_engine_390();
+    // ㄱ초(k) ㅏ중(f) → "가" 조합 중 → U(7) → "가7"
+    let (committed, composing) = process_keys(&engine, &["k", "f", "U"]);
+    assert_eq!(committed, "가7");
+    assert_eq!(composing, None);
+}
+
+#[test]
+fn test_390_shift_punctuation() {
+    // Shift 문장부호: T→;, G→/, B→!
+    let engine = create_engine_390();
+    let (committed, _) = process_keys(&engine, &["T"]);
+    assert_eq!(committed, ";");
+
+    let (committed, _) = process_keys(&engine, &["G"]);
+    assert_eq!(committed, "/");
+
+    let (committed, _) = process_keys(&engine, &["B"]);
+    assert_eq!(committed, "!");
+}
+
+#[test]
+fn test_390_non_jamo_then_new_composing() {
+    // 비자모 문자 후 새 조합 시작 검증
+    let engine = create_engine_390();
+    // U(7) → ㄱ초(k) ㅏ중(f) → 7 커밋 + "가" 조합
+    let (committed, composing) = process_keys(&engine, &["U", "k", "f"]);
+    assert_eq!(committed, "7");
+    assert_eq!(composing, Some("가".to_string()));
+}
+
 // ── 세벌식 최종 테스트 ──
 
 #[test]
@@ -229,4 +282,103 @@ fn test_final_complex_sentence() {
     let (committed, composing) = process_keys(&engine, &["j", "d", "2", "u", "f"]);
     assert_eq!(committed, "있");
     assert_eq!(composing, Some("다".to_string()));
+}
+
+// ── 세벌식 최종 Shift 매핑 테스트 ──
+
+#[test]
+fn test_final_non_shift_remap() {
+    // 비Shift 리매핑: ` → *, - → ), [ → (, ] → <, = → >, \ → :
+    let engine = create_engine_final();
+    let (committed, _) = process_keys(&engine, &["`"]);
+    assert_eq!(committed, "*");
+
+    let (committed, _) = process_keys(&engine, &["-"]);
+    assert_eq!(committed, ")");
+
+    let (committed, _) = process_keys(&engine, &["["]);
+    assert_eq!(committed, "(");
+
+    let (committed, _) = process_keys(&engine, &["]"]);
+    assert_eq!(committed, "<");
+
+    let (committed, _) = process_keys(&engine, &["="]);
+    assert_eq!(committed, ">");
+
+    let (committed, _) = process_keys(&engine, &["\\"]);
+    assert_eq!(committed, ":");
+}
+
+#[test]
+fn test_final_shift_number() {
+    // Shift 숫자: Y→5, U→6, H→0, J→1, :→4
+    let engine = create_engine_final();
+    let (committed, _) = process_keys(&engine, &["Y"]);
+    assert_eq!(committed, "5");
+
+    let (committed, _) = process_keys(&engine, &["U"]);
+    assert_eq!(committed, "6");
+
+    let (committed, _) = process_keys(&engine, &["H"]);
+    assert_eq!(committed, "0");
+
+    let (committed, _) = process_keys(&engine, &["J"]);
+    assert_eq!(committed, "1");
+
+    let (committed, _) = process_keys(&engine, &[":"]);
+    assert_eq!(committed, "4");
+}
+
+#[test]
+fn test_final_shift_number_flush_composing() {
+    // 조합 중 Shift 숫자 → 조합 확정 + 숫자 커밋
+    let engine = create_engine_final();
+    // ㄱ초(k) ㅏ중(f) → "가" 조합 중 → Y(5) → "가5"
+    let (committed, composing) = process_keys(&engine, &["k", "f", "Y"]);
+    assert_eq!(committed, "가5");
+    assert_eq!(composing, None);
+}
+
+#[test]
+fn test_final_shift_punctuation() {
+    // Shift 문장부호: B→?, N→-, M→", ?→!
+    let engine = create_engine_final();
+    let (committed, _) = process_keys(&engine, &["B"]);
+    assert_eq!(committed, "?");
+
+    let (committed, _) = process_keys(&engine, &["N"]);
+    assert_eq!(committed, "-");
+
+    let (committed, _) = process_keys(&engine, &["M"]);
+    assert_eq!(committed, "\"");
+
+    let (committed, _) = process_keys(&engine, &["?"]);
+    assert_eq!(committed, "!");
+}
+
+#[test]
+fn test_final_special_unicode_symbols() {
+    // 특수 유니코드: & → \u{201C} ("), * → \u{201D} ("), ~ → ※, " → ·
+    let engine = create_engine_final();
+    let (committed, _) = process_keys(&engine, &["&"]);
+    assert_eq!(committed, "\u{201C}");  // 왼쪽 큰따옴표
+
+    let (committed, _) = process_keys(&engine, &["*"]);
+    assert_eq!(committed, "\u{201D}");  // 오른쪽 큰따옴표
+
+    let (committed, _) = process_keys(&engine, &["~"]);
+    assert_eq!(committed, "※");
+
+    let (committed, _) = process_keys(&engine, &["\""]);
+    assert_eq!(committed, "\u{00B7}");  // 가운뎃점 ·
+}
+
+#[test]
+fn test_final_non_jamo_then_new_composing() {
+    // 비자모 문자 후 새 조합 시작 검증
+    let engine = create_engine_final();
+    // Y(5) → ㄱ초(k) ㅏ중(f) → 5 커밋 + "가" 조합
+    let (committed, composing) = process_keys(&engine, &["Y", "k", "f"]);
+    assert_eq!(committed, "5");
+    assert_eq!(composing, Some("가".to_string()));
 }

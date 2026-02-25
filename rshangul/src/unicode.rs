@@ -397,6 +397,12 @@ pub fn is_jongseong(ch: char) -> bool {
     (T_BASE + 1..T_BASE + T_COUNT).contains(&c)
 }
 
+/// 한글 자모인지 판별 (위치 자모 초/중/종성 + 호환 자모 자음/모음)
+pub fn is_korean_jamo(ch: char) -> bool {
+    is_choseong(ch) || is_jungseong(ch) || is_jongseong(ch)
+    || is_compat_consonant(ch) || is_compat_vowel(ch)
+}
+
 /// 위치 초성 → 초성 인덱스
 pub fn choseong_to_index(ch: char) -> Option<u32> {
     if is_choseong(ch) {

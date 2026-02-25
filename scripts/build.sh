@@ -91,7 +91,7 @@ cp "$RUST_CRATE/layouts/3-final.json5" "$APP_CONTENTS/Resources/"
 
 # 아이콘 복사
 cp "$PROJECT_ROOT/OngeulApp/Resources/icon_ko.tiff" "$APP_CONTENTS/Resources/"
-cp "$PROJECT_ROOT/OngeulApp/Resources/icon_en.tiff" "$APP_CONTENTS/Resources/"
+cp "$PROJECT_ROOT/OngeulApp/Resources/icon_menubar.tiff" "$APP_CONTENTS/Resources/"
 
 # 로컬라이제이션 파일 복사
 mkdir -p "$APP_CONTENTS/Resources/ko.lproj"

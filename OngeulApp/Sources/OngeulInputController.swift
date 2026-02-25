@@ -42,16 +42,16 @@ private final class ModeIndicator {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
 
-        let bg = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
-        bg.material = .hudWindow
-        bg.state = .active
+        let bg = NSView(frame: NSRect(origin: .zero, size: size))
         bg.wantsLayer = true
-        bg.layer?.cornerRadius = 3
+        bg.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+        bg.layer?.cornerRadius = 5
+        bg.layer?.masksToBounds = true
 
         label = NSTextField(labelWithString: "")
-        label.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        label.font = NSFont.systemFont(ofSize: 11, weight: .bold)
         label.alignment = .center
-        label.textColor = .labelColor
+        label.textColor = .white
         // 수직 가운데 정렬: 폰트 높이를 고려하여 y 오프셋 조정
         let labelHeight: CGFloat = 14
         label.frame = NSRect(

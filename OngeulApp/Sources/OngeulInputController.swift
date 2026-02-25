@@ -94,7 +94,7 @@ private final class ModeIndicator {
                cursorRect.size.width, cursorRect.size.height)
 
         hideTimer?.invalidate()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false) { [weak self] _ in
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: false) { [weak self] _ in
             guard let self else { return }
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.2
@@ -120,14 +120,94 @@ class OngeulInputController: IMKInputController {
     private static let imInputModeTag: Int = 0x696D696D // 'imim'
     private static let validLayoutIds: Set<String> = ["2-standard", "3-390", "3-final"]
 
+    // MARK: - Per-App Mode Store
+
+    // IMKit의 스레딩 정책이 문서화되어 있지 않으므로 방어적으로 동기화
+    private static var appModeStore: [String: InputMode] = [:]
+    private static let appModeStoreLock = NSLock()
+
+    private static func savedMode(for bundleId: String) -> InputMode? {
+        appModeStoreLock.lock()
+        defer { appModeStoreLock.unlock() }
+        return appModeStore[bundleId]
+    }
+
+    private static func saveMode(_ mode: InputMode, for bundleId: String) {
+        appModeStoreLock.lock()
+        defer { appModeStoreLock.unlock() }
+        appModeStore[bundleId] = mode
+    }
+
+    private static func removeMode(for bundleId: String) {
+        appModeStoreLock.lock()
+        defer { appModeStoreLock.unlock() }
+        appModeStore.removeValue(forKey: bundleId)
+    }
+
+    private static let setupNotifications: Void = {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  let bundleId = app.bundleIdentifier else { return }
+            removeMode(for: bundleId)
+            os_log("appTerminated: removed mode for %{public}@", log: log, type: .default, bundleId)
+        }
+    }()
+
+    private static var activeAppBundleId: String?   // 현재 활성 앱
+    private static var previousAppMode: InputMode?  // 직전 (다른) 앱의 모드
+    private var currentBundleId: String?
+
     // MARK: - Lifecycle
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        _ = Self.setupNotifications
         loadLayoutIfNeeded()
+
+        guard let bundleId = (sender as? (any IMKTextInput))?.bundleIdentifier() else { return }
+        currentBundleId = bundleId
+
+        let isAppSwitch = (bundleId != Self.activeAppBundleId)
+        if let savedMode = Self.savedMode(for: bundleId) {
+            engine.setMode(mode: savedMode)
+        }
+        let currentMode = engine.getMode()
+
+        if isAppSwitch {
+            os_log("activateServer: appSwitch to %{public}@ mode=%{public}@ (prev=%{public}@)",
+                   log: log, type: .default, bundleId,
+                   currentMode == .korean ? "korean" : "english",
+                   Self.previousAppMode.map { $0 == .korean ? "korean" : "english" } ?? "none")
+
+            if let prevMode = Self.previousAppMode, currentMode != prevMode,
+               let client = sender as? (any IMKTextInput) {
+                showModeIndicator(client: client)
+            }
+            Self.activeAppBundleId = bundleId
+        } else {
+            os_log("activateServer: fieldSwitch in %{public}@ mode=%{public}@",
+                   log: log, type: .default, bundleId,
+                   currentMode == .korean ? "korean" : "english")
+        }
     }
 
     override func deactivateServer(_ sender: Any!) {
+        if let bundleId = currentBundleId {
+            let mode = engine.getMode()
+            Self.saveMode(mode, for: bundleId)
+            // 현재 활성 앱이 떠날 때만 previousAppMode 갱신
+            // (같은 앱 내부 필드 전환의 deactivate는 무시)
+            if bundleId == Self.activeAppBundleId {
+                Self.previousAppMode = mode
+            }
+            os_log("deactivateServer: save mode=%{public}@ for bundleId=%{public}@",
+                   log: log, type: .default,
+                   mode == .korean ? "korean" : "english", bundleId)
+        }
         if let client = sender as? (any IMKTextInput) {
             let result = engine.flush()
             applyResult(result, to: client)
@@ -198,6 +278,9 @@ class OngeulInputController: IMKInputController {
                 let newMode = engine.getMode()
                 os_log("toggleMode → %{public}@", log: log, type: .default,
                        newMode == .korean ? "korean" : "english")
+                if let bundleId = currentBundleId {
+                    Self.saveMode(newMode, for: bundleId)
+                }
                 showModeIndicator(client: client)
                 return true
             }
@@ -214,10 +297,12 @@ class OngeulInputController: IMKInputController {
         var rect = cursorRect(from: client)
         let source: String
 
-        // firstRect가 (0,0,0,0) 또는 거의 0에 가까운 값을 반환하면 유효하지 않은 좌표로 판단
-        let isInvalid = rect.origin.x < 1 && rect.origin.y < 1
+        // 유효하지 않은 좌표 판단: (0,0,0,0) 또는 화면 밖 좌표 (Chrome 등에서 발생)
+        let isNearZero = rect.origin.x < 1 && rect.origin.y < 1
             && rect.size.width < 1 && rect.size.height < 1
-        if isInvalid {
+        let point = NSPoint(x: rect.origin.x, y: rect.origin.y)
+        let isOnScreen = NSScreen.screens.contains { $0.frame.contains(point) }
+        if isNearZero || !isOnScreen {
             let mouse = NSEvent.mouseLocation
             rect = NSRect(x: mouse.x, y: mouse.y, width: 0, height: 0)
             source = "mouse"

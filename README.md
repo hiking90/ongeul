@@ -3,7 +3,7 @@
 macOS용 한글 입력기 — 하나의 입력 소스로 한글과 영문을 모두 처리합니다.
 
 <p align="center">
-  <img src="design/ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
+  <img src="ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
 </p>
 
 ## 왜 Ongeul인가?

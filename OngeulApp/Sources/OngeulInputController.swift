@@ -106,19 +106,60 @@ private final class ModeIndicator {
     }
 }
 
+// MARK: - Radio Group Helper
+
+private final class RadioGroup: NSObject {
+    private var buttons: [NSButton] = []
+
+    func addButton(_ button: NSButton) {
+        button.target = self
+        button.action = #selector(selected(_:))
+        buttons.append(button)
+    }
+
+    @objc private func selected(_ sender: NSButton) {
+        for button in buttons where button !== sender {
+            button.state = .off
+        }
+    }
+}
+
 // MARK: - Input Controller
 
 @objc(OngeulInputController)
 class OngeulInputController: IMKInputController {
     private let engine = HangulEngine()
-    private var activeLayoutId: String = "2-standard"
     private var loadedLayoutId: String?
     private var rightCmdPending = false
 
-    private static let defaultLayoutId = "2-standard"
-    private static let modePrefix = "com.example.inputmethod.Ongeul."
-    private static let imInputModeTag: Int = 0x696D696D // 'imim'
-    private static let validLayoutIds: Set<String> = ["2-standard", "3-390", "3-final"]
+    // MARK: - Settings (UserDefaults)
+
+    private static let toggleKeyKey = "toggleKey"
+    private static let layoutIdKey = "layoutId"
+
+    enum ToggleKey: String {
+        case rightCommand = "rightCommand"
+        case shiftSpace = "shiftSpace"
+    }
+
+    private static var toggleKey: ToggleKey {
+        get {
+            let raw = UserDefaults.standard.string(forKey: toggleKeyKey) ?? "rightCommand"
+            return ToggleKey(rawValue: raw) ?? .rightCommand
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: toggleKeyKey)
+        }
+    }
+
+    private static var savedLayoutId: String {
+        get {
+            UserDefaults.standard.string(forKey: layoutIdKey) ?? "2-standard"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: layoutIdKey)
+        }
+    }
 
     // MARK: - Per-App Mode Store
 
@@ -222,28 +263,135 @@ class OngeulInputController: IMKInputController {
         super.deactivateServer(sender)
     }
 
-    // MARK: - Input Mode Switching (setValue:forTag:client:)
+    // MARK: - Menu
 
-    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
-        super.setValue(value, forTag: tag, client: sender)
+    override func menu() -> NSMenu! {
+        os_log("menu() called", log: log, type: .default)
+        let menu = NSMenu()
 
-        guard tag == Self.imInputModeTag,
-              let modeId = value as? String,
-              modeId.hasPrefix(Self.modePrefix) else { return }
+        let prefsItem = NSMenuItem(
+            title: NSLocalizedString("menu.preferences", comment: ""),
+            action: #selector(openPreferences(_:)),
+            keyEquivalent: "")
+        prefsItem.target = self
+        menu.addItem(prefsItem)
 
-        let layoutId = String(modeId.dropFirst(Self.modePrefix.count))
-        guard Self.validLayoutIds.contains(layoutId) else { return }
+        return menu
+    }
 
-        // 이전 조합 flush (레이아웃 변경 시)
-        if loadedLayoutId != nil && loadedLayoutId != layoutId {
-            let result = engine.flush()
-            if let client = self.client() {
-                applyResult(result, to: client)
+    @objc private func openPreferences(_ sender: Any?) {
+        os_log("openPreferences called", log: log, type: .default)
+        // 메뉴가 닫힌 후 다음 런루프에서 실행
+        DispatchQueue.main.async {
+            // IME 프로세스는 백그라운드 앱이므로 윈도우 표시를 위해 활성화 정책 변경
+            NSApp.setActivationPolicy(.accessory)
+            NSApp.activate(ignoringOtherApps: true)
+
+            let alert = NSAlert()
+            alert.messageText = NSLocalizedString("prefs.title", comment: "")
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: NSLocalizedString("prefs.ok", comment: ""))
+            alert.addButton(withTitle: NSLocalizedString("prefs.cancel", comment: ""))
+
+            // -- Accessory View: 라디오 버튼 그룹 (NSStackView 중첩) --
+            let container = NSStackView()
+            container.orientation = .vertical
+            container.alignment = .leading
+            container.spacing = 16
+
+            // 한/영 전환 키 그룹
+            let toggleLabel = NSTextField(labelWithString: NSLocalizedString("prefs.toggleKey.label", comment: ""))
+            toggleLabel.font = NSFont.boldSystemFont(ofSize: 13)
+
+            let toggleRadioGroup = RadioGroup()
+            let toggleRightCmd = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.toggleKey.rightCommand", comment: ""),
+                                          target: nil, action: nil)
+            let toggleShiftSpace = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.toggleKey.shiftSpace", comment: ""),
+                                             target: nil, action: nil)
+            toggleRadioGroup.addButton(toggleRightCmd)
+            toggleRadioGroup.addButton(toggleShiftSpace)
+
+            let toggleStack = NSStackView(views: [toggleRightCmd, toggleShiftSpace])
+            toggleStack.orientation = .vertical
+            toggleStack.alignment = .leading
+            toggleStack.spacing = 4
+
+            // 현재 설정 반영
+            if Self.toggleKey == .shiftSpace {
+                toggleShiftSpace.state = .on
+            } else {
+                toggleRightCmd.state = .on
             }
-        }
 
-        activeLayoutId = layoutId
-        loadLayoutIfNeeded()
+            let toggleSection = NSStackView(views: [toggleLabel, toggleStack])
+            toggleSection.orientation = .vertical
+            toggleSection.alignment = .leading
+            toggleSection.spacing = 6
+
+            // 한글 자판 그룹
+            let layoutLabel = NSTextField(labelWithString: NSLocalizedString("prefs.layout.label", comment: ""))
+            layoutLabel.font = NSFont.boldSystemFont(ofSize: 13)
+
+            let layoutRadioGroup = RadioGroup()
+            let layout2std = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.layout.2standard", comment: ""),
+                                       target: nil, action: nil)
+            let layout3_390 = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.layout.3_390", comment: ""),
+                                        target: nil, action: nil)
+            let layout3final = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.layout.3final", comment: ""),
+                                         target: nil, action: nil)
+            layoutRadioGroup.addButton(layout2std)
+            layoutRadioGroup.addButton(layout3_390)
+            layoutRadioGroup.addButton(layout3final)
+
+            let layoutStack = NSStackView(views: [layout2std, layout3_390, layout3final])
+            layoutStack.orientation = .vertical
+            layoutStack.alignment = .leading
+            layoutStack.spacing = 4
+
+            // 현재 설정 반영
+            switch Self.savedLayoutId {
+            case "3-390": layout3_390.state = .on
+            case "3-final": layout3final.state = .on
+            default: layout2std.state = .on
+            }
+
+            let layoutSection = NSStackView(views: [layoutLabel, layoutStack])
+            layoutSection.orientation = .vertical
+            layoutSection.alignment = .leading
+            layoutSection.spacing = 6
+
+            container.addArrangedSubview(toggleSection)
+            container.addArrangedSubview(layoutSection)
+
+            // accessoryView에 명시적 크기 설정
+            let size = container.fittingSize
+            container.frame = NSRect(origin: .zero, size: size)
+            alert.accessoryView = container
+
+            // RadioGroup은 runModal() 동안 action target으로 살아있어야 함
+            let response = withExtendedLifetime((toggleRadioGroup, layoutRadioGroup)) {
+                alert.runModal()
+            }
+            if response == .alertFirstButtonReturn {
+                // 확인 → 저장
+                Self.toggleKey = toggleShiftSpace.state == .on ? .shiftSpace : .rightCommand
+                let newLayout: String
+                if layout3_390.state == .on {
+                    newLayout = "3-390"
+                } else if layout3final.state == .on {
+                    newLayout = "3-final"
+                } else {
+                    newLayout = "2-standard"
+                }
+                Self.savedLayoutId = newLayout
+                os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@",
+                       log: log, type: .default,
+                       Self.toggleKey.rawValue, newLayout)
+            }
+
+            // 다이얼로그 닫힌 후 원래 정책으로 복원
+            NSApp.setActivationPolicy(.prohibited)
+        }
     }
 
     // MARK: - Key Event Handling
@@ -275,7 +423,7 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Right Command → 한/영 전환
 
     private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
-        if event.keyCode == KeyCode.rightCommand {
+        if event.keyCode == KeyCode.rightCommand, Self.toggleKey == .rightCommand {
             if event.modifierFlags.contains(.command) {
                 rightCmdPending = true
             } else if rightCmdPending {
@@ -310,9 +458,12 @@ class OngeulInputController: IMKInputController {
         let point = NSPoint(x: rect.origin.x, y: rect.origin.y)
         let isOnScreen = NSScreen.screens.contains { $0.frame.contains(point) }
         if isNearZero || !isOnScreen {
-            let mouse = NSEvent.mouseLocation
-            rect = NSRect(x: mouse.x, y: mouse.y, width: 0, height: 0)
-            source = "mouse"
+            // 화면 하단 중앙 고정 위치
+            let screen = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
+            let x = screen.midX
+            let y = screen.minY + 80
+            rect = NSRect(x: x, y: y, width: 0, height: 0)
+            source = "screenBottom"
         } else {
             source = "firstRect"
         }
@@ -373,6 +524,23 @@ class OngeulInputController: IMKInputController {
             let result = engine.flush()
             applyResult(result, to: client)
             return false
+        }
+
+        // Shift+Space → 한/영 전환 (shiftSpace 모드일 때, Space 처리보다 먼저)
+        if Self.toggleKey == .shiftSpace
+            && event.keyCode == KeyCode.space
+            && modifiers.contains(.shift)
+            && !modifiers.contains(.option) {
+            let result = engine.toggleMode()
+            applyResult(result, to: client)
+            let newMode = engine.getMode()
+            os_log("toggleMode (Shift+Space) → %{public}@", log: log, type: .default,
+                   newMode == .korean ? "korean" : "english")
+            if let bundleId = currentBundleId {
+                Self.saveMode(newMode, for: bundleId)
+            }
+            showModeIndicator(client: client)
+            return true
         }
 
         // Space → flush 후 시스템 위임
@@ -473,18 +641,30 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Layout Loading
 
     private func loadLayoutIfNeeded() {
-        guard loadedLayoutId != activeLayoutId else { return }
+        let desiredLayoutId = Self.savedLayoutId
+        guard loadedLayoutId != desiredLayoutId else { return }
 
-        guard let url = Bundle.main.url(forResource: activeLayoutId, withExtension: "json5"),
+        // 재로드 시 현재 조합 flush
+        if loadedLayoutId != nil {
+            if let client = self.client() {
+                let result = engine.flush()
+                applyResult(result, to: client)
+            }
+        }
+
+        guard let url = Bundle.main.url(forResource: desiredLayoutId, withExtension: "json5"),
               let json = try? String(contentsOf: url, encoding: .utf8) else {
-            os_log("Failed to load layout: %{public}@.json5", log: log, type: .error, activeLayoutId)
+            os_log("Failed to load layout: %{public}@.json5", log: log, type: .error, desiredLayoutId)
             return
         }
 
         do {
             try engine.loadLayout(json: json)
-            engine.setMode(mode: .korean)
-            loadedLayoutId = activeLayoutId
+            // 초기 로드일 때만 한글 모드로 설정, 재로드 시 현재 모드 유지
+            if loadedLayoutId == nil {
+                engine.setMode(mode: .korean)
+            }
+            loadedLayoutId = desiredLayoutId
         } catch {
             os_log("Failed to parse layout: %{public}@", log: log, type: .error, String(describing: error))
         }

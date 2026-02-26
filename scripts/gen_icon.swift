@@ -20,24 +20,24 @@ import AppKit
 
 // MARK: - 설정
 
-let fontSize: CGFloat = 14
-let cornerRadius: CGFloat = 3
-let strokeWidth: CGFloat = 1.5
+let fontSize: CGFloat = 16
+let cornerRadius: CGFloat = 3.5
+let strokeWidth: CGFloat = 1.0
+let strokeOpacity: CGFloat = 0.55
 
-// 테두리 있는 아이콘 (입력 소스 목록)
-let borderedWidth: CGFloat = 24
-let borderedHeight: CGFloat = 16
+// 테두리 있는 아이콘 (입력 소스 목록) — 22x22 정사각 캔버스 (SVG 기준)
+let borderedSize: CGFloat = 22
 
 // 텍스트만 아이콘 (메뉴바/팔레트) — 16x16 정사각 캔버스
 let textOnlySize: CGFloat = 16
 
 enum IconStyle {
-    case bordered    // 윤곽선 테두리 + 텍스트
-    case textOnly    // 텍스트만
+    case bordered(CGFloat)  // 윤곽선 테두리 + 텍스트 (캔버스 크기)
+    case textOnly           // 텍스트만
 }
 
 let icons: [(text: String, name: String, style: IconStyle)] = [
-    ("온", "icon_ko",      .bordered),
+    ("온", "icon_ko",      .textOnly),
     ("온", "icon_menubar", .textOnly),
 ]
 
@@ -48,9 +48,9 @@ func renderIcon(text: String, style: IconStyle, scale: Int) -> NSBitmapImageRep 
     let logicalH: CGFloat
 
     switch style {
-    case .bordered:
-        logicalW = borderedWidth
-        logicalH = borderedHeight
+    case .bordered(let size):
+        logicalW = size
+        logicalH = size
     case .textOnly:
         logicalW = textOnlySize
         logicalH = textOnlySize
@@ -81,20 +81,21 @@ func renderIcon(text: String, style: IconStyle, scale: Int) -> NSBitmapImageRep 
     NSColor.clear.set()
     NSRect(x: 0, y: 0, width: logicalW, height: logicalH).fill()
 
-    if style == .bordered {
-        // 둥근 직사각형 윤곽선 (stroke only)
+    if case .bordered = style {
+        // 둥근 정사각형 윤곽선 (stroke only, SVG 기준 opacity 적용)
         let inset = strokeWidth / 2
         let bgRect = NSRect(x: inset, y: inset,
                             width: logicalW - strokeWidth,
                             height: logicalH - strokeWidth)
         let path = NSBezierPath(roundedRect: bgRect, xRadius: cornerRadius, yRadius: cornerRadius)
         path.lineWidth = strokeWidth
-        NSColor.black.setStroke()
+        NSColor.black.withAlphaComponent(strokeOpacity).setStroke()
         path.stroke()
     }
 
-    // 텍스트
-    let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+    // 텍스트 — EBS Hunminjeongeum SB 우선, 미설치 시 시스템 폰트 fallback
+    let font: NSFont = NSFont(name: "EBS Hunminjeongeum SB", size: fontSize)
+        ?? NSFont.systemFont(ofSize: fontSize, weight: .medium)
     let attrs: [NSAttributedString.Key: Any] = [
         .font: font,
         .foregroundColor: NSColor.black,
@@ -180,7 +181,8 @@ for icon in icons {
 
     let w = rep1x.pixelsWide
     let h = rep1x.pixelsHigh
-    let label = icon.style == .bordered ? "bordered" : "text-only"
+    let label: String
+    if case .bordered = icon.style { label = "bordered" } else { label = "text-only" }
     print("  \(icon.name).tiff (\(icon.text), \(label)) — \(w)x\(h)@1x, \(w*2)x\(h*2)@2x")
 }
 

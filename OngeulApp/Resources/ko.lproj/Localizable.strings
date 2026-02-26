@@ -1,0 +1,22 @@
+/* ModeIndicator */
+"mode.korean" = "한";
+"mode.english" = "A";
+
+/* Menu */
+"menu.preferences" = "설정...";
+
+/* Preferences Dialog */
+"prefs.title" = "Ongeul 설정";
+"prefs.ok" = "확인";
+"prefs.cancel" = "취소";
+
+/* Toggle Key */
+"prefs.toggleKey.label" = "한/영 전환 키:";
+"prefs.toggleKey.rightCommand" = "오른쪽 Command";
+"prefs.toggleKey.shiftSpace" = "Shift + Space";
+
+/* Layout */
+"prefs.layout.label" = "한글 자판:";
+"prefs.layout.2standard" = "두벌식 표준";
+"prefs.layout.3_390" = "세벌식 390";
+"prefs.layout.3final" = "세벌식 최종";

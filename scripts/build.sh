@@ -94,9 +94,11 @@ cp "$PROJECT_ROOT/OngeulApp/Resources/icon_ko.tiff" "$APP_CONTENTS/Resources/"
 cp "$PROJECT_ROOT/OngeulApp/Resources/icon_menubar.tiff" "$APP_CONTENTS/Resources/"
 
 # 로컬라이제이션 파일 복사
-mkdir -p "$APP_CONTENTS/Resources/ko.lproj"
-cp "$PROJECT_ROOT/OngeulApp/Resources/ko.lproj/InfoPlist.strings" \
-   "$APP_CONTENTS/Resources/ko.lproj/"
+for lang in ko en; do
+    mkdir -p "$APP_CONTENTS/Resources/${lang}.lproj"
+    cp "$PROJECT_ROOT/OngeulApp/Resources/${lang}.lproj/"*.strings \
+       "$APP_CONTENTS/Resources/${lang}.lproj/"
+done
 
 echo "    Bundle: $APP_BUNDLE"
 echo "    Resources:"

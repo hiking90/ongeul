@@ -1,0 +1,22 @@
+/* ModeIndicator */
+"mode.korean" = "Ko";
+"mode.english" = "A";
+
+/* Menu */
+"menu.preferences" = "Preferences...";
+
+/* Preferences Dialog */
+"prefs.title" = "Ongeul Preferences";
+"prefs.ok" = "OK";
+"prefs.cancel" = "Cancel";
+
+/* Toggle Key */
+"prefs.toggleKey.label" = "Toggle Key:";
+"prefs.toggleKey.rightCommand" = "Right Command";
+"prefs.toggleKey.shiftSpace" = "Shift + Space";
+
+/* Layout */
+"prefs.layout.label" = "Korean Layout:";
+"prefs.layout.2standard" = "2-Set Standard";
+"prefs.layout.3_390" = "3-Set 390";
+"prefs.layout.3final" = "3-Set Final";

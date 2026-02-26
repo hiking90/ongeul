@@ -69,10 +69,8 @@ private final class ModeIndicator {
         label.stringValue = mode == .korean ? "한" : "A"
 
         // 커서 아래쪽에 표시하되, 화면 밖이면 위쪽에 표시
-        // 다음 줄 텍스트와 겹치지 않도록 한 줄 높이만큼 건너뛰기
         let gap: CGFloat = 4
-        let lineHeight = max(cursorRect.size.height, 14)
-        let belowY = cursorRect.origin.y - lineHeight - panel.frame.height - gap
+        let belowY = cursorRect.origin.y - panel.frame.height - gap
         let aboveY = cursorRect.origin.y + cursorRect.size.height + gap
 
         let screen = NSScreen.main?.visibleFrame ?? .zero

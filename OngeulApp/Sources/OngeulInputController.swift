@@ -603,7 +603,7 @@ class OngeulInputController: IMKInputController {
         let modifiers = event.modifierFlags
 
         // CapsLock 보정: 한글 모드에서 CapsLock이 Shift처럼 작동하지 않도록
-        if ch.isASCII && ch.isLetter {
+        if engine.getMode() == .korean && ch.isASCII && ch.isLetter {
             let capsLock = modifiers.contains(.capsLock)
             let shift = modifiers.contains(.shift)
             if capsLock && !shift {

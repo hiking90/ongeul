@@ -195,6 +195,13 @@ class OngeulInputController: IMKInputController {
         }
     }
 
+    override func commitComposition(_ sender: Any!) {
+        if let client = sender as? (any IMKTextInput) {
+            let result = engine.flush()
+            applyResult(result, to: client)
+        }
+    }
+
     override func deactivateServer(_ sender: Any!) {
         if let bundleId = currentBundleId {
             let mode = engine.getMode()

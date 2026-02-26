@@ -53,7 +53,16 @@ mkdir -p "$APP_CONTENTS/MacOS"
 
 SDK_PATH=$(xcrun --show-sdk-path)
 
-HEADER="$GENERATED_DIR/RshangulFFI.h"
+BRIDGING_HEADER="$PROJECT_ROOT/OngeulApp/Sources/Ongeul-Bridging-Header.h"
+OBJC_SOURCES_DIR="$PROJECT_ROOT/OngeulApp/Sources"
+
+# Obj-C 소스 컴파일
+clang -c \
+    -target arm64-apple-macos14.0 \
+    -isysroot "$SDK_PATH" \
+    -fobjc-arc \
+    "$OBJC_SOURCES_DIR/ObjCExceptionCatcher.m" \
+    -o "$BUILD_DIR/ObjCExceptionCatcher.o"
 
 # Swift 소스 파일 수집
 SWIFT_SOURCES=(
@@ -65,11 +74,12 @@ SWIFT_SOURCES=(
 swiftc \
     -target arm64-apple-macos14.0 \
     -sdk "$SDK_PATH" \
-    -import-objc-header "$HEADER" \
+    -import-objc-header "$BRIDGING_HEADER" \
     -L "$LIB_DIR" -lrshangul \
     -framework Cocoa -framework InputMethodKit \
     -module-name Ongeul \
     "${SWIFT_SOURCES[@]}" \
+    "$BUILD_DIR/ObjCExceptionCatcher.o" \
     -o "$APP_CONTENTS/MacOS/Ongeul"
 
 echo "    Binary: $APP_CONTENTS/MacOS/Ongeul"

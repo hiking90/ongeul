@@ -454,51 +454,60 @@ class OngeulInputController: IMKInputController {
 
     private func showModeIndicator(client: any IMKTextInput) {
         var rect = cursorRect(from: client)
-        let source: String
 
-        // 유효하지 않은 좌표 판단: (0,0,0,0) 또는 화면 밖 좌표 (Chrome 등에서 발생)
-        let isNearZero = rect.origin.x < 1 && rect.origin.y < 1
-            && rect.size.width < 1 && rect.size.height < 1
+        // cursorRect가 .zero를 반환했거나, 화면 밖 좌표인 경우 → 화면 하단 중앙
         let point = NSPoint(x: rect.origin.x, y: rect.origin.y)
         let isOnScreen = NSScreen.screens.contains { $0.frame.contains(point) }
-        if isNearZero || !isOnScreen {
-            // 화면 하단 중앙 고정 위치
-            let screen = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
-            let x = screen.midX
-            let y = screen.minY + 80
-            rect = NSRect(x: x, y: y, width: 0, height: 0)
-            source = "screenBottom"
-        } else {
-            source = "firstRect"
+        if rect == .zero || !isOnScreen {
+            let screen = NSScreen.main?.visibleFrame
+                ?? NSScreen.screens.first?.visibleFrame ?? .zero
+            rect = NSRect(x: screen.midX, y: screen.minY + 80, width: 0, height: 16)
         }
-
-        os_log("showModeIndicator: source=%{public}@ rect=(%.0f, %.0f, %.0f, %.0f)",
-               log: log, type: .default,
-               source, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height)
 
         ModeIndicator.shared.show(mode: engine.getMode(), cursorRect: rect)
     }
 
     private func cursorRect(from client: any IMKTextInput) -> NSRect {
-        var selRange = client.selectedRange()
-        os_log("cursorRect: selectedRange=(%d, %d)", log: log, type: .default,
-               selRange.location, selRange.length)
-        if selRange.location == NSNotFound {
-            selRange = NSRange(location: 0, length: 0)
+        var lineHeightRect = NSRect.zero
+        let selRange = client.selectedRange()
+        let index = selRange.location != NSNotFound ? selRange.location : 0
+        os_log("cursorRect: selectedRange=(%d, %d) index=%d",
+               log: log, type: .debug, selRange.location, selRange.length, index)
+
+        let success = ObjCExceptionCatcher.performSafely {
+            client.attributes(forCharacterIndex: index, lineHeightRectangle: &lineHeightRect)
         }
-        var actualRange = NSRange()
-        let rect = client.firstRect(
-            forCharacterRange: selRange,
-            actualRange: &actualRange
-        )
-        os_log("cursorRect: firstRect=(%.0f, %.0f, %.0f, %.0f) actualRange=(%d, %d)",
-               log: log, type: .default,
-               rect.origin.x, rect.origin.y, rect.size.width, rect.size.height,
-               actualRange.location, actualRange.length)
-        guard rect.origin.x.isFinite && rect.origin.y.isFinite else {
-            return .zero
+
+        if success, isValidRect(lineHeightRect) {
+            os_log("cursorRect: rect=(%.0f, %.0f, %.0f, %.0f)",
+                   log: log, type: .debug,
+                   lineHeightRect.origin.x, lineHeightRect.origin.y,
+                   lineHeightRect.size.width, lineHeightRect.size.height)
+            return lineHeightRect
         }
-        return rect
+
+        // index 0으로 재시도 (OpenVanilla 방식)
+        if index != 0 {
+            let retrySuccess = ObjCExceptionCatcher.performSafely {
+                client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineHeightRect)
+            }
+            if retrySuccess, isValidRect(lineHeightRect) {
+                os_log("cursorRect: fallback index=0 rect=(%.0f, %.0f, %.0f, %.0f)",
+                       log: log, type: .debug,
+                       lineHeightRect.origin.x, lineHeightRect.origin.y,
+                       lineHeightRect.size.width, lineHeightRect.size.height)
+                return lineHeightRect
+            }
+        }
+
+        os_log("cursorRect: failed, returning .zero", log: log, type: .debug)
+        return .zero
+    }
+
+    private func isValidRect(_ rect: NSRect) -> Bool {
+        guard rect.origin.x.isFinite && rect.origin.y.isFinite else { return false }
+        if rect.size.height > 0 { return true }
+        return false
     }
 
     // MARK: - Private: Key Processing

@@ -1,4 +1,6 @@
-"com.example.inputmethod.Ongeul" = "온글";
-"com.example.inputmethod.Ongeul.2-standard" = "두벌식 표준";
-"com.example.inputmethod.Ongeul.3-390" = "세벌식 390";
-"com.example.inputmethod.Ongeul.3-final" = "세벌식 최종";
+"CFBundleName" = "온글";
+"CFBundleDisplayName" = "온글";
+"io.github.hiking90.inputmethod.Ongeul" = "온글";
+"io.github.hiking90.inputmethod.Ongeul.2-standard" = "두벌식 표준";
+"io.github.hiking90.inputmethod.Ongeul.3-390" = "세벌식 390";
+"io.github.hiking90.inputmethod.Ongeul.3-final" = "세벌식 최종";

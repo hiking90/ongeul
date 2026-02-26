@@ -2,7 +2,7 @@ import Cocoa
 import InputMethodKit
 import os.log
 
-private let log = OSLog(subsystem: "com.example.inputmethod.Ongeul", category: "input")
+private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", category: "input")
 
 private enum KeyCode {
     static let enter: UInt16      = 36
@@ -290,6 +290,10 @@ class OngeulInputController: IMKInputController {
             let alert = NSAlert()
             alert.messageText = NSLocalizedString("prefs.title", comment: "")
             alert.alertStyle = .informational
+            if let iconPath = Bundle.main.pathForImageResource("AppIcon"),
+               let icon = NSImage(contentsOfFile: iconPath) {
+                alert.icon = icon
+            }
             alert.addButton(withTitle: NSLocalizedString("prefs.ok", comment: ""))
             alert.addButton(withTitle: NSLocalizedString("prefs.cancel", comment: ""))
 

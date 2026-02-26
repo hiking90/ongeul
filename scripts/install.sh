@@ -33,4 +33,4 @@ echo "  3. (권장) ABC 등 다른 입력 소스를 제거하고 Ongeul만 사�
 echo "  4. (권장) 'Caps Lock으로 ABC 입력 소스 전환' 옵션 비활성화"
 echo ""
 echo "로그 확인:"
-echo "  log stream --predicate 'subsystem == \"com.example.inputmethod.Ongeul\"'"
+echo "  log stream --predicate 'subsystem == \"io.github.hiking90.inputmethod.Ongeul\"'"

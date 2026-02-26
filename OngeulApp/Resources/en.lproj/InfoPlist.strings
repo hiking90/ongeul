@@ -1,4 +1,6 @@
-"com.example.inputmethod.Ongeul" = "Ongeul";
-"com.example.inputmethod.Ongeul.2-standard" = "2-Set Korean";
-"com.example.inputmethod.Ongeul.3-390" = "3-Set Korean (390)";
-"com.example.inputmethod.Ongeul.3-final" = "3-Set Korean (Final)";
+"CFBundleName" = "Ongeul";
+"CFBundleDisplayName" = "Ongeul";
+"io.github.hiking90.inputmethod.Ongeul" = "Ongeul";
+"io.github.hiking90.inputmethod.Ongeul.2-standard" = "2-Set Korean";
+"io.github.hiking90.inputmethod.Ongeul.3-390" = "3-Set Korean (390)";
+"io.github.hiking90.inputmethod.Ongeul.3-final" = "3-Set Korean (Final)";

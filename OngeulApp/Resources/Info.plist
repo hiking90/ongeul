@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.example.inputmethod.Ongeul</string>
+    <string>io.github.hiking90.inputmethod.Ongeul</string>
 
     <key>CFBundleName</key>
     <string>Ongeul</string>
@@ -21,6 +21,9 @@
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
 
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+
     <key>CFBundlePackageType</key>
     <string>APPL</string>
 
@@ -34,7 +37,7 @@
     <true/>
 
     <key>InputMethodConnectionName</key>
-    <string>com.example.inputmethod.Ongeul_Connection</string>
+    <string>io.github.hiking90.inputmethod.Ongeul_Connection</string>
 
     <key>InputMethodServerControllerClass</key>
     <string>Ongeul.OngeulInputController</string>
@@ -46,12 +49,12 @@
     <dict>
         <key>tsInputModeListKey</key>
         <dict>
-            <key>com.example.inputmethod.Ongeul</key>
+            <key>io.github.hiking90.inputmethod.Ongeul</key>
             <dict>
                 <key>TISIntendedLanguage</key>
                 <string>ko</string>
                 <key>TISInputSourceID</key>
-                <string>com.example.inputmethod.Ongeul</string>
+                <string>io.github.hiking90.inputmethod.Ongeul</string>
                 <key>tsInputModeMenuIconFileKey</key>
                 <string>icon_menubar.tiff</string>
                 <key>tsInputModeAlternateMenuIconFileKey</key>
@@ -70,7 +73,7 @@
         </dict>
         <key>tsVisibleInputModeOrderedArrayKey</key>
         <array>
-            <string>com.example.inputmethod.Ongeul</string>
+            <string>io.github.hiking90.inputmethod.Ongeul</string>
         </array>
     </dict>
 

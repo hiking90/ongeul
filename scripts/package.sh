@@ -8,9 +8,9 @@ UNIVERSAL_APP="$UNIVERSAL_DIR/Ongeul.app"
 PKG_SCRIPTS="$PROJECT_ROOT/scripts/pkg"
 PKG_RESOURCES="$PKG_SCRIPTS/resources"
 
-# Info.plist에서 버전 추출
-VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
-    "$PROJECT_ROOT/OngeulApp/Resources/Info.plist")
+# 인자가 있으면 사용, 없으면 Info.plist에서 추출
+VERSION="${1:-$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+    "$PROJECT_ROOT/OngeulApp/Resources/Info.plist")}"
 
 echo "=== Ongeul $VERSION Universal Package Build ==="
 echo ""
@@ -55,6 +55,10 @@ lipo -create \
 
 echo "    Universal binary:"
 file "$UNIVERSAL_APP/Contents/MacOS/Ongeul"
+
+# 앱 번들 Info.plist에 버전 반영
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
+    "$UNIVERSAL_APP/Contents/Info.plist"
 
 # ── 4. 코드 서명 (ad-hoc) ──
 

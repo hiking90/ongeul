@@ -14,7 +14,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - run: ./scripts/package.sh
+      - run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./scripts/package.sh "$VERSION"
 
       - name: Create Release
         env:

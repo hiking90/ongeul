@@ -169,6 +169,12 @@ private final class LockOverlay {
             })
         }
     }
+
+    func hide() {
+        hideTimer?.invalidate()
+        hideTimer = nil
+        panel.orderOut(nil)
+    }
 }
 
 // MARK: - Radio Group Helper
@@ -287,6 +293,9 @@ class OngeulInputController: IMKInputController {
         currentBundleId = bundleId
 
         let isAppSwitch = (bundleId != Self.activeAppBundleId)
+        if isAppSwitch {
+            LockOverlay.shared.hide()
+        }
 
         // English Lock 우선 체크
         if Self.isEnglishLocked(bundleId) {

@@ -207,6 +207,21 @@ class OngeulInputController: IMKInputController {
     private var fourKeysSeen: Set<UInt16> = []
     private var allFourReached = false
 
+    // Chromium-based apps auto-commit marked text on focus loss,
+    // so deactivateServer must skip insertText to avoid duplication.
+    private static let chromiumBundlePrefixes = [
+        "com.microsoft.VSCode",
+        "com.google.Chrome",
+        "com.brave.Browser",
+        "com.microsoft.edgemac",
+        "com.operasoftware.Opera",
+    ]
+
+    private var clientAutoCommitsMarkedText: Bool {
+        guard let bundleId = currentBundleId else { return false }
+        return Self.chromiumBundlePrefixes.contains { bundleId.hasPrefix($0) }
+    }
+
     // MARK: - Settings (UserDefaults)
 
     private static let toggleKeyKey = "toggleKey"
@@ -342,10 +357,9 @@ class OngeulInputController: IMKInputController {
     }
 
     override func commitComposition(_ sender: Any!) {
-        if let client = sender as? (any IMKTextInput) {
-            let result = engine.flush()
-            applyResult(result, to: client)
-        }
+        guard let client = sender as? (any IMKTextInput) else { return }
+        let result = engine.flush()
+        applyResult(result, to: client)
     }
 
     override func deactivateServer(_ sender: Any!) {
@@ -358,7 +372,12 @@ class OngeulInputController: IMKInputController {
         }
         if let client = sender as? (any IMKTextInput) {
             let result = engine.flush()
-            applyResult(result, to: client)
+            // Chromium-based apps (VSCode, Chrome, etc.) auto-commit marked text
+            // on focus loss. Calling insertText here would duplicate the text.
+            // Native Cocoa apps do NOT auto-commit, so we must insert explicitly.
+            if result.committed != nil && !clientAutoCommitsMarkedText {
+                applyResult(result, to: client)
+            }
         }
         super.deactivateServer(sender)
     }

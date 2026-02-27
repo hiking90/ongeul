@@ -20,8 +20,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          PKG_FILE=$(ls build/Ongeul-*.pkg)
+          VERSION=$(basename "$PKG_FILE" | sed 's/Ongeul-//;s/\.pkg//')
           gh release create "$GITHUB_REF_NAME" \
-            "build/Ongeul-${VERSION}.pkg" \
+            "$PKG_FILE" \
             --title "Ongeul ${VERSION}" \
             --generate-notes

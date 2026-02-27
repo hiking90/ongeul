@@ -5,32 +5,36 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUST_CRATE="$PROJECT_ROOT/rshangul"
 TARGET_DIR="$PROJECT_ROOT/target"
 GENERATED_DIR="$PROJECT_ROOT/OngeulApp/Generated"
-BUILD_DIR="$PROJECT_ROOT/build"
+
+# ── 타겟 설정 ──
+
+TARGET="${1:-aarch64-apple-darwin}"
+
+# 타겟 → clang/swiftc 타겟 매핑
+case "$TARGET" in
+    aarch64-apple-darwin) APPLE_TARGET="arm64-apple-macos14.0" ;;
+    x86_64-apple-darwin)  APPLE_TARGET="x86_64-apple-macos14.0" ;;
+    *)
+        echo "Error: Unsupported target '$TARGET'"
+        echo "Supported targets: aarch64-apple-darwin, x86_64-apple-darwin"
+        exit 1
+        ;;
+esac
+
+BUILD_DIR="$PROJECT_ROOT/build/$TARGET"
 APP_BUNDLE="$BUILD_DIR/Ongeul.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
+LIB_DIR="$TARGET_DIR/$TARGET/release"
+
+echo "=== Building Ongeul for $TARGET ==="
 
 # ── 1. Rust 빌드 → librshangul.a ──
 
 echo "=== [1/5] Building rshangul (Rust) ==="
 
-LIB_DIR="$TARGET_DIR/universal/release"
-mkdir -p "$LIB_DIR"
+cargo build --manifest-path "$RUST_CRATE/Cargo.toml" --release --target "$TARGET"
 
-cargo build --manifest-path "$RUST_CRATE/Cargo.toml" --release --target aarch64-apple-darwin
-
-# x86_64 타겟이 설치되어 있으면 universal binary 생성
-if rustup target list --installed | grep -q x86_64-apple-darwin; then
-    cargo build --manifest-path "$RUST_CRATE/Cargo.toml" --release --target x86_64-apple-darwin
-    lipo -create \
-        "$TARGET_DIR/aarch64-apple-darwin/release/librshangul.a" \
-        "$TARGET_DIR/x86_64-apple-darwin/release/librshangul.a" \
-        -output "$LIB_DIR/librshangul.a"
-    echo "    Universal library: $LIB_DIR/librshangul.a"
-else
-    cp "$TARGET_DIR/aarch64-apple-darwin/release/librshangul.a" "$LIB_DIR/librshangul.a"
-    echo "    aarch64-only library: $LIB_DIR/librshangul.a"
-    echo "    (Install x86_64-apple-darwin target for universal binary)"
-fi
+echo "    Library: $LIB_DIR/librshangul.a"
 
 # ── 2. UniFFI Swift 바인딩 생성 ──
 
@@ -39,7 +43,7 @@ echo "=== [2/5] Generating Swift bindings ==="
 mkdir -p "$GENERATED_DIR"
 cargo run --manifest-path "$RUST_CRATE/Cargo.toml" \
     --bin uniffi-bindgen generate \
-    --library "$TARGET_DIR/aarch64-apple-darwin/release/librshangul.dylib" \
+    --library "$LIB_DIR/librshangul.dylib" \
     --language swift \
     --out-dir "$GENERATED_DIR"
 
@@ -58,7 +62,7 @@ OBJC_SOURCES_DIR="$PROJECT_ROOT/OngeulApp/Sources"
 
 # Obj-C 소스 컴파일
 clang -c \
-    -target arm64-apple-macos14.0 \
+    -target "$APPLE_TARGET" \
     -isysroot "$SDK_PATH" \
     -fobjc-arc \
     "$OBJC_SOURCES_DIR/ObjCExceptionCatcher.m" \
@@ -72,7 +76,7 @@ SWIFT_SOURCES=(
 )
 
 swiftc \
-    -target arm64-apple-macos14.0 \
+    -target "$APPLE_TARGET" \
     -sdk "$SDK_PATH" \
     -import-objc-header "$BRIDGING_HEADER" \
     -L "$LIB_DIR" -lrshangul \

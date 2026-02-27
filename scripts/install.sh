@@ -2,8 +2,10 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP_BUNDLE="$PROJECT_ROOT/build/Ongeul.app"
+DEFAULT_TARGET="aarch64-apple-darwin"
+APP_BUNDLE="$PROJECT_ROOT/build/$DEFAULT_TARGET/Ongeul.app"
 INSTALL_DIR="$HOME/Library/Input Methods"
+SYSTEM_INSTALL="/Library/Input Methods/Ongeul.app"
 
 # ── 1. 빌드 ──
 
@@ -17,7 +19,18 @@ echo "=== Stopping existing Ongeul process ==="
 killall Ongeul 2>/dev/null || true
 sleep 1
 
-# ── 3. 기존 앱 제거 후 복사 ──
+# ── 3. 반대쪽 설치 정리 ──
+
+if [ -d "$SYSTEM_INSTALL" ]; then
+    echo "=== Removing system-wide installation ==="
+    if sudo rm -rf "$SYSTEM_INSTALL"; then
+        echo "    Removed: $SYSTEM_INSTALL"
+    else
+        echo "    Warning: Could not remove $SYSTEM_INSTALL (requires admin privileges)"
+    fi
+fi
+
+# ── 4. 기존 앱 제거 후 복사 ──
 
 echo "=== Installing to $INSTALL_DIR ==="
 mkdir -p "$INSTALL_DIR"

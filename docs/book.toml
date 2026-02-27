@@ -1,0 +1,13 @@
+[book]
+title = "Ongeul 한글 입력기"
+authors = ["hiking90"]
+language = "ko"
+src = "src"
+
+[build]
+build-dir = "../build/book"
+
+[output.html]
+default-theme = "light"
+git-repository-url = "https://github.com/hiking90/ongeul"
+edit-url-template = "https://github.com/hiking90/ongeul/edit/main/docs/src/{path}"

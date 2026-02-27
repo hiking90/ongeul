@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Ongeul 한글 입력기</title>
+    <welcome file="welcome.html" />
+    <conclusion file="conclusion.html" />
+    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64" />
+
+    <!-- macOS 14.0 (Sonoma) 이상 필수 -->
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="14.0" />
+        </allowed-os-versions>
+    </volume-check>
+
+    <!-- 설치 도메인: 시스템 전체 또는 현재 사용자 선택 가능 -->
+    <domains enable_currentUserHome="true" enable_localSystem="true" />
+
+    <choices-outline>
+        <line choice="default">
+            <line choice="io.github.hiking90.inputmethod.Ongeul" />
+        </line>
+    </choices-outline>
+
+    <choice id="default" />
+
+    <choice id="io.github.hiking90.inputmethod.Ongeul"
+            visible="false"
+            title="Ongeul">
+        <pkg-ref id="io.github.hiking90.inputmethod.Ongeul" />
+    </choice>
+
+    <pkg-ref id="io.github.hiking90.inputmethod.Ongeul"
+             version="0"
+             onConclusion="none">Ongeul-component.pkg</pkg-ref>
+</installer-gui-script>

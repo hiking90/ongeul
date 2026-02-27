@@ -1,0 +1,19 @@
+#!/bin/bash
+# Ongeul .pkg preinstall script
+# Installer passes $2 = install location
+
+killall Ongeul 2>/dev/null || true
+sleep 1
+
+INSTALL_LOCATION="$2"
+USER_HOME=$( dscl . -read /Users/"$USER" NFSHomeDirectory | awk '{print $2}' )
+
+if [[ "$INSTALL_LOCATION" == /Library/* ]]; then
+    # 시스템에 설치 → 사용자 경로 정리
+    rm -rf "$USER_HOME/Library/Input Methods/Ongeul.app"
+else
+    # 사용자에 설치 → 시스템 경로 정리
+    rm -rf "/Library/Input Methods/Ongeul.app"
+fi
+
+exit 0

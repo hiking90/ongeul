@@ -310,10 +310,15 @@ class OngeulInputController: IMKInputController {
                        log: log, type: .default, bundleId)
             }
         } else {
+            let currentMode: InputMode
             if let savedMode = Self.savedMode(for: bundleId) {
                 engine.setMode(mode: savedMode)
+                currentMode = savedMode
+            } else {
+                // 최초 진입 앱: 영문 모드로 시작
+                engine.setMode(mode: .english)
+                currentMode = .english
             }
-            let currentMode = engine.getMode()
             Self.saveMode(currentMode, for: bundleId)
 
             if isAppSwitch {
@@ -863,9 +868,9 @@ class OngeulInputController: IMKInputController {
 
         do {
             try engine.loadLayout(json: json)
-            // 초기 로드일 때만 한글 모드로 설정, 재로드 시 현재 모드 유지
+            // 초기 로드일 때만 영문 모드로 설정, 재로드 시 현재 모드 유지
             if loadedLayoutId == nil {
-                engine.setMode(mode: .korean)
+                engine.setMode(mode: .english)
             }
             loadedLayoutId = desiredLayoutId
         } catch {

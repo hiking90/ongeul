@@ -6,7 +6,7 @@
 
 **4키 동시 입력**으로 영문 잠금을 토글합니다:
 
-- **좌측 Command** + **우측 Command** + **좌측 Option** + **우측 Option**
+- **좌측 Option** + **좌측 Command** + **우측 Command** + **우측 Option**
 
 네 키를 모두 누르고 있으면 잠금이 토글됩니다.
 

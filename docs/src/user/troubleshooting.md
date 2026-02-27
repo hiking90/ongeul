@@ -31,16 +31,3 @@
 log stream --predicate 'subsystem == "io.github.hiking90.inputmethod.Ongeul"'
 ```
 
-## .pkg와 install.sh 중복 설치
-
-`.pkg`로 설치하면 `/Library/Input Methods/`에, `install.sh`로 설치하면 `~/Library/Input Methods/`에 설치됩니다. 두 곳에 모두 설치된 경우 충돌이 발생할 수 있습니다.
-
-**해결**: 한쪽의 `Ongeul.app`을 삭제하고 로그아웃/로그인하세요.
-
-```bash
-# .pkg 설치본 제거 (관리자 권한 필요)
-sudo rm -rf "/Library/Input Methods/Ongeul.app"
-
-# 또는 install.sh 설치본 제거
-rm -rf ~/Library/Input\ Methods/Ongeul.app
-```

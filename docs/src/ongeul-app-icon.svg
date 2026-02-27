@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- 한지(韓紙) 배경 그라데이션: 옛 책의 누런 종이색 -->
+    <linearGradient id="hanji" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0%" stop-color="#F2E4C8"/>
+      <stop offset="35%" stop-color="#EBDABC"/>
+      <stop offset="100%" stop-color="#E0CDA6"/>
+    </linearGradient>
+
+    <!-- 종이 질감 필터 -->
+    <filter id="paper-grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="4" seed="7" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="mono"/>
+      <feBlend in="SourceGraphic" in2="mono" mode="multiply"/>
+    </filter>
+
+    <!-- 낙관 인주 번짐 효과 -->
+    <filter id="stamp-wear" x="-3%" y="-3%" width="106%" height="106%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.2" numOctaves="2" seed="33" result="noise"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="gray"/>
+      <feComponentTransfer in="gray" result="mask">
+        <feFuncA type="discrete" tableValues="0 0 1 1 1 1 1 1 1 1"/>
+      </feComponentTransfer>
+      <feComposite in="SourceGraphic" in2="mask" operator="in"/>
+    </filter>
+  </defs>
+
+  <!-- ===== 배경 ===== -->
+
+  <!-- 그림자 -->
+  <rect x="18" y="22" width="480" height="480" rx="56" fill="#2A1A0C" opacity="0.10"/>
+
+  <!-- 한지 배경 -->
+  <rect x="16" y="16" width="480" height="480" rx="56" fill="url(#hanji)"/>
+
+  <!-- 종이 질감 오버레이 -->
+  <rect x="16" y="16" width="480" height="480" rx="56"
+        fill="#C8B48C" opacity="0.05" filter="url(#paper-grain)"/>
+
+  <!-- 세월의 얼룩 (은은한 반점) -->
+  <ellipse cx="105" cy="415" rx="38" ry="32" fill="#C8B494" opacity="0.07"/>
+  <ellipse cx="410" cy="95"  rx="28" ry="24" fill="#C8B494" opacity="0.05"/>
+  <ellipse cx="140" cy="110" rx="22" ry="18" fill="#C8B494" opacity="0.04"/>
+
+  <!-- ===== 변란(邊欄): 이중 테두리 — 고서 판식 ===== -->
+
+  <!-- 외곽 변란 -->
+  <rect x="52" y="52" width="408" height="408" rx="6"
+        fill="none" stroke="#5C4A36" stroke-width="1.6" opacity="0.30"/>
+  <!-- 내곽 변란 -->
+  <rect x="62" y="62" width="388" height="388" rx="4"
+        fill="none" stroke="#5C4A36" stroke-width="0.8" opacity="0.18"/>
+
+  <!-- 계선(界線): 상하 구분선 (고서의 행간 구분선 모티프) -->
+  <line x1="80" y1="256" x2="432" y2="256"
+        stroke="#6B5844" stroke-width="0.6" opacity="0.12"/>
+
+  <!-- ===== 본문: 온글 (세로쓰기) ===== -->
+
+  <!-- 온 -->
+  <text x="256" y="185"
+        text-anchor="middle" dominant-baseline="central"
+        font-family="'EBS Hunminjeongeum SB', 'Nanum Myeongjo', 'AppleMyungjo', 'Batang', serif"
+        font-size="152" fill="#1E120A" opacity="0.88">온</text>
+
+  <!-- 글 -->
+  <text x="256" y="345"
+        text-anchor="middle" dominant-baseline="central"
+        font-family="'EBS Hunminjeongeum SB', 'Nanum Myeongjo', 'AppleMyungjo', 'Batang', serif"
+        font-size="152" fill="#1E120A" opacity="0.88">글</text>
+
+  <!-- ===== 낙관(落款): 인장 ===== -->
+
+  <g transform="translate(388, 400)" filter="url(#stamp-wear)">
+    <!-- 약간 기울어진 도장 (찍은 느낌) -->
+    <g transform="rotate(-2.5, 30, 30)">
+
+      <!-- 인주 바탕 -->
+      <rect width="60" height="60" rx="4" fill="#BE2E28" opacity="0.80"/>
+
+      <!-- 내부 테두리 (전각 인장 양식) -->
+      <rect x="4" y="4" width="52" height="52" rx="2"
+            fill="none" stroke="#F0C8B4" stroke-width="1.2" opacity="0.35"/>
+
+      <!-- 십자 구획선 (전서체 인장의 전형적 분할) -->
+      <line x1="30" y1="6"  x2="30" y2="54" stroke="#F0C8B4" stroke-width="0.7" opacity="0.22"/>
+      <line x1="6"  y1="30" x2="54" y2="30" stroke="#F0C8B4" stroke-width="0.7" opacity="0.22"/>
+
+      <!-- 인장 글자: 온글 (2×2 배치) — 우상→좌하 순서 (전통 독법) -->
+      <!-- 우상: 온 -->
+      <text x="42" y="18"
+            text-anchor="middle" dominant-baseline="central"
+            font-family="'EBS Hunminjeongeum SB', serif"
+            font-size="18" font-weight="bold" fill="#F0D0C0" opacity="0.82">온</text>
+      <!-- 좌상: (빈칸 — 2자 인장) -->
+      <!-- 우하: 글 -->
+      <text x="42" y="42"
+            text-anchor="middle" dominant-baseline="central"
+            font-family="'EBS Hunminjeongeum SB', serif"
+            font-size="18" font-weight="bold" fill="#F0D0C0" opacity="0.82">글</text>
+      <!-- 좌하: 인(印) — 인장임을 표시 -->
+      <text x="18" y="42"
+            text-anchor="middle" dominant-baseline="central"
+            font-family="'EBS Hunminjeongeum SB', serif"
+            font-size="18" font-weight="bold" fill="#F0D0C0" opacity="0.82">인</text>
+      <!-- 좌상: 지(之) — 관용구 "~之印" -->
+      <text x="18" y="18"
+            text-anchor="middle" dominant-baseline="central"
+            font-family="'EBS Hunminjeongeum SB', serif"
+            font-size="18" font-weight="bold" fill="#F0D0C0" opacity="0.82">지</text>
+    </g>
+  </g>
+</svg>

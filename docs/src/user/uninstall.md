@@ -2,15 +2,15 @@
 
 ## 1. 앱 삭제
 
-설치 방법에 따라 해당 경로의 `Ongeul.app`을 삭제합니다.
+설치 시 선택한 위치에 따라 해당 경로의 `Ongeul.app`을 삭제합니다.
 
-### .pkg로 설치한 경우
+### 시스템 전체 설치를 선택한 경우
 
 ```bash
 sudo rm -rf "/Library/Input Methods/Ongeul.app"
 ```
 
-### install.sh로 설치한 경우
+### 현재 사용자만 설치를 선택한 경우
 
 ```bash
 rm -rf ~/Library/Input\ Methods/Ongeul.app

@@ -177,34 +177,13 @@ class OngeulInputController: IMKInputController {
         appModeStore[bundleId] = mode
     }
 
-    private static func removeMode(for bundleId: String) {
-        appModeStoreLock.lock()
-        defer { appModeStoreLock.unlock() }
-        appModeStore.removeValue(forKey: bundleId)
-    }
-
-    private static let setupNotifications: Void = {
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didTerminateApplicationNotification,
-            object: nil,
-            queue: nil
-        ) { notification in
-            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  let bundleId = app.bundleIdentifier else { return }
-            removeMode(for: bundleId)
-            os_log("appTerminated: removed mode for %{public}@", log: log, type: .default, bundleId)
-        }
-    }()
-
     private static var activeAppBundleId: String?   // 현재 활성 앱
-    private static var previousAppMode: InputMode?  // 직전 (다른) 앱의 모드
     private var currentBundleId: String?
 
     // MARK: - Lifecycle
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
-        _ = Self.setupNotifications
         loadLayoutIfNeeded()
 
         guard let bundleId = (sender as? (any IMKTextInput))?.bundleIdentifier() else { return }
@@ -215,14 +194,16 @@ class OngeulInputController: IMKInputController {
             engine.setMode(mode: savedMode)
         }
         let currentMode = engine.getMode()
+        Self.saveMode(currentMode, for: bundleId)
 
         if isAppSwitch {
+            let prevMode = Self.activeAppBundleId.flatMap { Self.savedMode(for: $0) }
             os_log("activateServer: appSwitch to %{public}@ mode=%{public}@ (prev=%{public}@)",
                    log: log, type: .default, bundleId,
                    currentMode == .korean ? "korean" : "english",
-                   Self.previousAppMode.map { $0 == .korean ? "korean" : "english" } ?? "none")
+                   prevMode.map { $0 == .korean ? "korean" : "english" } ?? "none")
 
-            if let prevMode = Self.previousAppMode, currentMode != prevMode,
+            if let prevMode, currentMode != prevMode,
                let client = sender as? (any IMKTextInput) {
                 showModeIndicator(client: client)
             }
@@ -245,11 +226,6 @@ class OngeulInputController: IMKInputController {
         if let bundleId = currentBundleId {
             let mode = engine.getMode()
             Self.saveMode(mode, for: bundleId)
-            // 현재 활성 앱이 떠날 때만 previousAppMode 갱신
-            // (같은 앱 내부 필드 전환의 deactivate는 무시)
-            if bundleId == Self.activeAppBundleId {
-                Self.previousAppMode = mode
-            }
             os_log("deactivateServer: save mode=%{public}@ for bundleId=%{public}@",
                    log: log, type: .default,
                    mode == .korean ? "korean" : "english", bundleId)

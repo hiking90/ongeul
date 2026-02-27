@@ -149,14 +149,16 @@ impl Automata for JasoAutomata {
             }
             JasoClass::Jongseong(t_idx) => {
                 if self.buffer.choseong.is_none() || self.buffer.jungseong.is_none() {
-                    // 초성+중성이 없으면 종성 독립 불가 → 확정 + 호환 자모로 표시
-                    let committed = if self.buffer.state != AutomataState::Empty {
-                        self.commit_current()
+                    // 초성+중성이 없으면 종성 독립 불가 → 즉시 확정
+                    let mut committed = if self.buffer.state != AutomataState::Empty {
+                        self.commit_current().unwrap_or_default()
                     } else {
-                        None
+                        String::new()
                     };
-                    let text = unicode::jongseong_to_compat(t_idx).map(|c| c.to_string());
-                    return AutomataResult::handled(committed, text);
+                    if let Some(ch) = unicode::jongseong_to_compat(t_idx) {
+                        committed.push(ch);
+                    }
+                    return AutomataResult::handled(Some(committed), None);
                 }
 
                 if let Some(current_t) = self.buffer.jongseong {
@@ -171,10 +173,12 @@ impl Automata for JasoAutomata {
                         self.buffer.state = AutomataState::Jongseong2;
                         return AutomataResult::handled(None, self.buffer.to_string());
                     }
-                    // 겹종성 불가 → 확정 + 새 시작
-                    let committed = self.commit_current();
-                    let text = unicode::jongseong_to_compat(t_idx).map(|c| c.to_string());
-                    AutomataResult::handled(committed, text)
+                    // 겹종성 불가 → 현재 음절 + 독립 종성 모두 즉시 확정
+                    let mut committed = self.commit_current().unwrap_or_default();
+                    if let Some(ch) = unicode::jongseong_to_compat(t_idx) {
+                        committed.push(ch);
+                    }
+                    AutomataResult::handled(Some(committed), None)
                 } else {
                     self.buffer.jongseong = Some(t_idx);
                     self.buffer.state = AutomataState::Jongseong;
@@ -459,12 +463,23 @@ mod tests {
 
     #[test]
     fn test_jongseong_without_choseong_jungseong() {
-        // 종성만 입력 → 호환 자모로 표시
+        // 종성만 입력 → 즉시 확정 (composing 없음)
         let layout = make_layout();
         let mut automata = JasoAutomata::new();
         let ch = layout.map_key("q").unwrap(); // ㅅ종
         let result = automata.process(ch, &layout);
-        assert_eq!(result.composing, Some("ㅅ".to_string()));
+        assert_eq!(result.committed, Some("ㅅ".to_string()));
+        assert_eq!(result.composing, None);
+    }
+
+    #[test]
+    fn test_standalone_jongseong_then_choseong() {
+        // ㅅ종 → ㄱ초 → "ㅅ" 확정 + "ㄱ" 조합 (데이터 소실 없음)
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) = process_keys(&mut automata, &layout, &["q", "k"]);
+        assert_eq!(committed, "ㅅ");
+        assert_eq!(composing, Some("ㄱ".to_string()));
     }
 
     #[test]

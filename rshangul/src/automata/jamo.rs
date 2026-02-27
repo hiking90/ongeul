@@ -145,7 +145,6 @@ impl JamoAutomata {
         }
 
         if let Some(t_idx) = unicode::compat_to_jongseong(ch) {
-            self.prev_jungseong = None; // 겹모음 복원 정보 불필요
             self.buffer.jongseong = Some(t_idx);
             self.buffer.state = AutomataState::Jongseong;
             AutomataResult::handled(None, self.buffer.to_string())
@@ -682,6 +681,25 @@ mod tests {
             process_keys(&mut automata, &layout, &["k", "r"]);
         assert_eq!(committed, "ㅏ");
         assert_eq!(composing, Some("ㄱ".to_string()));
+    }
+
+    #[test]
+    fn test_backspace_through_double_vowel_with_jongseong() {
+        // ㄱ ㅗ ㅏ ㄴ (관) + BS + BS → "과" → "고" (겹모음 복원)
+        let layout = make_layout();
+        let mut automata = JamoAutomata::new();
+        process_keys(&mut automata, &layout, &["r", "h", "k", "s"]);
+        assert_eq!(automata.state(), AutomataState::Jongseong);
+
+        // BS: 관 → 과
+        let result = automata.backspace();
+        assert_eq!(result.composing, Some("과".to_string()));
+        assert_eq!(automata.state(), AutomataState::Jungseong2);
+
+        // BS: 과 → 고 (겹모음 ㅘ에서 ㅏ 제거)
+        let result = automata.backspace();
+        assert_eq!(result.composing, Some("고".to_string()));
+        assert_eq!(automata.state(), AutomataState::Jungseong);
     }
 
     #[test]

@@ -10,7 +10,10 @@ private enum KeyCode {
     static let backspace: UInt16  = 51
     static let escape: UInt16     = 53
     static let rightCommand: UInt16 = 54
+    static let leftCommand: UInt16 = 55
     static let capsLock: UInt16   = 57
+    static let leftOption: UInt16 = 58
+    static let rightOption: UInt16 = 61
     static let arrowLeft: UInt16  = 123
     static let arrowRight: UInt16 = 124
     static let arrowDown: UInt16  = 125
@@ -104,6 +107,70 @@ private final class ModeIndicator {
     }
 }
 
+// MARK: - Lock Overlay (화면 중앙 잠금 표시)
+
+private final class LockOverlay {
+    static let shared = LockOverlay()
+
+    private let panel: NSPanel
+    private let imageView: NSImageView
+    private var hideTimer: Timer?
+
+    private init() {
+        let size = NSSize(width: 80, height: 80)
+        panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered, defer: true
+        )
+        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.backgroundColor = .clear
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        panel.isReleasedWhenClosed = false
+
+        let bg = NSView(frame: NSRect(origin: .zero, size: size))
+        bg.wantsLayer = true
+        bg.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.7).cgColor
+        bg.layer?.cornerRadius = 16
+        bg.layer?.masksToBounds = true
+
+        imageView = NSImageView(frame: NSRect(x: 16, y: 16, width: 48, height: 48))
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.contentTintColor = .white
+
+        bg.addSubview(imageView)
+        panel.contentView = bg
+    }
+
+    func show(locked: Bool) {
+        let symbolName = locked ? "lock.fill" : "lock.open.fill"
+        let config = NSImage.SymbolConfiguration(pointSize: 40, weight: .medium)
+        imageView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+
+        let screen = NSScreen.main?.visibleFrame ?? NSScreen.screens.first?.visibleFrame ?? .zero
+        let x = screen.midX - panel.frame.width / 2
+        let y = screen.midY - panel.frame.height / 2
+        panel.setFrameOrigin(NSPoint(x: x, y: y))
+
+        panel.alphaValue = 1
+        panel.orderFrontRegardless()
+
+        hideTimer?.invalidate()
+        hideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.5
+                self.panel.animator().alphaValue = 0
+            }, completionHandler: {
+                self.panel.orderOut(nil)
+            })
+        }
+    }
+}
+
 // MARK: - Radio Group Helper
 
 private final class RadioGroup: NSObject {
@@ -129,6 +196,10 @@ class OngeulInputController: IMKInputController {
     private let engine = HangulEngine()
     private var loadedLayoutId: String?
     private var rightCmdPending = false
+
+    // 4키 동시 감지용 (English Lock)
+    private var fourKeysSeen: Set<UInt16> = []
+    private var allFourReached = false
 
     // MARK: - Settings (UserDefaults)
 
@@ -180,6 +251,32 @@ class OngeulInputController: IMKInputController {
     private static var activeAppBundleId: String?   // 현재 활성 앱
     private var currentBundleId: String?
 
+    // MARK: - English Lock Store (UserDefaults)
+
+    private static let englishLockDefaultsKey = "EnglishLockApps"
+
+    /// 저장 형식: [String: String] — bundleId → 잠금 직전 모드 ("korean" / "english")
+    private static func englishLockStore() -> [String: String] {
+        UserDefaults.standard.dictionary(forKey: englishLockDefaultsKey) as? [String: String] ?? [:]
+    }
+
+    private static func addEnglishLock(for bundleId: String, previousMode: InputMode) {
+        var store = englishLockStore()
+        store[bundleId] = previousMode == .korean ? "korean" : "english"
+        UserDefaults.standard.set(store, forKey: englishLockDefaultsKey)
+    }
+
+    private static func removeEnglishLock(for bundleId: String) -> InputMode? {
+        var store = englishLockStore()
+        guard let raw = store.removeValue(forKey: bundleId) else { return nil }
+        UserDefaults.standard.set(store, forKey: englishLockDefaultsKey)
+        return raw == "korean" ? .korean : .english
+    }
+
+    private static func isEnglishLocked(_ bundleId: String) -> Bool {
+        englishLockStore()[bundleId] != nil
+    }
+
     // MARK: - Lifecycle
 
     override func activateServer(_ sender: Any!) {
@@ -190,28 +287,43 @@ class OngeulInputController: IMKInputController {
         currentBundleId = bundleId
 
         let isAppSwitch = (bundleId != Self.activeAppBundleId)
-        if let savedMode = Self.savedMode(for: bundleId) {
-            engine.setMode(mode: savedMode)
-        }
-        let currentMode = engine.getMode()
-        Self.saveMode(currentMode, for: bundleId)
 
-        if isAppSwitch {
-            let prevMode = Self.activeAppBundleId.flatMap { Self.savedMode(for: $0) }
-            os_log("activateServer: appSwitch to %{public}@ mode=%{public}@ (prev=%{public}@)",
-                   log: log, type: .default, bundleId,
-                   currentMode == .korean ? "korean" : "english",
-                   prevMode.map { $0 == .korean ? "korean" : "english" } ?? "none")
-
-            if let prevMode, currentMode != prevMode,
-               let client = sender as? (any IMKTextInput) {
-                showModeIndicator(client: client)
+        // English Lock 우선 체크
+        if Self.isEnglishLocked(bundleId) {
+            engine.setMode(mode: .english)
+            if isAppSwitch {
+                os_log("activateServer: appSwitch to LOCKED %{public}@",
+                       log: log, type: .default, bundleId)
+                LockOverlay.shared.show(locked: true)
+                Self.activeAppBundleId = bundleId
+            } else {
+                os_log("activateServer: fieldSwitch in LOCKED %{public}@",
+                       log: log, type: .default, bundleId)
             }
-            Self.activeAppBundleId = bundleId
         } else {
-            os_log("activateServer: fieldSwitch in %{public}@ mode=%{public}@",
-                   log: log, type: .default, bundleId,
-                   currentMode == .korean ? "korean" : "english")
+            if let savedMode = Self.savedMode(for: bundleId) {
+                engine.setMode(mode: savedMode)
+            }
+            let currentMode = engine.getMode()
+            Self.saveMode(currentMode, for: bundleId)
+
+            if isAppSwitch {
+                let prevMode = Self.activeAppBundleId.flatMap { Self.savedMode(for: $0) }
+                os_log("activateServer: appSwitch to %{public}@ mode=%{public}@ (prev=%{public}@)",
+                       log: log, type: .default, bundleId,
+                       currentMode == .korean ? "korean" : "english",
+                       prevMode.map { $0 == .korean ? "korean" : "english" } ?? "none")
+
+                if let prevMode, currentMode != prevMode,
+                   let client = sender as? (any IMKTextInput) {
+                    showModeIndicator(client: client)
+                }
+                Self.activeAppBundleId = bundleId
+            } else {
+                os_log("activateServer: fieldSwitch in %{public}@ mode=%{public}@",
+                       log: log, type: .default, bundleId,
+                       currentMode == .korean ? "korean" : "english")
+            }
         }
     }
 
@@ -398,30 +510,110 @@ class OngeulInputController: IMKInputController {
         return false
     }
 
-    // MARK: - Private: Right Command → 한/영 전환
+    // MARK: - Private: Modifier Key Handling (4키 감지 + 한/영 전환)
+
+    private static let fourKeys: Set<UInt16> = [
+        KeyCode.leftCommand, KeyCode.rightCommand,
+        KeyCode.leftOption, KeyCode.rightOption,
+    ]
 
     private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
-        if event.keyCode == KeyCode.rightCommand, Self.toggleKey == .rightCommand {
-            if event.modifierFlags.contains(.command) {
-                rightCmdPending = true
-            } else if rightCmdPending {
-                rightCmdPending = false
-                let result = engine.toggleMode()
-                applyResult(result, to: client)
-                let newMode = engine.getMode()
-                os_log("toggleMode → %{public}@", log: log, type: .default,
-                       newMode == .korean ? "korean" : "english")
-                if let bundleId = currentBundleId {
-                    Self.saveMode(newMode, for: bundleId)
-                }
-                showModeIndicator(client: client)
-                return true
-            }
-            return false
+        let keyCode = event.keyCode
+        let flags = event.modifierFlags
+
+        // Step 1: 대상 키 → Set에 누적 (멱등, 중복 이벤트 무관)
+        //         다른 modifier → 사이클 취소
+        if Self.fourKeys.contains(keyCode) {
+            fourKeysSeen.insert(keyCode)
+        } else {
+            fourKeysSeen.removeAll()
+            allFourReached = false
         }
 
+        // Step 2: 4키 모두 감지
+        if fourKeysSeen.count == 4 {
+            allFourReached = true
+            rightCmdPending = false
+        }
+
+        // Step 3: 모든 modifier 해제 시
+        let allReleased = !flags.contains(.command) && !flags.contains(.option)
+        if allReleased {
+            if allFourReached {
+                fourKeysSeen.removeAll()
+                allFourReached = false
+                handleEnglishLockToggle(client: client)
+                return true
+            }
+            fourKeysSeen.removeAll()
+        }
+
+        // Step 4: 기존 Right Cmd 한영전환 처리
+        if keyCode == KeyCode.rightCommand {
+            if flags.contains(.command) {
+                // down
+                if !allFourReached {
+                    rightCmdPending = true
+                }
+                return false
+            } else {
+                // up
+                if Self.toggleKey == .rightCommand && rightCmdPending {
+                    rightCmdPending = false
+                    // 잠금 앱이면 한영전환 차단
+                    if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) {
+                        return true
+                    }
+                    let result = engine.toggleMode()
+                    applyResult(result, to: client)
+                    let newMode = engine.getMode()
+                    os_log("toggleMode → %{public}@", log: log, type: .default,
+                           newMode == .korean ? "korean" : "english")
+                    if let bundleId = currentBundleId {
+                        Self.saveMode(newMode, for: bundleId)
+                    }
+                    showModeIndicator(client: client)
+                    return true
+                }
+                rightCmdPending = false
+                return false
+            }
+        }
+
+        // 다른 modifier 키 → Right Cmd 단독 탭 취소
         rightCmdPending = false
         return false
+    }
+
+    // MARK: - Private: English Lock Toggle
+
+    private func handleEnglishLockToggle(client: any IMKTextInput) {
+        guard let bundleId = currentBundleId else { return }
+
+        if Self.isEnglishLocked(bundleId) {
+            // 해제: 저장된 이전 모드 복원
+            let previousMode = Self.removeEnglishLock(for: bundleId) ?? .korean
+            engine.setMode(mode: previousMode)
+            Self.saveMode(previousMode, for: bundleId)
+            os_log("English Lock OFF: %{public}@ → restore %{public}@",
+                   log: log, type: .default, bundleId,
+                   previousMode == .korean ? "korean" : "english")
+            LockOverlay.shared.show(locked: false)
+        } else {
+            // 잠금: 현재 모드 저장 → 영어 강제
+            let currentMode = engine.getMode()
+            Self.addEnglishLock(for: bundleId, previousMode: currentMode)
+            // 한글 조합 중이면 flush로 확정
+            if currentMode == .korean {
+                let result = engine.flush()
+                applyResult(result, to: client)
+            }
+            engine.setMode(mode: .english)
+            os_log("English Lock ON: %{public}@ (was %{public}@)",
+                   log: log, type: .default, bundleId,
+                   currentMode == .korean ? "korean" : "english")
+            LockOverlay.shared.show(locked: true)
+        }
     }
 
     // MARK: - Private: Mode Indicator
@@ -489,8 +681,10 @@ class OngeulInputController: IMKInputController {
     private func handleKeyDown(_ event: NSEvent, client: any IMKTextInput) -> Bool {
         let modifiers = event.modifierFlags
 
-        // 키 입력 → Right Command 단독 탭 취소 (Cmd+C 등 단축키 사용)
+        // 키 입력 → Right Command 단독 탭 취소 + 4키 사이클 취소
         rightCmdPending = false
+        fourKeysSeen.removeAll()
+        allFourReached = false
 
         // 시스템 단축키 → flush 후 통과
         if modifiers.contains(.command) || modifiers.contains(.control) {
@@ -518,6 +712,10 @@ class OngeulInputController: IMKInputController {
             && event.keyCode == KeyCode.space
             && modifiers.contains(.shift)
             && !modifiers.contains(.option) {
+            // 잠금 앱이면 한영전환 차단
+            if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) {
+                return true
+            }
             let result = engine.toggleMode()
             applyResult(result, to: client)
             let newMode = engine.getMode()

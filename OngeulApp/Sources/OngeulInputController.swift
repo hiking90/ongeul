@@ -11,8 +11,10 @@ private enum KeyCode {
     static let escape: UInt16     = 53
     static let rightCommand: UInt16 = 54
     static let leftCommand: UInt16 = 55
+    static let leftShift: UInt16  = 56
     static let capsLock: UInt16   = 57
     static let leftOption: UInt16 = 58
+    static let rightShift: UInt16 = 60
     static let rightOption: UInt16 = 61
     static let arrowLeft: UInt16  = 123
     static let arrowRight: UInt16 = 124
@@ -183,7 +185,9 @@ private final class LockOverlay {
 class OngeulInputController: IMKInputController {
     private let engine = HangulEngine()
     private var loadedLayoutId: String?
-    private var rightCmdPending = false
+    private var togglePendingKeyCode: UInt16? = nil
+    private var toggleExpiredAt: CFAbsoluteTime = 0
+    private static let toggleTimeoutSeconds: CFAbsoluteTime = 0.5
 
     // 4키 동시 감지용 (English Lock)
     private var fourKeysSeen: Set<UInt16> = []
@@ -210,9 +214,33 @@ class OngeulInputController: IMKInputController {
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
 
-    enum ToggleKey: String {
+    enum ToggleKey: String, CaseIterable {
         case rightCommand = "rightCommand"
+        case rightOption = "rightOption"
+        case leftShift = "leftShift"
+        case rightShift = "rightShift"
         case shiftSpace = "shiftSpace"
+
+        /// flagsChanged에서 감지할 keyCode (shiftSpace는 nil → keyDown에서 처리)
+        var keyCode: UInt16? {
+            switch self {
+            case .rightCommand: return KeyCode.rightCommand
+            case .rightOption:  return KeyCode.rightOption
+            case .leftShift:    return KeyCode.leftShift
+            case .rightShift:   return KeyCode.rightShift
+            case .shiftSpace:   return nil
+            }
+        }
+
+        /// press/release 판정에 사용할 modifier flag
+        var modifierFlag: NSEvent.ModifierFlags? {
+            switch self {
+            case .rightCommand: return .command
+            case .rightOption:  return .option
+            case .leftShift, .rightShift: return .shift
+            case .shiftSpace:   return nil
+            }
+        }
     }
 
     private static var toggleKey: ToggleKey {
@@ -418,9 +446,18 @@ class OngeulInputController: IMKInputController {
             // 한/영 전환 키
             let toggleLabel = NSTextField(labelWithString: NSLocalizedString("prefs.toggleKey.label", comment: ""))
             let togglePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-            togglePopup.addItem(withTitle: NSLocalizedString("prefs.toggleKey.rightCommand", comment: ""))
-            togglePopup.addItem(withTitle: NSLocalizedString("prefs.toggleKey.shiftSpace", comment: ""))
-            togglePopup.selectItem(at: Self.toggleKey == .shiftSpace ? 1 : 0)
+            let toggleKeyTitles: [(ToggleKey, String)] = [
+                (.rightCommand, NSLocalizedString("prefs.toggleKey.rightCommand", comment: "")),
+                (.rightOption,  NSLocalizedString("prefs.toggleKey.rightOption", comment: "")),
+                (.leftShift,    NSLocalizedString("prefs.toggleKey.leftShift", comment: "")),
+                (.rightShift,   NSLocalizedString("prefs.toggleKey.rightShift", comment: "")),
+                (.shiftSpace,   NSLocalizedString("prefs.toggleKey.shiftSpace", comment: "")),
+            ]
+            for (_, title) in toggleKeyTitles {
+                togglePopup.addItem(withTitle: title)
+            }
+            let currentToggleIndex = toggleKeyTitles.firstIndex { $0.0 == Self.toggleKey } ?? 0
+            togglePopup.selectItem(at: currentToggleIndex)
 
             let toggleRow = NSStackView(views: [toggleLabel, togglePopup])
             toggleRow.orientation = .horizontal
@@ -461,7 +498,7 @@ class OngeulInputController: IMKInputController {
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
                 // 확인 → 저장
-                Self.toggleKey = togglePopup.indexOfSelectedItem == 1 ? .shiftSpace : .rightCommand
+                Self.toggleKey = toggleKeyTitles[togglePopup.indexOfSelectedItem].0
                 let newLayout: String
                 switch layoutPopup.indexOfSelectedItem {
                 case 1: newLayout = "3-390"
@@ -516,6 +553,9 @@ class OngeulInputController: IMKInputController {
     private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
         let keyCode = event.keyCode
         let flags = event.modifierFlags
+        let toggleKey = Self.toggleKey
+
+        // === 4키 English Lock 감지 ===
 
         // Step 1: 대상 키 → Set에 누적 (멱등, 중복 이벤트 무관)
         //         다른 modifier → 사이클 취소
@@ -529,7 +569,7 @@ class OngeulInputController: IMKInputController {
         // Step 2: 4키 모두 감지
         if fourKeysSeen.count == 4 {
             allFourReached = true
-            rightCmdPending = false
+            togglePendingKeyCode = nil
         }
 
         // Step 3: 모든 modifier 해제 시
@@ -544,40 +584,63 @@ class OngeulInputController: IMKInputController {
             fourKeysSeen.removeAll()
         }
 
-        // Step 4: 기존 Right Cmd 한영전환 처리
-        if keyCode == KeyCode.rightCommand {
-            if flags.contains(.command) {
-                // down
-                if !allFourReached {
-                    rightCmdPending = true
-                }
-                return false
-            } else {
-                // up
-                if Self.toggleKey == .rightCommand && rightCmdPending {
-                    rightCmdPending = false
-                    // 잠금 앱이면 한영전환 차단
-                    if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) {
-                        return true
-                    }
-                    let result = engine.toggleMode()
-                    applyResult(result, to: client)
-                    let newMode = engine.getMode()
-                    os_log("toggleMode → %{public}@", log: log, type: .default,
-                           newMode == .korean ? "korean" : "english")
-                    if let bundleId = currentBundleId {
-                        Self.saveMode(newMode, for: bundleId)
-                    }
-                    showModeIndicator(client: client)
-                    return true
-                }
-                rightCmdPending = false
-                return false
-            }
+        // === 통합 modifier tap 감지 ===
+
+        // shiftSpace는 keyDown 경로에서 처리
+        guard let toggleKeyCode = toggleKey.keyCode,
+              let toggleFlag = toggleKey.modifierFlag else {
+            return false
         }
 
-        // 다른 modifier 키 → Right Cmd 단독 탭 취소
-        rightCmdPending = false
+        // ① 다중 modifier 가드 (CapsLock 제외)
+        let activeCount: Int = [
+            NSEvent.ModifierFlags.shift,
+            NSEvent.ModifierFlags.command,
+            NSEvent.ModifierFlags.option,
+            NSEvent.ModifierFlags.control,
+        ].filter { flags.contains($0) }.count
+        if activeCount > 1 {
+            togglePendingKeyCode = nil
+            return false
+        }
+
+        // ② 설정된 전환 키의 press 감지
+        if keyCode == toggleKeyCode
+            && flags.contains(toggleFlag)
+            && togglePendingKeyCode == nil
+            && !allFourReached {
+            togglePendingKeyCode = keyCode
+            toggleExpiredAt = CFAbsoluteTimeGetCurrent() + Self.toggleTimeoutSeconds
+            return false
+        }
+
+        // ③ 설정된 전환 키의 release 감지
+        if keyCode == toggleKeyCode
+            && !flags.contains(toggleFlag) {
+            if togglePendingKeyCode == keyCode
+                && CFAbsoluteTimeGetCurrent() < toggleExpiredAt {
+                togglePendingKeyCode = nil
+                // 잠금 앱이면 한영전환 차단
+                if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) {
+                    return true
+                }
+                let result = engine.toggleMode()
+                applyResult(result, to: client)
+                let newMode = engine.getMode()
+                os_log("toggleMode → %{public}@", log: log, type: .default,
+                       newMode == .korean ? "korean" : "english")
+                if let bundleId = currentBundleId {
+                    Self.saveMode(newMode, for: bundleId)
+                }
+                showModeIndicator(client: client)
+                return true
+            }
+            togglePendingKeyCode = nil
+            return false
+        }
+
+        // ④ 다른 modifier 키 → pending 해제
+        togglePendingKeyCode = nil
         return false
     }
 
@@ -677,8 +740,8 @@ class OngeulInputController: IMKInputController {
     private func handleKeyDown(_ event: NSEvent, client: any IMKTextInput) -> Bool {
         let modifiers = event.modifierFlags
 
-        // 키 입력 → Right Command 단독 탭 취소 + 4키 사이클 취소
-        rightCmdPending = false
+        // 키 입력 → modifier tap 판정 취소 + 4키 사이클 취소
+        togglePendingKeyCode = nil
         fourKeysSeen.removeAll()
         allFourReached = false
 

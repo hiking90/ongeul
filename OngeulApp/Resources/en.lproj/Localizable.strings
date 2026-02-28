@@ -13,6 +13,9 @@
 /* Toggle Key */
 "prefs.toggleKey.label" = "Toggle Key:";
 "prefs.toggleKey.rightCommand" = "Right Command";
+"prefs.toggleKey.rightOption" = "Right Option";
+"prefs.toggleKey.leftShift" = "Left Shift (tap)";
+"prefs.toggleKey.rightShift" = "Right Shift (tap)";
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
 
 /* Escape → English */

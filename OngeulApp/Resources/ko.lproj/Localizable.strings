@@ -13,6 +13,9 @@
 /* Toggle Key */
 "prefs.toggleKey.label" = "한/영 전환 키:";
 "prefs.toggleKey.rightCommand" = "오른쪽 Command";
+"prefs.toggleKey.rightOption" = "오른쪽 Option";
+"prefs.toggleKey.leftShift" = "왼쪽 Shift (단독)";
+"prefs.toggleKey.rightShift" = "오른쪽 Shift (단독)";
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
 
 /* Escape → English */

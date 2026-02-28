@@ -2,8 +2,18 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEFAULT_TARGET="aarch64-apple-darwin"
-APP_BUNDLE="$PROJECT_ROOT/build/$DEFAULT_TARGET/Ongeul.app"
+
+ARCH="$(uname -m)"
+case "$ARCH" in
+    arm64)  TARGET="aarch64-apple-darwin" ;;
+    x86_64) TARGET="x86_64-apple-darwin" ;;
+    *)
+        echo "Error: Unknown architecture '$ARCH'"
+        exit 1
+        ;;
+esac
+
+APP_BUNDLE="$PROJECT_ROOT/build/$TARGET/Ongeul.app"
 INSTALL_DIR="$HOME/Library/Input Methods"
 SYSTEM_INSTALL="/Library/Input Methods/Ongeul.app"
 

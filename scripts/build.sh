@@ -8,7 +8,19 @@ GENERATED_DIR="$PROJECT_ROOT/OngeulApp/Generated"
 
 # ── 타겟 설정 ──
 
-TARGET="${1:-aarch64-apple-darwin}"
+if [ -n "${1:-}" ]; then
+    TARGET="$1"
+else
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+        arm64)  TARGET="aarch64-apple-darwin" ;;
+        x86_64) TARGET="x86_64-apple-darwin" ;;
+        *)
+            echo "Error: Unknown architecture '$ARCH'"
+            exit 1
+            ;;
+    esac
+fi
 
 # 타겟 → clang/swiftc 타겟 매핑
 case "$TARGET" in

@@ -177,24 +177,6 @@ private final class LockOverlay {
     }
 }
 
-// MARK: - Radio Group Helper
-
-private final class RadioGroup: NSObject {
-    private var buttons: [NSButton] = []
-
-    func addButton(_ button: NSButton) {
-        button.target = self
-        button.action = #selector(selected(_:))
-        buttons.append(button)
-    }
-
-    @objc private func selected(_ sender: NSButton) {
-        for button in buttons where button !== sender {
-            button.state = .off
-        }
-    }
-}
-
 // MARK: - Input Controller
 
 @objc(OngeulInputController)
@@ -416,95 +398,56 @@ class OngeulInputController: IMKInputController {
             alert.addButton(withTitle: NSLocalizedString("prefs.ok", comment: ""))
             alert.addButton(withTitle: NSLocalizedString("prefs.cancel", comment: ""))
 
-            // -- Accessory View: 라디오 버튼 그룹 (NSStackView 중첩) --
+            // -- Accessory View: Combo Box (NSPopUpButton) --
             let container = NSStackView()
             container.orientation = .vertical
             container.alignment = .leading
-            container.spacing = 16
+            container.spacing = 12
 
-            // 한/영 전환 키 그룹
+            // 한/영 전환 키
             let toggleLabel = NSTextField(labelWithString: NSLocalizedString("prefs.toggleKey.label", comment: ""))
-            toggleLabel.font = NSFont.boldSystemFont(ofSize: 13)
+            let togglePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+            togglePopup.addItem(withTitle: NSLocalizedString("prefs.toggleKey.rightCommand", comment: ""))
+            togglePopup.addItem(withTitle: NSLocalizedString("prefs.toggleKey.shiftSpace", comment: ""))
+            togglePopup.selectItem(at: Self.toggleKey == .shiftSpace ? 1 : 0)
 
-            let toggleRadioGroup = RadioGroup()
-            let toggleRightCmd = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.toggleKey.rightCommand", comment: ""),
-                                          target: nil, action: nil)
-            let toggleShiftSpace = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.toggleKey.shiftSpace", comment: ""),
-                                             target: nil, action: nil)
-            toggleRadioGroup.addButton(toggleRightCmd)
-            toggleRadioGroup.addButton(toggleShiftSpace)
+            let toggleRow = NSStackView(views: [toggleLabel, togglePopup])
+            toggleRow.orientation = .horizontal
+            toggleRow.spacing = 8
 
-            let toggleStack = NSStackView(views: [toggleRightCmd, toggleShiftSpace])
-            toggleStack.orientation = .vertical
-            toggleStack.alignment = .leading
-            toggleStack.spacing = 4
-
-            // 현재 설정 반영
-            if Self.toggleKey == .shiftSpace {
-                toggleShiftSpace.state = .on
-            } else {
-                toggleRightCmd.state = .on
-            }
-
-            let toggleSection = NSStackView(views: [toggleLabel, toggleStack])
-            toggleSection.orientation = .vertical
-            toggleSection.alignment = .leading
-            toggleSection.spacing = 6
-
-            // 한글 자판 그룹
+            // 한글 자판
             let layoutLabel = NSTextField(labelWithString: NSLocalizedString("prefs.layout.label", comment: ""))
-            layoutLabel.font = NSFont.boldSystemFont(ofSize: 13)
-
-            let layoutRadioGroup = RadioGroup()
-            let layout2std = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.layout.2standard", comment: ""),
-                                       target: nil, action: nil)
-            let layout3_390 = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.layout.3_390", comment: ""),
-                                        target: nil, action: nil)
-            let layout3final = NSButton(radioButtonWithTitle: NSLocalizedString("prefs.layout.3final", comment: ""),
-                                         target: nil, action: nil)
-            layoutRadioGroup.addButton(layout2std)
-            layoutRadioGroup.addButton(layout3_390)
-            layoutRadioGroup.addButton(layout3final)
-
-            let layoutStack = NSStackView(views: [layout2std, layout3_390, layout3final])
-            layoutStack.orientation = .vertical
-            layoutStack.alignment = .leading
-            layoutStack.spacing = 4
-
-            // 현재 설정 반영
+            let layoutPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+            layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.2standard", comment: ""))
+            layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3_390", comment: ""))
+            layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3final", comment: ""))
             switch Self.savedLayoutId {
-            case "3-390": layout3_390.state = .on
-            case "3-final": layout3final.state = .on
-            default: layout2std.state = .on
+            case "3-390": layoutPopup.selectItem(at: 1)
+            case "3-final": layoutPopup.selectItem(at: 2)
+            default: layoutPopup.selectItem(at: 0)
             }
 
-            let layoutSection = NSStackView(views: [layoutLabel, layoutStack])
-            layoutSection.orientation = .vertical
-            layoutSection.alignment = .leading
-            layoutSection.spacing = 6
+            let layoutRow = NSStackView(views: [layoutLabel, layoutPopup])
+            layoutRow.orientation = .horizontal
+            layoutRow.spacing = 8
 
-            container.addArrangedSubview(toggleSection)
-            container.addArrangedSubview(layoutSection)
+            container.addArrangedSubview(toggleRow)
+            container.addArrangedSubview(layoutRow)
 
             // accessoryView에 명시적 크기 설정
             let size = container.fittingSize
             container.frame = NSRect(origin: .zero, size: size)
             alert.accessoryView = container
 
-            // RadioGroup은 runModal() 동안 action target으로 살아있어야 함
-            let response = withExtendedLifetime((toggleRadioGroup, layoutRadioGroup)) {
-                alert.runModal()
-            }
+            let response = alert.runModal()
             if response == .alertFirstButtonReturn {
                 // 확인 → 저장
-                Self.toggleKey = toggleShiftSpace.state == .on ? .shiftSpace : .rightCommand
+                Self.toggleKey = togglePopup.indexOfSelectedItem == 1 ? .shiftSpace : .rightCommand
                 let newLayout: String
-                if layout3_390.state == .on {
-                    newLayout = "3-390"
-                } else if layout3final.state == .on {
-                    newLayout = "3-final"
-                } else {
-                    newLayout = "2-standard"
+                switch layoutPopup.indexOfSelectedItem {
+                case 1: newLayout = "3-390"
+                case 2: newLayout = "3-final"
+                default: newLayout = "2-standard"
                 }
                 Self.savedLayoutId = newLayout
                 os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@",

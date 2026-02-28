@@ -22,5 +22,8 @@ DerivedData/
 # UniFFI generated files
 OngeulApp/Generated/
 
+# Reference IME sources
+/imes/
+
 # macOS
 .DS_Store

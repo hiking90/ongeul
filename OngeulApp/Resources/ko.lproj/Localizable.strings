@@ -15,6 +15,9 @@
 "prefs.toggleKey.rightCommand" = "오른쪽 Command";
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
 
+/* Escape → English */
+"prefs.escapeToEnglish" = "ESC 키로 영문 전환 (Vim 모드)";
+
 /* Layout */
 "prefs.layout.label" = "한글 자판:";
 "prefs.layout.2standard" = "두벌식 표준";

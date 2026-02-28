@@ -208,6 +208,7 @@ class OngeulInputController: IMKInputController {
 
     private static let toggleKeyKey = "toggleKey"
     private static let layoutIdKey = "layoutId"
+    private static let escapeToEnglishKey = "escapeToEnglish"
 
     enum ToggleKey: String {
         case rightCommand = "rightCommand"
@@ -231,6 +232,16 @@ class OngeulInputController: IMKInputController {
         set {
             UserDefaults.standard.set(newValue, forKey: layoutIdKey)
         }
+    }
+
+    private static var escapeToEnglish: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: escapeToEnglishKey) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: escapeToEnglishKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: escapeToEnglishKey) }
     }
 
     // MARK: - Per-App Mode Store
@@ -431,8 +442,16 @@ class OngeulInputController: IMKInputController {
             layoutRow.orientation = .horizontal
             layoutRow.spacing = 8
 
+            // ESC → 영문 전환
+            let escapeCheckbox = NSButton(
+                checkboxWithTitle: NSLocalizedString("prefs.escapeToEnglish", comment: ""),
+                target: nil, action: nil
+            )
+            escapeCheckbox.state = Self.escapeToEnglish ? .on : .off
+
             container.addArrangedSubview(toggleRow)
             container.addArrangedSubview(layoutRow)
+            container.addArrangedSubview(escapeCheckbox)
 
             // accessoryView에 명시적 크기 설정
             let size = container.fittingSize
@@ -450,9 +469,10 @@ class OngeulInputController: IMKInputController {
                 default: newLayout = "2-standard"
                 }
                 Self.savedLayoutId = newLayout
-                os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@",
+                Self.escapeToEnglish = escapeCheckbox.state == .on
+                os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
                        log: log, type: .default,
-                       Self.toggleKey.rawValue, newLayout)
+                       Self.toggleKey.rawValue, newLayout, Self.escapeToEnglish)
             }
 
             // 다이얼로그 닫힌 후 원래 정책으로 복원
@@ -711,7 +731,7 @@ class OngeulInputController: IMKInputController {
             return false
         }
 
-        // Escape → 조합 폐기
+        // Escape → 조합 폐기 (+ 옵션: 영문 전환)
         if event.keyCode == KeyCode.escape {
             engine.reset()
             client.setMarkedText(
@@ -719,6 +739,13 @@ class OngeulInputController: IMKInputController {
                 selectionRange: NSRange(location: 0, length: 0),
                 replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
             )
+            if Self.escapeToEnglish && engine.getMode() == .korean {
+                engine.setMode(mode: .english)
+                if let bundleId = currentBundleId {
+                    Self.saveMode(.english, for: bundleId)
+                }
+                showModeIndicator(client: client)
+            }
             return false
         }
 

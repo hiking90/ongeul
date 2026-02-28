@@ -4,6 +4,7 @@
 
 /* Menu */
 "menu.preferences" = "Preferences...";
+"menu.help" = "Help";
 
 /* Preferences Dialog */
 "prefs.title" = "Ongeul Preferences";

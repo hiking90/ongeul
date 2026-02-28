@@ -4,6 +4,7 @@
 
 /* Menu */
 "menu.preferences" = "설정...";
+"menu.help" = "도움말";
 
 /* Preferences Dialog */
 "prefs.title" = "Ongeul 설정";

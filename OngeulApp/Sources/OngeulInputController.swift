@@ -423,7 +423,26 @@ class OngeulInputController: IMKInputController {
         prefsItem.target = self
         menu.addItem(prefsItem)
 
+        let helpItem = NSMenuItem(
+            title: NSLocalizedString("menu.help", comment: ""),
+            action: #selector(openHelp(_:)),
+            keyEquivalent: "")
+        helpItem.target = self
+        menu.addItem(helpItem)
+
         return menu
+    }
+
+    @objc private func openProjectPage(_ sender: Any?) {
+        if let url = URL(string: "https://github.com/hiking90/ongeul") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func openHelp(_ sender: Any?) {
+        if let url = URL(string: "https://hiking90.github.io/ongeul/") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func openPreferences(_ sender: Any?) {
@@ -447,7 +466,7 @@ class OngeulInputController: IMKInputController {
             // -- Accessory View: Combo Box (NSPopUpButton) --
             let container = NSStackView()
             container.orientation = .vertical
-            container.alignment = .leading
+            container.alignment = .centerX
             container.spacing = 12
 
             // 한/영 전환 키
@@ -497,6 +516,37 @@ class OngeulInputController: IMKInputController {
             container.addArrangedSubview(layoutRow)
             container.addArrangedSubview(escapeCheckbox)
 
+            // 버전 및 개발자 정보
+            let separator = NSBox()
+            separator.boxType = .separator
+            container.addArrangedSubview(separator)
+
+            let aboutGroup = NSStackView()
+            aboutGroup.orientation = .vertical
+            aboutGroup.alignment = .centerX
+            aboutGroup.spacing = 4
+
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+            let aboutLabel = NSTextField(labelWithString: "Ongeul v\(version)  —  hiking90")
+            aboutLabel.font = NSFont.systemFont(ofSize: 12)
+            aboutLabel.textColor = .secondaryLabelColor
+            aboutLabel.alignment = .center
+            aboutGroup.addArrangedSubview(aboutLabel)
+
+            let linkTitle = NSAttributedString(string: "github.com/hiking90/ongeul", attributes: [
+                .font: NSFont.systemFont(ofSize: 12),
+                .foregroundColor: NSColor.linkColor,
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .cursor: NSCursor.pointingHand,
+            ])
+            let projectLink = NSButton(title: "", target: self, action: #selector(self.openProjectPage(_:)))
+            projectLink.attributedTitle = linkTitle
+            projectLink.bezelStyle = .inline
+            projectLink.isBordered = false
+            aboutGroup.addArrangedSubview(projectLink)
+
+            container.addArrangedSubview(aboutGroup)
+
             // accessoryView에 명시적 크기 설정
             let size = container.fittingSize
             container.frame = NSRect(origin: .zero, size: size)
@@ -519,10 +569,11 @@ class OngeulInputController: IMKInputController {
                        Self.toggleKey.rawValue, newLayout, Self.escapeToEnglish)
 
                 // Shift+Space 선택 시 CGEventTap 권한 확인/안내
+                let previousToggleKey = toggleKeyTitles[currentToggleIndex].0
                 if Self.toggleKey == .shiftSpace {
                     if KeyEventTap.shared.isAccessibilityGranted() {
                         KeyEventTap.shared.install()
-                    } else {
+                    } else if previousToggleKey != .shiftSpace {
                         let accessAlert = NSAlert()
                         accessAlert.messageText = NSLocalizedString("accessibility.title", comment: "")
                         accessAlert.informativeText = NSLocalizedString("accessibility.message", comment: "")

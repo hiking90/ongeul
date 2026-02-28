@@ -63,15 +63,15 @@ Rust 엔진 + Swift 프론트엔드 하이브리드 구조. [UniFFI](https://moz
 ./scripts/install.sh
 
 # universal .pkg 생성
-./scripts/package.sh
+./scripts/package.sh              # Info.plist 버전 사용
+./scripts/package.sh 0.1.0-rc3    # 지정 버전 사용
 ```
 
 ### 설치 후 설정
 
 1. **로그아웃/로그인** (최초 설치 시 필요)
 2. 시스템 설정 → 키보드 → 입력 소스 → 편집 → + → **Ongeul** 추가
-3. 기존 한글 입력기 제거 (ABC는 남겨둬도 무방)
-4. ABC를 남긴 경우, "Caps Lock으로 ABC 입력 소스 전환" 옵션 비활성화
+3. 기존 입력 소스 제거 권장 (Ongeul이 한글과 영문을 모두 처리하므로 ABC 등 불필요)
 
 ## 테스트
 

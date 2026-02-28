@@ -323,6 +323,10 @@ class OngeulInputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        KeyEventTap.activeController = self
+        if Self.toggleKey == .shiftSpace {
+            KeyEventTap.shared.install()  // 권한 있으면 설치, 없으면 무시
+        }
         loadLayoutIfNeeded()
 
         guard let bundleId = (sender as? (any IMKTextInput))?.bundleIdentifier() else { return }
@@ -384,6 +388,9 @@ class OngeulInputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
+        if KeyEventTap.activeController === self {
+            KeyEventTap.activeController = nil
+        }
         if let bundleId = currentBundleId {
             let mode = engine.getMode()
             Self.saveMode(mode, for: bundleId)
@@ -510,6 +517,28 @@ class OngeulInputController: IMKInputController {
                 os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
                        log: log, type: .default,
                        Self.toggleKey.rawValue, newLayout, Self.escapeToEnglish)
+
+                // Shift+Space 선택 시 CGEventTap 권한 확인/안내
+                if Self.toggleKey == .shiftSpace {
+                    if KeyEventTap.shared.isAccessibilityGranted() {
+                        KeyEventTap.shared.install()
+                    } else {
+                        let accessAlert = NSAlert()
+                        accessAlert.messageText = NSLocalizedString("accessibility.title", comment: "")
+                        accessAlert.informativeText = NSLocalizedString("accessibility.message", comment: "")
+                        accessAlert.addButton(withTitle: NSLocalizedString("accessibility.openSettings", comment: ""))
+                        accessAlert.addButton(withTitle: NSLocalizedString("accessibility.later", comment: ""))
+                        accessAlert.alertStyle = .informational
+
+                        if accessAlert.runModal() == .alertFirstButtonReturn {
+                            // 앱을 접근성 목록에 자동 등록 + 시스템 설정 열기
+                            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+                            AXIsProcessTrustedWithOptions(options)
+                        }
+                    }
+                } else {
+                    KeyEventTap.shared.uninstall()
+                }
             }
 
             // 다이얼로그 닫힌 후 원래 정책으로 복원
@@ -620,19 +649,7 @@ class OngeulInputController: IMKInputController {
             if togglePendingKeyCode == keyCode
                 && CFAbsoluteTimeGetCurrent() < toggleExpiredAt {
                 togglePendingKeyCode = nil
-                // 잠금 앱이면 한영전환 차단
-                if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) {
-                    return true
-                }
-                let result = engine.toggleMode()
-                applyResult(result, to: client)
-                let newMode = engine.getMode()
-                os_log("toggleMode → %{public}@", log: log, type: .default,
-                       newMode == .korean ? "korean" : "english")
-                if let bundleId = currentBundleId {
-                    Self.saveMode(newMode, for: bundleId)
-                }
-                showModeIndicator(client: client)
+                performToggle(source: "flagsChanged", client: client)
                 return true
             }
             togglePendingKeyCode = nil
@@ -673,6 +690,27 @@ class OngeulInputController: IMKInputController {
                    currentMode == .korean ? "korean" : "english")
             LockOverlay.shared.show(locked: true)
         }
+    }
+
+    // MARK: - Private: Toggle (common)
+
+    private func performToggle(source: String, client: any IMKTextInput) {
+        if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) { return }
+
+        let result = engine.toggleMode()
+        applyResult(result, to: client)
+        let newMode = engine.getMode()
+        os_log("toggleMode (%{public}@) → %{public}@", log: log, type: .default,
+               source, newMode == .korean ? "korean" : "english")
+        if let bundleId = currentBundleId {
+            Self.saveMode(newMode, for: bundleId)
+        }
+        showModeIndicator(client: client)
+    }
+
+    func performToggleFromTap() {
+        guard let client: any IMKTextInput = self.client() else { return }
+        performToggle(source: "CGEventTap", client: client)
     }
 
     // MARK: - Private: Mode Indicator
@@ -771,19 +809,7 @@ class OngeulInputController: IMKInputController {
             && event.keyCode == KeyCode.space
             && modifiers.contains(.shift)
             && !modifiers.contains(.option) {
-            // 잠금 앱이면 한영전환 차단
-            if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) {
-                return true
-            }
-            let result = engine.toggleMode()
-            applyResult(result, to: client)
-            let newMode = engine.getMode()
-            os_log("toggleMode (Shift+Space) → %{public}@", log: log, type: .default,
-                   newMode == .korean ? "korean" : "english")
-            if let bundleId = currentBundleId {
-                Self.saveMode(newMode, for: bundleId)
-            }
-            showModeIndicator(client: client)
+            performToggle(source: "IMK", client: client)
             return true
         }
 

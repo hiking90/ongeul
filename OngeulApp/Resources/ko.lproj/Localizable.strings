@@ -21,6 +21,12 @@
 /* Escape → English */
 "prefs.escapeToEnglish" = "ESC 키로 영문 전환 (Vim 모드)";
 
+/* Accessibility Permission */
+"accessibility.title" = "손쉬운 사용 권한 필요";
+"accessibility.message" = "일부 앱(JetBrains IDE 등)에서 Shift+Space 전환 시 공백이 함께 입력되는 문제를 방지하려면 손쉬운 사용 권한이 필요합니다.\n\n권한 없이도 대부분의 앱에서 정상 동작합니다.";
+"accessibility.openSettings" = "권한 설정 열기";
+"accessibility.later" = "나중에";
+
 /* Layout */
 "prefs.layout.label" = "한글 자판:";
 "prefs.layout.2standard" = "두벌식 표준";

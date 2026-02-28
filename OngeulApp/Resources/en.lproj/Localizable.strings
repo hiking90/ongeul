@@ -21,6 +21,12 @@
 /* Escape → English */
 "prefs.escapeToEnglish" = "Switch to English on ESC (Vim mode)";
 
+/* Accessibility Permission */
+"accessibility.title" = "Accessibility Permission Required";
+"accessibility.message" = "Accessibility permission is needed to prevent extra spaces when switching with Shift+Space in some apps (e.g., JetBrains IDEs).\n\nMost apps work normally without this permission.";
+"accessibility.openSettings" = "Open Settings";
+"accessibility.later" = "Later";
+
 /* Layout */
 "prefs.layout.label" = "Korean Layout:";
 "prefs.layout.2standard" = "2-Set Standard";

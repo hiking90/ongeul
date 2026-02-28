@@ -17,9 +17,11 @@ Ongeul의 설정은 메뉴 막대에서 접근할 수 있습니다.
 - **오른쪽 Option** — 한국어 키보드의 한/영 키 위치
 - **왼쪽 Shift (단독)** — 다른 키 없이 단독으로 눌렀다 떼면 전환 (RIME 방식)
 - **오른쪽 Shift (단독)** — 다른 키 없이 단독으로 눌렀다 떼면 전환
-- **Shift + Space** — 전통적인 전환 방식 (터미널 비호환 가능)
+- **Shift + Space** — 전통적인 전환 방식
 
 모든 modifier 기반 전환 키는 500ms 이내에 떼야 전환됩니다.
+
+> **Shift + Space** 를 선택하면 손쉬운 사용(Accessibility) 권한 안내가 표시될 수 있습니다. 이 권한은 JetBrains IDE 등 일부 앱에서 공백이 함께 입력되는 문제를 방지합니다. 권한 없이도 대부분의 앱에서 정상 동작하므로 선택 사항입니다. 자세한 내용은 [한/영 전환 > Shift + Space](features/mode-switching.md#shift--space)를 참고하세요.
 
 ### 키보드 레이아웃
 

@@ -85,6 +85,7 @@ SWIFT_SOURCES=(
     "$GENERATED_DIR/Rshangul.swift"
     "$PROJECT_ROOT/OngeulApp/Sources/main.swift"
     "$PROJECT_ROOT/OngeulApp/Sources/OngeulInputController.swift"
+    "$PROJECT_ROOT/OngeulApp/Sources/KeyEventTap.swift"
 )
 
 swiftc \
@@ -92,7 +93,7 @@ swiftc \
     -sdk "$SDK_PATH" \
     -import-objc-header "$BRIDGING_HEADER" \
     -L "$LIB_DIR" -lrshangul \
-    -framework Cocoa -framework InputMethodKit \
+    -framework Cocoa -framework InputMethodKit -framework ApplicationServices \
     -module-name Ongeul \
     "${SWIFT_SOURCES[@]}" \
     "$BUILD_DIR/ObjCExceptionCatcher.o" \

@@ -76,7 +76,7 @@ private final class ModeIndicator {
         let belowY = cursorRect.origin.y - panel.frame.height - gap
         let aboveY = cursorRect.origin.y + cursorRect.size.height + gap
 
-        let screen = NSScreen.main?.visibleFrame ?? .zero
+        let screen = NSScreen.main?.frame ?? .zero
         let y = belowY >= screen.minY ? belowY : aboveY
 
         // 커서 중앙 아래(또는 위)에 배치

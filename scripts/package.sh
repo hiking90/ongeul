@@ -79,6 +79,7 @@ cp -R "$UNIVERSAL_APP" "$PKG_ROOT/"
 
 pkgbuild \
     --root "$PKG_ROOT" \
+    --component-plist "$PKG_SCRIPTS/component.plist" \
     --identifier io.github.hiking90.inputmethod.Ongeul \
     --version "$VERSION" \
     --install-location "/Library/Input Methods" \

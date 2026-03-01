@@ -41,7 +41,7 @@ Rust 엔진 + Swift 프론트엔드 하이브리드 구조. [UniFFI](https://moz
   <img src="docs/architecture.svg" alt="Architecture" width="420">
 </p>
 
-- **rshangul** (Rust): 한글 조합의 모든 로직을 담당. Swift 쪽에는 한글 처리 로직이 전혀 없음.
+- **ongeul-automata** (Rust): 한글 조합의 모든 로직을 담당. Swift 쪽에는 한글 처리 로직이 전혀 없음.
 - **OngeulApp** (Swift): 키 이벤트 수신 → Rust 엔진에 위임 → 결과 적용의 얇은 셸 역할.
 
 ## 빌드
@@ -76,7 +76,7 @@ Rust 엔진 + Swift 프론트엔드 하이브리드 구조. [UniFFI](https://moz
 ## 테스트
 
 ```bash
-cargo test -p rshangul
+cargo test -p ongeul-automata
 ```
 
 ## 디버그 로그

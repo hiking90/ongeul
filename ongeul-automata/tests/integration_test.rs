@@ -1,6 +1,6 @@
 /// HangulEngine 통합 테스트
 /// 설계 문서의 핵심 테스트 시나리오를 검증한다.
-use rshangul::{HangulEngine, InputMode};
+use ongeul_automata::{HangulEngine, InputMode};
 
 const LAYOUT_2BUL: &str = include_str!("../layouts/2-standard.json5");
 

@@ -1,5 +1,5 @@
 [package]
-name = "rshangul"
+name = "ongeul-automata"
 version = "0.1.0"
 edition = "2024"
 description = "Korean Hangul composition engine for Input Method Editors"

@@ -23,9 +23,9 @@
   <rect x="170" y="118" width="80" height="22" rx="4" fill="#f0f0f0" stroke="#ccc" stroke-width="1" />
   <text x="210" y="134" text-anchor="middle" class="label" fill="#666">UniFFI</text>
 
-  <!-- rshangul box -->
+  <!-- ongeul-automata box -->
   <rect x="40" y="155" width="340" height="100" class="box" fill="#f0fde8" stroke="#5da84e" />
-  <text x="210" y="183" text-anchor="middle" class="title" fill="#2f6b1e">rshangul (Rust)</text>
+  <text x="210" y="183" text-anchor="middle" class="title" fill="#2f6b1e">ongeul-automata (Rust)</text>
   <text x="210" y="203" text-anchor="middle" class="desc">한글 조합 오토마타</text>
   <text x="210" y="221" text-anchor="middle" class="desc">자모 합성/분해, 유니코드 처리</text>
   <text x="210" y="239" text-anchor="middle" class="desc">키보드 레이아웃 파서</text>

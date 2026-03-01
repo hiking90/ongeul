@@ -1,5 +1,5 @@
 [bindings.swift]
-module_name = "Rshangul"
-ffi_module_name = "RshangulFFI"
+module_name = "OngeulAutomata"
+ffi_module_name = "OngeulAutomataFFI"
 generate_immutable_records = true
 generate_module_map = true

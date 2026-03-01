@@ -94,10 +94,10 @@ impl Automata for JasoAutomata {
                 if self.buffer.state != AutomataState::Empty || self.pending_jongseong.is_some() {
                     let pending = self.pending_jongseong.take();
                     let mut committed = self.commit_current().unwrap_or_default();
-                    if let Some(t) = pending {
-                        if let Some(ch) = unicode::jongseong_to_compat(t) {
-                            committed.push(ch);
-                        }
+                    if let Some(t) = pending
+                        && let Some(ch) = unicode::jongseong_to_compat(t)
+                    {
+                        committed.push(ch);
                     }
                     return AutomataResult::handled(Some(committed), None);
                 }
@@ -308,10 +308,10 @@ impl Automata for JasoAutomata {
             return AutomataResult::handled(None, None);
         }
         let mut committed = self.commit_current().unwrap_or_default();
-        if let Some(t) = pending {
-            if let Some(ch) = unicode::jongseong_to_compat(t) {
-                committed.push(ch);
-            }
+        if let Some(t) = pending
+            && let Some(ch) = unicode::jongseong_to_compat(t)
+        {
+            committed.push(ch);
         }
         AutomataResult::handled(Some(committed), None)
     }
@@ -404,8 +404,7 @@ mod tests {
         // k=ㄱ초, f=ㅏ중, w=ㄹ종, x=ㄱ종
         let layout = make_layout();
         let mut automata = JasoAutomata::new();
-        let (committed, composing) =
-            process_keys(&mut automata, &layout, &["k", "f", "w", "x"]);
+        let (committed, composing) = process_keys(&mut automata, &layout, &["k", "f", "w", "x"]);
         assert_eq!(committed, "");
         assert_eq!(composing, Some("갉".to_string()));
     }
@@ -516,8 +515,7 @@ mod tests {
         // h=ㄴ초, f=ㅏ중, y=ㄹ초, f=ㅏ중
         let layout = make_layout();
         let mut automata = JasoAutomata::new();
-        let (committed, composing) =
-            process_keys(&mut automata, &layout, &["h", "f", "y", "f"]);
+        let (committed, composing) = process_keys(&mut automata, &layout, &["h", "f", "y", "f"]);
         assert_eq!(committed, "나");
         assert_eq!(composing, Some("라".to_string()));
     }
@@ -560,8 +558,7 @@ mod tests {
         // k=ㄱ초, f=ㅏ중, q=ㅅ종, q=ㅅ종
         let layout = make_layout();
         let mut automata = JasoAutomata::new();
-        let (committed, composing) =
-            process_keys(&mut automata, &layout, &["k", "f", "q", "q"]);
+        let (committed, composing) = process_keys(&mut automata, &layout, &["k", "f", "q", "q"]);
         assert_eq!(committed, "");
         assert_eq!(composing, Some("갔".to_string()));
     }
@@ -653,8 +650,7 @@ mod tests {
         // 모아주기 연속: ㄱ초→ㄴ종→ㅏ중 = "간" → ㄱ초 = "간" 확정 + "ㄱ"
         let layout = make_layout();
         let mut automata = JasoAutomata::new();
-        let (committed, composing) =
-            process_keys(&mut automata, &layout, &["k", "s", "f", "k"]);
+        let (committed, composing) = process_keys(&mut automata, &layout, &["k", "s", "f", "k"]);
         assert_eq!(committed, "간");
         assert_eq!(composing, Some("ㄱ".to_string()));
     }

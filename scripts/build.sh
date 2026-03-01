@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-RUST_CRATE="$PROJECT_ROOT/rshangul"
+RUST_CRATE="$PROJECT_ROOT/ongeul-automata"
 TARGET_DIR="$PROJECT_ROOT/target"
 GENERATED_DIR="$PROJECT_ROOT/OngeulApp/Generated"
 
@@ -40,13 +40,13 @@ LIB_DIR="$TARGET_DIR/$TARGET/release"
 
 echo "=== Building Ongeul for $TARGET ==="
 
-# ── 1. Rust 빌드 → librshangul.a ──
+# ── 1. Rust 빌드 → libongeul_automata.a ──
 
-echo "=== [1/5] Building rshangul (Rust) ==="
+echo "=== [1/5] Building ongeul-automata (Rust) ==="
 
 cargo build --manifest-path "$RUST_CRATE/Cargo.toml" --release --target "$TARGET"
 
-echo "    Library: $LIB_DIR/librshangul.a"
+echo "    Library: $LIB_DIR/libongeul_automata.a"
 
 # ── 2. UniFFI Swift 바인딩 생성 ──
 
@@ -55,7 +55,7 @@ echo "=== [2/5] Generating Swift bindings ==="
 mkdir -p "$GENERATED_DIR"
 cargo run --manifest-path "$RUST_CRATE/Cargo.toml" \
     --bin uniffi-bindgen generate \
-    --library "$LIB_DIR/librshangul.dylib" \
+    --library "$LIB_DIR/libongeul_automata.dylib" \
     --language swift \
     --out-dir "$GENERATED_DIR"
 
@@ -82,7 +82,7 @@ clang -c \
 
 # Swift 소스 파일 수집
 SWIFT_SOURCES=(
-    "$GENERATED_DIR/Rshangul.swift"
+    "$GENERATED_DIR/OngeulAutomata.swift"
     "$PROJECT_ROOT/OngeulApp/Sources/main.swift"
     "$PROJECT_ROOT/OngeulApp/Sources/OngeulInputController.swift"
     "$PROJECT_ROOT/OngeulApp/Sources/KeyEventTap.swift"
@@ -92,7 +92,7 @@ swiftc \
     -target "$APPLE_TARGET" \
     -sdk "$SDK_PATH" \
     -import-objc-header "$BRIDGING_HEADER" \
-    -L "$LIB_DIR" -lrshangul \
+    -L "$LIB_DIR" -longeul_automata \
     -framework Cocoa -framework InputMethodKit -framework ApplicationServices \
     -module-name Ongeul \
     "${SWIFT_SOURCES[@]}" \

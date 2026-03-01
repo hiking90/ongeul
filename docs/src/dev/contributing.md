@@ -24,7 +24,7 @@ Ongeul 프로젝트에 기여해 주셔서 감사합니다!
 변경 사항에 대한 테스트를 작성하거나 기존 테스트가 통과하는지 확인하세요.
 
 ```bash
-cargo test -p rshangul
+cargo test -p ongeul-automata
 ```
 
 ## Pull Request
@@ -43,9 +43,9 @@ cargo test -p rshangul
 
 ## 프로젝트 구조
 
-- **rshangul**: 한글 엔진 로직은 이 크레이트에서 관리합니다.
+- **ongeul-automata**: 한글 엔진 로직은 이 크레이트에서 관리합니다.
 - **OngeulApp**: macOS 연동 코드만 포함합니다. 한글 처리 로직을 여기에 넣지 마세요.
-- **레이아웃**: `rshangul/layouts/`의 JSON5 파일로 관리합니다.
+- **레이아웃**: `ongeul-automata/layouts/`의 JSON5 파일로 관리합니다.
 
 ## 라이선스
 

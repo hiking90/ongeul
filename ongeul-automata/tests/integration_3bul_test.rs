@@ -1,6 +1,6 @@
 /// 세벌식 HangulEngine 통합 테스트
 /// 세벌식 390, 세벌식 최종 레이아웃의 핵심 시나리오를 검증한다.
-use rshangul::{HangulEngine, InputMode};
+use ongeul_automata::{HangulEngine, InputMode};
 
 const LAYOUT_390: &str = include_str!("../layouts/3-390.json5");
 const LAYOUT_FINAL: &str = include_str!("../layouts/3-final.json5");

@@ -10,7 +10,7 @@
 ## 디렉토리 구조
 
 ```
-rshangul/              # Rust 한글 엔진
+ongeul-automata/       # Rust 한글 엔진
   src/
     lib.rs             # UniFFI 공개 API
     engine.rs          # 입력 모드, 키 처리
@@ -50,7 +50,7 @@ scripts/
 
 `build.sh`는 다음 단계를 수행합니다:
 
-1. **Rust 빌드**: `cargo build`로 `librshangul.a` 정적 라이브러리 생성
+1. **Rust 빌드**: `cargo build`로 `libongeul_automata.a` 정적 라이브러리 생성
 2. **UniFFI 바인딩**: Rust 라이브러리에서 Swift 바인딩 코드 자동 생성
 3. **Swift 컴파일**: `swiftc`로 Swift 소스 및 Obj-C 소스 컴파일
 4. **앱 번들**: `Ongeul.app` 번들 구조 생성 (Info.plist, 리소스 복사)
@@ -59,7 +59,7 @@ scripts/
 ## 테스트
 
 ```bash
-cargo test -p rshangul
+cargo test -p ongeul-automata
 ```
 
 유니코드 처리, 두벌식/세벌식 오토마타, 레이아웃 파서, 통합 테스트를 포함합니다.

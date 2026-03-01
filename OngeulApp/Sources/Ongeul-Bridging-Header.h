@@ -1,2 +1,2 @@
-#import "../Generated/RshangulFFI.h"
+#import "../Generated/OngeulAutomataFFI.h"
 #import "ObjCExceptionCatcher.h"

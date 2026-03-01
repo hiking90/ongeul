@@ -6,7 +6,8 @@ killall Ongeul 2>/dev/null || true
 sleep 1
 
 INSTALL_LOCATION="$2"
-USER_HOME=$( dscl . -read /Users/"$USER" NFSHomeDirectory | awk '{print $2}' )
+CONSOLE_USER=$( /usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ { print $3 }' )
+USER_HOME=$( dscl . -read /Users/"$CONSOLE_USER" NFSHomeDirectory | awk '{print $2}' )
 
 if [[ "$INSTALL_LOCATION" == /Library/* ]]; then
     # 시스템에 설치 → 사용자 경로 정리

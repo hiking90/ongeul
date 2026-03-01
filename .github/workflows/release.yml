@@ -14,6 +14,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
       - run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ./scripts/package.sh "$VERSION"
@@ -22,8 +23,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          PKG_FILE=$(ls build/Ongeul-*.pkg)
-          VERSION=$(basename "$PKG_FILE" | sed 's/Ongeul-//;s/\.pkg//')
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG_FILE="build/Ongeul-${VERSION}.pkg"
           SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
           NOTES=$(gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
             -f tag_name="$GITHUB_REF_NAME" --jq '.body')

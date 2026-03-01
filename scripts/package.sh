@@ -34,7 +34,7 @@ echo "=== [2/6] Building aarch64 ==="
 echo ""
 
 echo "=== [3/6] Building x86_64 ==="
-"$PROJECT_ROOT/scripts/build.sh" x86_64-apple-darwin
+"$PROJECT_ROOT/scripts/build.sh" x86_64-apple-darwin --skip-bindgen
 echo ""
 
 # ── 3. Universal 바이너리 조합 ──

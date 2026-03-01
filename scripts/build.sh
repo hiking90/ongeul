@@ -6,11 +6,21 @@ RUST_CRATE="$PROJECT_ROOT/ongeul-automata"
 TARGET_DIR="$PROJECT_ROOT/target"
 GENERATED_DIR="$PROJECT_ROOT/OngeulApp/Generated"
 
+# ── 옵션 파싱 ──
+
+SKIP_BINDGEN=false
+TARGET=""
+
+for arg in "$@"; do
+    case "$arg" in
+        --skip-bindgen) SKIP_BINDGEN=true ;;
+        *) TARGET="$arg" ;;
+    esac
+done
+
 # ── 타겟 설정 ──
 
-if [ -n "${1:-}" ]; then
-    TARGET="$1"
-else
+if [ -z "$TARGET" ]; then
     ARCH="$(uname -m)"
     case "$ARCH" in
         arm64)  TARGET="aarch64-apple-darwin" ;;
@@ -50,16 +60,20 @@ echo "    Library: $LIB_DIR/libongeul_automata.a"
 
 # ── 2. UniFFI Swift 바인딩 생성 ──
 
-echo "=== [2/5] Generating Swift bindings ==="
+if [ "$SKIP_BINDGEN" = true ]; then
+    echo "=== [2/5] Skipping Swift bindings (--skip-bindgen) ==="
+else
+    echo "=== [2/5] Generating Swift bindings ==="
 
-mkdir -p "$GENERATED_DIR"
-cargo run --manifest-path "$RUST_CRATE/Cargo.toml" \
-    --bin uniffi-bindgen generate \
-    --library "$LIB_DIR/libongeul_automata.dylib" \
-    --language swift \
-    --out-dir "$GENERATED_DIR"
+    mkdir -p "$GENERATED_DIR"
+    cargo run --manifest-path "$RUST_CRATE/Cargo.toml" \
+        --bin uniffi-bindgen generate \
+        --library "$LIB_DIR/libongeul_automata.dylib" \
+        --language swift \
+        --out-dir "$GENERATED_DIR"
 
-echo "    Generated: $GENERATED_DIR/"
+    echo "    Generated: $GENERATED_DIR/"
+fi
 
 # ── 3. Swift 소스 컴파일 ──
 

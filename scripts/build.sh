@@ -106,7 +106,7 @@ swiftc \
     -target "$APPLE_TARGET" \
     -sdk "$SDK_PATH" \
     -import-objc-header "$BRIDGING_HEADER" \
-    -L "$LIB_DIR" -longeul_automata \
+    "$LIB_DIR/libongeul_automata.a" \
     -framework Cocoa -framework InputMethodKit -framework ApplicationServices \
     -module-name Ongeul \
     "${SWIFT_SOURCES[@]}" \

@@ -25,12 +25,10 @@ jobs:
           PKG_FILE=$(ls build/Ongeul-*.pkg)
           VERSION=$(basename "$PKG_FILE" | sed 's/Ongeul-//;s/\.pkg//')
           SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
+          NOTES=$(gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
+            -f tag_name="$GITHUB_REF_NAME" --jq '.body')
+          FOOTER=$(printf '\n\n---\n**SHA-256:** `%s`\nVerify: `shasum -a 256 Ongeul-%s.pkg`' "$SHA256" "$VERSION")
           gh release create "$GITHUB_REF_NAME" \
             "$PKG_FILE" \
             --title "Ongeul ${VERSION}" \
-            --notes "$(gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
-              -f tag_name="$GITHUB_REF_NAME" --jq '.body')
-
----
-**SHA-256:** \`${SHA256}\`
-Verify: \`shasum -a 256 Ongeul-${VERSION}.pkg\`"
+            --notes "${NOTES}${FOOTER}"

@@ -834,6 +834,22 @@ class OngeulInputController: IMKInputController {
         fourKeysSeen.removeAll()
         allFourReached = false
 
+        // Shift+Space → 한/영 전환 (shiftSpace 모드일 때)
+        if Self.toggleKey == .shiftSpace
+            && event.keyCode == KeyCode.space
+            && modifiers.contains(.shift)
+            && !modifiers.contains(.option)
+            && !modifiers.contains(.command)
+            && !modifiers.contains(.control) {
+            performToggle(source: "IMK", client: client)
+            return true
+        }
+
+        // 영문 모드: 전환 키 외 모든 키를 시스템에 위임 (ABC와 동일한 동작)
+        if engine.getMode() == .english {
+            return false
+        }
+
         // 시스템 단축키 → flush 후 통과
         if modifiers.contains(.command) || modifiers.contains(.control) {
             let result = engine.flush()
@@ -853,15 +869,6 @@ class OngeulInputController: IMKInputController {
             let result = engine.flush()
             applyResult(result, to: client)
             return false
-        }
-
-        // Shift+Space → 한/영 전환 (shiftSpace 모드일 때, Space 처리보다 먼저)
-        if Self.toggleKey == .shiftSpace
-            && event.keyCode == KeyCode.space
-            && modifiers.contains(.shift)
-            && !modifiers.contains(.option) {
-            performToggle(source: "IMK", client: client)
-            return true
         }
 
         // Space → flush 후 시스템 위임
@@ -919,23 +926,15 @@ class OngeulInputController: IMKInputController {
         let ch = chars.first!
         let modifiers = event.modifierFlags
 
-        // CapsLock 보정: IME 컨텍스트에서 macOS는 CapsLock+Shift 시에도 대문자를 보냄
+        // CapsLock 보정: 한글 모드에서 CapsLock 영향 무효화
         if ch.isASCII && ch.isLetter {
             let capsLock = modifiers.contains(.capsLock)
             let shift = modifiers.contains(.shift)
 
-            if engine.getMode() == .korean {
-                // 한글 모드: CapsLock 영향 무효화
-                if capsLock && !shift {
-                    return String(ch).lowercased()
-                } else if capsLock && shift {
-                    return String(ch).uppercased()
-                }
-            } else {
-                // 영문 모드: CapsLock + Shift → 소문자 (Shift가 CapsLock 반전)
-                if capsLock && shift {
-                    return String(ch).lowercased()
-                }
+            if capsLock && !shift {
+                return String(ch).lowercased()
+            } else if capsLock && shift {
+                return String(ch).uppercased()
             }
         }
 

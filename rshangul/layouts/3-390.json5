@@ -118,7 +118,5 @@
     { first: "0x11B8", second: "0x11BA", result: "0x11B9" },  // ㅂ+ㅅ=ㅄ
   ],
 
-  options: {
-    auto_reorder: false,
-  },
+  options: {},
 }

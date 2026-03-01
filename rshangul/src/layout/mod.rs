@@ -15,7 +15,6 @@ pub struct KeyboardLayout {
     keymap: HashMap<String, char>,
     /// (첫째 자모, 둘째 자모) → 결합 결과
     combinations: HashMap<(char, char), char>,
-    pub auto_reorder: bool,
 }
 
 /// 16진수 문자열("0x3131" 등)을 char로 변환
@@ -55,7 +54,6 @@ impl KeyboardLayout {
             layout_type: schema.layout_type,
             keymap,
             combinations,
-            auto_reorder: schema.options.auto_reorder,
         })
     }
 

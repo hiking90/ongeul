@@ -1,7 +1,7 @@
 //! 세벌식(3-beolsik) 오토마타
 //!
 //! 3슬롯 채우기 방식: 초성/중성/종성이 별도 키로 구분됨.
-//! 종성 분리 불필요, auto_reorder 선택적 지원.
+//! 종성 분리 불필요, 모아주기(auto-reorder) 내장.
 
 use crate::layout::KeyboardLayout;
 use crate::unicode;
@@ -17,6 +17,8 @@ pub struct JasoAutomata {
     prev_jungseong: Option<u32>,
     /// 겹종성 백스페이스 복원용
     prev_jongseong: Option<u32>,
+    /// 모아주기: 중성 대기 중인 종성 (초성→종성→중성 역전 교정)
+    pending_jongseong: Option<u32>,
 }
 
 impl Default for JasoAutomata {
@@ -32,6 +34,7 @@ impl JasoAutomata {
             prev_choseong: None,
             prev_jungseong: None,
             prev_jongseong: None,
+            pending_jongseong: None,
         }
     }
 
@@ -41,6 +44,7 @@ impl JasoAutomata {
         self.prev_choseong = None;
         self.prev_jungseong = None;
         self.prev_jongseong = None;
+        self.pending_jongseong = None;
         text
     }
 
@@ -87,13 +91,30 @@ impl Automata for JasoAutomata {
 
         match class {
             JasoClass::Unknown => {
-                if self.buffer.state != AutomataState::Empty {
-                    let committed = self.commit_current();
-                    return AutomataResult::handled(committed, None);
+                if self.buffer.state != AutomataState::Empty || self.pending_jongseong.is_some() {
+                    let pending = self.pending_jongseong.take();
+                    let mut committed = self.commit_current().unwrap_or_default();
+                    if let Some(t) = pending {
+                        if let Some(ch) = unicode::jongseong_to_compat(t) {
+                            committed.push(ch);
+                        }
+                    }
+                    return AutomataResult::handled(Some(committed), None);
                 }
                 AutomataResult::not_handled()
             }
             JasoClass::Choseong(l_idx) => {
+                // 모아주기: pending 종성 포기 → 현재 초성+종성 모두 확정, 새 초성
+                if let Some(pending_t) = self.pending_jongseong.take() {
+                    let mut committed = self.commit_current().unwrap_or_default();
+                    if let Some(ch) = unicode::jongseong_to_compat(pending_t) {
+                        committed.push(ch);
+                    }
+                    self.buffer.choseong = Some(l_idx);
+                    self.buffer.state = AutomataState::Choseong;
+                    return AutomataResult::handled(Some(committed), self.buffer.to_string());
+                }
+
                 if let Some(current_l) = self.buffer.choseong {
                     // 중성이 이미 있으면 음절 진행 중 → 확정 + 새 초성
                     if self.buffer.jungseong.is_some() {
@@ -118,12 +139,25 @@ impl Automata for JasoAutomata {
                     self.buffer.state = AutomataState::Choseong;
                     AutomataResult::handled(committed, self.buffer.to_string())
                 } else {
+                    // 모아주기: 중성이 이미 있으면 초성 삽입 → Jungseong 상태
                     self.buffer.choseong = Some(l_idx);
-                    self.buffer.state = AutomataState::Choseong;
+                    if self.buffer.jungseong.is_some() {
+                        self.buffer.state = AutomataState::Jungseong;
+                    } else {
+                        self.buffer.state = AutomataState::Choseong;
+                    }
                     AutomataResult::handled(None, self.buffer.to_string())
                 }
             }
             JasoClass::Jungseong(v_idx) => {
+                // 모아주기: pending 종성 해소 → 초성+중성+종성 음절 완성
+                if let Some(pending_t) = self.pending_jongseong.take() {
+                    self.buffer.jungseong = Some(v_idx);
+                    self.buffer.jongseong = Some(pending_t);
+                    self.buffer.state = AutomataState::Jongseong;
+                    return AutomataResult::handled(None, self.buffer.to_string());
+                }
+
                 if let Some(current_v) = self.buffer.jungseong {
                     // 이미 중성 있음 → 겹모음 시도 (위치 자모로 조합)
                     let current_ch = Self::v_char(current_v);
@@ -148,6 +182,23 @@ impl Automata for JasoAutomata {
                 }
             }
             JasoClass::Jongseong(t_idx) => {
+                // 모아주기: 초성만 있고 중성 없음 → 종성을 보류 (중성 대기)
+                if self.buffer.choseong.is_some() && self.buffer.jungseong.is_none() {
+                    if let Some(pending_t) = self.pending_jongseong.take() {
+                        // 이미 pending 있음 → 포기: 초성+pending 확정, 새 종성도 확정
+                        let mut committed = self.commit_current().unwrap_or_default();
+                        if let Some(ch) = unicode::jongseong_to_compat(pending_t) {
+                            committed.push(ch);
+                        }
+                        if let Some(ch) = unicode::jongseong_to_compat(t_idx) {
+                            committed.push(ch);
+                        }
+                        return AutomataResult::handled(Some(committed), None);
+                    }
+                    self.pending_jongseong = Some(t_idx);
+                    return AutomataResult::handled(None, self.buffer.to_string());
+                }
+
                 if self.buffer.choseong.is_none() || self.buffer.jungseong.is_none() {
                     // 초성+중성이 없으면 종성 독립 불가 → 즉시 확정
                     let mut committed = if self.buffer.state != AutomataState::Empty {
@@ -232,6 +283,10 @@ impl Automata for JasoAutomata {
                 AutomataResult::handled(None, self.buffer.to_string())
             }
             AutomataState::Choseong => {
+                // 모아주기: pending 종성 해제
+                if self.pending_jongseong.take().is_some() {
+                    return AutomataResult::handled(None, self.buffer.to_string());
+                }
                 // 쌍자음이었다면 원래 초성으로 복원
                 if let Some(prev_l) = self.prev_choseong {
                     self.buffer.choseong = Some(prev_l);
@@ -248,11 +303,17 @@ impl Automata for JasoAutomata {
     }
 
     fn flush(&mut self) -> AutomataResult {
-        if self.buffer.state == AutomataState::Empty {
+        let pending = self.pending_jongseong.take();
+        if self.buffer.state == AutomataState::Empty && pending.is_none() {
             return AutomataResult::handled(None, None);
         }
-        let committed = self.commit_current();
-        AutomataResult::handled(committed, None)
+        let mut committed = self.commit_current().unwrap_or_default();
+        if let Some(t) = pending {
+            if let Some(ch) = unicode::jongseong_to_compat(t) {
+                committed.push(ch);
+            }
+        }
+        AutomataResult::handled(Some(committed), None)
     }
 
     fn composing_text(&self) -> Option<String> {
@@ -503,5 +564,98 @@ mod tests {
             process_keys(&mut automata, &layout, &["k", "f", "q", "q"]);
         assert_eq!(committed, "");
         assert_eq!(composing, Some("갔".to_string()));
+    }
+
+    // ── 모아주기 테스트 ──
+
+    #[test]
+    fn test_auto_reorder_pending_success() {
+        // 모아주기: ㄱ초 → ㄴ종 → ㅏ중 → "간" (pending 성공)
+        // k=ㄱ초, s=ㄴ종, f=ㅏ중
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) = process_keys(&mut automata, &layout, &["k", "s", "f"]);
+        assert_eq!(committed, "");
+        assert_eq!(composing, Some("간".to_string()));
+        assert_eq!(automata.state(), AutomataState::Jongseong);
+    }
+
+    #[test]
+    fn test_auto_reorder_pending_fail() {
+        // 모아주기: ㄱ초 → ㄴ종 → ㄷ초 → "ㄱㄴ" 확정 + "ㄷ" (pending 실패)
+        // k=ㄱ초, s=ㄴ종, u=ㄷ초
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) = process_keys(&mut automata, &layout, &["k", "s", "u"]);
+        assert_eq!(committed, "ㄱㄴ");
+        assert_eq!(composing, Some("ㄷ".to_string()));
+    }
+
+    #[test]
+    fn test_auto_reorder_pending_backspace() {
+        // 모아주기: ㄱ초 → ㄴ종 → BS → "ㄱ" (pending 해제)
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        process_keys(&mut automata, &layout, &["k", "s"]);
+        let result = automata.backspace();
+        assert_eq!(result.composing, Some("ㄱ".to_string()));
+        assert!(result.handled);
+        assert_eq!(automata.state(), AutomataState::Choseong);
+    }
+
+    #[test]
+    fn test_auto_reorder_vowel_then_choseong() {
+        // 모아주기: ㅏ중 → ㄱ초 → "가" (모음→초성 역전)
+        // f=ㅏ중, k=ㄱ초
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) = process_keys(&mut automata, &layout, &["f", "k"]);
+        assert_eq!(committed, "");
+        assert_eq!(composing, Some("가".to_string()));
+        assert_eq!(automata.state(), AutomataState::Jungseong);
+    }
+
+    #[test]
+    fn test_auto_reorder_vowel_choseong_backspace() {
+        // 모아주기: ㅏ중 → ㄱ초 → "가" → BS → "ㅏ" (중성 제거 → choseong 복원 아닌 jungseong 제거)
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        process_keys(&mut automata, &layout, &["f", "k"]);
+        // Jungseong 상태에서 BS → 중성 제거 → Choseong
+        let result = automata.backspace();
+        assert_eq!(result.composing, Some("ㄱ".to_string()));
+        assert_eq!(automata.state(), AutomataState::Choseong);
+    }
+
+    #[test]
+    fn test_auto_reorder_pending_flush() {
+        // 모아주기: ㄱ초 → ㄴ종 → flush → "ㄱㄴ" 확정
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        process_keys(&mut automata, &layout, &["k", "s"]);
+        let result = automata.flush();
+        assert_eq!(result.committed, Some("ㄱㄴ".to_string()));
+        assert_eq!(result.composing, None);
+    }
+
+    #[test]
+    fn test_auto_reorder_pending_double_jongseong() {
+        // 모아주기: ㄱ초 → ㄴ종 → ㄴ종 → "ㄱㄴㄴ" (두 번째 종성도 확정)
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) = process_keys(&mut automata, &layout, &["k", "s", "s"]);
+        assert_eq!(committed, "ㄱㄴㄴ");
+        assert_eq!(composing, None);
+    }
+
+    #[test]
+    fn test_auto_reorder_full_sequence() {
+        // 모아주기 연속: ㄱ초→ㄴ종→ㅏ중 = "간" → ㄱ초 = "간" 확정 + "ㄱ"
+        let layout = make_layout();
+        let mut automata = JasoAutomata::new();
+        let (committed, composing) =
+            process_keys(&mut automata, &layout, &["k", "s", "f", "k"]);
+        assert_eq!(committed, "간");
+        assert_eq!(composing, Some("ㄱ".to_string()));
     }
 }

@@ -98,12 +98,11 @@ impl JamoAutomata {
 
     /// S2(Jungseong) + 자음: 종성 가능하면 S4, 불가면 확정 + 새 초성
     fn process_jungseong_consonant(&mut self, ch: char, l_idx: u32) -> AutomataResult {
-        // 초성이 없으면(모음만 입력된 상태) 종성 불가 → 확정 + 새 초성
+        // 모아주기: 초성 없이 모음만 있으면 자음을 초성 자리에 삽입
         if self.buffer.choseong.is_none() {
-            let committed = self.commit_current();
             self.buffer.choseong = Some(l_idx);
-            self.buffer.state = AutomataState::Choseong;
-            return AutomataResult::handled(committed, self.buffer.to_string());
+            // 상태는 Jungseong 유지 (초성+중성 보유)
+            return AutomataResult::handled(None, self.buffer.to_string());
         }
 
         if unicode::is_jongseong_impossible(ch) {
@@ -129,12 +128,11 @@ impl JamoAutomata {
 
     /// S3(Jungseong2) + 자음: 종성 가능하면 S4, 불가면 확정 + 새 초성
     fn process_jungseong2_consonant(&mut self, ch: char, l_idx: u32) -> AutomataResult {
-        // 초성 없으면 확정 + 새 초성
+        // 모아주기: 초성 없이 겹모음만 있으면 자음을 초성 자리에 삽입
         if self.buffer.choseong.is_none() {
-            let committed = self.commit_current();
             self.buffer.choseong = Some(l_idx);
-            self.buffer.state = AutomataState::Choseong;
-            return AutomataResult::handled(committed, self.buffer.to_string());
+            // 상태는 Jungseong2 유지
+            return AutomataResult::handled(None, self.buffer.to_string());
         }
 
         if unicode::is_jongseong_impossible(ch) {
@@ -673,14 +671,60 @@ mod tests {
     }
 
     #[test]
-    fn test_vowel_then_consonant_commits_vowel() {
-        // ㅏ + ㄱ → "ㅏ" 확정 + "ㄱ" 조합
+    fn test_vowel_then_consonant_auto_reorder() {
+        // 모아주기: ㅏ + ㄱ → "가" (초성 자리에 삽입)
         let layout = make_layout();
         let mut automata = JamoAutomata::new();
         let (committed, composing) =
             process_keys(&mut automata, &layout, &["k", "r"]);
-        assert_eq!(committed, "ㅏ");
-        assert_eq!(composing, Some("ㄱ".to_string()));
+        assert_eq!(committed, "");
+        assert_eq!(composing, Some("가".to_string()));
+        assert_eq!(automata.state(), AutomataState::Jungseong);
+    }
+
+    #[test]
+    fn test_vowel_consonant_then_vowel() {
+        // 모아주기 후 모음: ㅏ → ㄱ → "가" → ㅏ → 겹모음 불가 → "가" 확정 + "ㅏ"
+        let layout = make_layout();
+        let mut automata = JamoAutomata::new();
+        let (committed, composing) =
+            process_keys(&mut automata, &layout, &["k", "r", "k"]);
+        assert_eq!(committed, "가");
+        assert_eq!(composing, Some("ㅏ".to_string()));
+    }
+
+    #[test]
+    fn test_vowel_consonant_then_jongseong() {
+        // 모아주기 후 종성: ㅏ → ㄱ → "가" → ㄴ → "간"
+        let layout = make_layout();
+        let mut automata = JamoAutomata::new();
+        let (committed, composing) =
+            process_keys(&mut automata, &layout, &["k", "r", "s"]);
+        assert_eq!(committed, "");
+        assert_eq!(composing, Some("간".to_string()));
+    }
+
+    #[test]
+    fn test_double_vowel_then_consonant_auto_reorder() {
+        // 겹모음 + 모아주기: ㅗ → ㅣ → ㅚ(겹모음) → ㄱ → "괴"
+        let layout = make_layout();
+        let mut automata = JamoAutomata::new();
+        let (committed, composing) =
+            process_keys(&mut automata, &layout, &["h", "l", "r"]);
+        assert_eq!(committed, "");
+        assert_eq!(composing, Some("괴".to_string()));
+        assert_eq!(automata.state(), AutomataState::Jungseong2);
+    }
+
+    #[test]
+    fn test_auto_reorder_backspace() {
+        // 모아주기 후 백스페이스: ㅏ → ㄱ → "가" → BS → "ㄱ" (중성 제거)
+        let layout = make_layout();
+        let mut automata = JamoAutomata::new();
+        process_keys(&mut automata, &layout, &["k", "r"]);
+        let result = automata.backspace();
+        assert_eq!(result.composing, Some("ㄱ".to_string()));
+        assert_eq!(automata.state(), AutomataState::Choseong);
     }
 
     #[test]

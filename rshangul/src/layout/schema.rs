@@ -25,9 +25,7 @@ pub struct CombinationEntry {
 /// 레이아웃 옵션
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct LayoutOptions {
-    /// 세벌식 자동 재배열 (초→중→종 순서로 자동 정렬)
-    #[serde(default)]
-    pub auto_reorder: bool,
+    // 향후 레이아웃별 옵션 추가 시 사용
 }
 
 /// JSON5 레이아웃 최상위 스키마

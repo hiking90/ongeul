@@ -382,3 +382,41 @@ fn test_final_non_jamo_then_new_composing() {
     assert_eq!(committed, "5");
     assert_eq!(composing, Some("가".to_string()));
 }
+
+// ── 모아주기 테스트 ──
+
+#[test]
+fn test_390_auto_reorder_pending() {
+    // 세벌식 390 모아주기: ㄱ초(k) → ㄴ종(s) → ㅏ중(f) → "간"
+    let engine = create_engine_390();
+    let (committed, composing) = process_keys(&engine, &["k", "s", "f"]);
+    assert_eq!(committed, "");
+    assert_eq!(composing, Some("간".to_string()));
+}
+
+#[test]
+fn test_390_auto_reorder_vowel_choseong() {
+    // 세벌식 390 모아주기: ㅏ중(f) → ㄱ초(k) → "가"
+    let engine = create_engine_390();
+    let (committed, composing) = process_keys(&engine, &["f", "k"]);
+    assert_eq!(committed, "");
+    assert_eq!(composing, Some("가".to_string()));
+}
+
+#[test]
+fn test_final_auto_reorder_pending() {
+    // 세벌식 최종 모아주기: ㄱ초(k) → ㄴ종(s) → ㅏ중(f) → "간"
+    let engine = create_engine_final();
+    let (committed, composing) = process_keys(&engine, &["k", "s", "f"]);
+    assert_eq!(committed, "");
+    assert_eq!(composing, Some("간".to_string()));
+}
+
+#[test]
+fn test_390_auto_reorder_pending_fail() {
+    // 세벌식 390 모아주기 실패: ㄱ초(k) → ㄴ종(s) → ㄷ초(u) → "ㄱㄴ" 확정 + "ㄷ"
+    let engine = create_engine_390();
+    let (committed, composing) = process_keys(&engine, &["k", "s", "u"]);
+    assert_eq!(committed, "ㄱㄴ");
+    assert_eq!(composing, Some("ㄷ".to_string()));
+}

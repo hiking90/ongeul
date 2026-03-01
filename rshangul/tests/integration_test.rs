@@ -211,6 +211,26 @@ fn test_vowel_only_input() {
     assert!(result.handled);
 }
 
+// ── 모아주기 테스트 ──
+
+#[test]
+fn test_auto_reorder_vowel_then_consonant() {
+    // 두벌식 모아주기: ㅏ → ㄱ → "가" (모음→자음 역전 교정)
+    let engine = create_engine();
+    let (committed, composing) = process_keys(&engine, &["k", "r"]);
+    assert_eq!(committed, "");
+    assert_eq!(composing, Some("가".to_string()));
+}
+
+#[test]
+fn test_auto_reorder_vowel_consonant_jongseong() {
+    // 두벌식 모아주기: ㅏ → ㄱ → ㄴ → "간" (역전 교정 후 종성)
+    let engine = create_engine();
+    let (committed, composing) = process_keys(&engine, &["k", "r", "s"]);
+    assert_eq!(committed, "");
+    assert_eq!(composing, Some("간".to_string()));
+}
+
 #[test]
 fn test_eui_combination() {
     // ㅡ + ㅣ = ㅢ (겹모음)

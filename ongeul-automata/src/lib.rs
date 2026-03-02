@@ -3,11 +3,17 @@ pub mod engine;
 pub mod layout;
 pub mod unicode;
 
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use engine::EngineState;
 
 uniffi::setup_scaffolding!();
+
+/// 예상치 못한 상황 발생 시 경고 로그를 출력한다.
+/// 단일 지점으로 격리하여 향후 `log` 크레이트나 macOS unified logging으로 교체 가능.
+pub(crate) fn warn_unexpected(context: &str, detail: impl std::fmt::Debug) {
+    eprintln!("[ongeul] {context}: {detail:?}");
+}
 
 /// 키 처리 결과 (UniFFI → Swift 전달용)
 #[derive(uniffi::Record, Debug, Clone)]
@@ -64,6 +70,19 @@ impl Default for HangulEngine {
     }
 }
 
+impl HangulEngine {
+    /// Mutex lock을 안전하게 획득한다.
+    /// Poison 발생 시 상태를 리셋하고 복구한다.
+    fn lock_state(&self) -> MutexGuard<'_, EngineState> {
+        self.state.lock().unwrap_or_else(|e| {
+            warn_unexpected("Mutex poisoned", "recovering");
+            let mut guard = e.into_inner();
+            guard.reset();
+            guard
+        })
+    }
+}
+
 #[uniffi::export]
 impl HangulEngine {
     /// 새 엔진을 생성한다. (English 모드, 레이아웃 미로드)
@@ -76,7 +95,7 @@ impl HangulEngine {
 
     /// JSON5 문자열로 자판 레이아웃을 로드한다.
     pub fn load_layout(&self, json: String) -> Result<(), EngineError> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         state
             .load_layout(&json)
             .map_err(|e| EngineError::LayoutError { message: e })
@@ -84,7 +103,7 @@ impl HangulEngine {
 
     /// 입력 모드를 설정한다.
     pub fn set_mode(&self, mode: InputMode) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         if state.mode == engine::InputMode::Korean && mode == InputMode::English {
             // 한→영 전환 시 현재 조합 확정
             let _ = state.flush();
@@ -94,13 +113,13 @@ impl HangulEngine {
 
     /// 현재 입력 모드를 반환한다.
     pub fn get_mode(&self) -> InputMode {
-        let state = self.state.lock().unwrap();
+        let state = self.lock_state();
         state.mode.into()
     }
 
     /// 입력 모드를 토글한다. flush 결과를 포함한 ProcessResult를 반환한다.
     pub fn toggle_mode(&self) -> ProcessResult {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         if state.mode == engine::InputMode::Korean {
             let result = state.flush();
             state.mode = engine::InputMode::English;
@@ -121,7 +140,7 @@ impl HangulEngine {
 
     /// 키 레이블을 처리한다. (예: "q", "Q", "k")
     pub fn process_key(&self, key: String) -> ProcessResult {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         let result = state.process_key(&key);
         ProcessResult {
             committed: result.committed,
@@ -132,7 +151,7 @@ impl HangulEngine {
 
     /// 백스페이스 처리 (오토마타 한 단계 되돌림)
     pub fn backspace(&self) -> ProcessResult {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         let result = state.backspace();
         ProcessResult {
             committed: result.committed,
@@ -143,7 +162,7 @@ impl HangulEngine {
 
     /// 현재 조합을 확정한다.
     pub fn flush(&self) -> ProcessResult {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         let result = state.flush();
         ProcessResult {
             committed: result.committed,
@@ -154,7 +173,7 @@ impl HangulEngine {
 
     /// 현재 조합을 폐기한다.
     pub fn reset(&self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.lock_state();
         state.reset();
     }
 }

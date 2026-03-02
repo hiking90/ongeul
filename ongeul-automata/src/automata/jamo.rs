@@ -8,6 +8,20 @@ use crate::unicode;
 
 use super::{Automata, AutomataResult, AutomataState, ComposeBuffer};
 
+/// 자모 변환 실패 시 현재 조합을 확정하고 안전하게 반환하는 매크로.
+macro_rules! try_convert {
+    ($conv:expr, $self:expr, $name:expr, $ch:expr) => {
+        match $conv {
+            Some(idx) => idx,
+            None => {
+                crate::warn_unexpected($name, $ch);
+                let committed = $self.commit_current();
+                return AutomataResult::handled(committed, None);
+            }
+        }
+    };
+}
+
 /// 두벌식 오토마타
 pub struct JamoAutomata {
     buffer: ComposeBuffer,
@@ -76,11 +90,16 @@ impl JamoAutomata {
         v_idx: u32,
         layout: &KeyboardLayout,
     ) -> AutomataResult {
-        let current_v = self.buffer.jungseong.unwrap();
-        let current_v_ch = unicode::jungseong_to_compat(current_v).unwrap();
-        let new_v_ch = unicode::jungseong_to_compat(v_idx).unwrap();
+        let Some(current_v) = self.buffer.jungseong else {
+            crate::warn_unexpected("process_jungseong_vowel", "buffer.jungseong is None");
+            let committed = self.commit_current();
+            return AutomataResult::handled(committed, None);
+        };
 
-        if let Some(combined) = layout.combine(current_v_ch, new_v_ch)
+        // 겹모음 조합 시도: 변환 실패 시 "겹모음 불가" 경로로 진입
+        if let Some(current_v_ch) = unicode::jungseong_to_compat(current_v)
+            && let Some(new_v_ch) = unicode::jungseong_to_compat(v_idx)
+            && let Some(combined) = layout.combine(current_v_ch, new_v_ch)
             && let Some(combined_idx) = unicode::compat_to_jungseong(combined)
         {
             self.prev_jungseong = Some(current_v);
@@ -161,11 +180,15 @@ impl JamoAutomata {
         l_idx: u32,
         layout: &KeyboardLayout,
     ) -> AutomataResult {
-        let current_t = self.buffer.jongseong.unwrap();
-        let current_t_ch = unicode::jongseong_to_compat(current_t).unwrap();
+        let Some(current_t) = self.buffer.jongseong else {
+            crate::warn_unexpected("process_jongseong_consonant", "buffer.jongseong is None");
+            let committed = self.commit_current();
+            return AutomataResult::handled(committed, None);
+        };
 
-        // 겹종성 조합 시도
-        if let Some(combined) = layout.combine(current_t_ch, ch)
+        // 겹종성 조합 시도: jongseong_to_compat 실패 시 "겹종성 불가" 경로로 진입
+        if let Some(current_t_ch) = unicode::jongseong_to_compat(current_t)
+            && let Some(combined) = layout.combine(current_t_ch, ch)
             && let Some(combined_idx) = unicode::compat_to_jongseong(combined)
         {
             self.prev_jongseong = Some(current_t);
@@ -184,12 +207,21 @@ impl JamoAutomata {
     /// S4(Jongseong) + 모음: ★종성 분리★
     /// 종성을 다음 초성으로 이동, 현재 LV를 확정
     fn process_jongseong_vowel(&mut self, v_idx: u32) -> AutomataResult {
-        let t = self.buffer.jongseong.unwrap();
-        let l = self.buffer.choseong.unwrap();
-        let v = self.buffer.jungseong.unwrap();
+        let (Some(t), Some(l), Some(v)) = (self.buffer.jongseong, self.buffer.choseong, self.buffer.jungseong) else {
+            crate::warn_unexpected("process_jongseong_vowel", "buffer field is None");
+            let committed = self.commit_current();
+            return AutomataResult::handled(committed, None);
+        };
 
         // 종성을 초성으로 변환
-        let next_l = unicode::jongseong_to_choseong(t).unwrap();
+        let Some(next_l) = unicode::jongseong_to_choseong(t) else {
+            // 종성 분리 불가: 현재 음절을 종성 포함 그대로 확정 + 새 모음만 시작
+            crate::warn_unexpected("jongseong_to_choseong", t);
+            let committed = self.commit_current();
+            self.buffer.jungseong = Some(v_idx);
+            self.buffer.state = AutomataState::Jungseong;
+            return AutomataResult::handled(committed, self.buffer.to_string());
+        };
 
         // 현재 음절을 종성 없이 확정
         let committed = unicode::compose_syllable(l, v, 0)
@@ -209,13 +241,29 @@ impl JamoAutomata {
     /// S5(Jongseong2) + 모음: ★겹종성 분리★
     /// 겹종성 분리, 첫째 유지, 둘째를 다음 초성으로 이동
     fn process_jongseong2_vowel(&mut self, v_idx: u32) -> AutomataResult {
-        let t = self.buffer.jongseong.unwrap();
-        let l = self.buffer.choseong.unwrap();
-        let v = self.buffer.jungseong.unwrap();
+        let (Some(t), Some(l), Some(v)) = (self.buffer.jongseong, self.buffer.choseong, self.buffer.jungseong) else {
+            crate::warn_unexpected("process_jongseong2_vowel", "buffer field is None");
+            let committed = self.commit_current();
+            return AutomataResult::handled(committed, None);
+        };
 
         // 겹종성 분리
-        let (first_t, second_ch) = unicode::split_double_jongseong(t).unwrap();
-        let next_l = unicode::compat_to_choseong(second_ch).unwrap();
+        let Some((first_t, second_ch)) = unicode::split_double_jongseong(t) else {
+            // 겹종성 분리 불가: 현재 음절 그대로 확정 + 새 모음만 시작
+            crate::warn_unexpected("split_double_jongseong", t);
+            let committed = self.commit_current();
+            self.buffer.jungseong = Some(v_idx);
+            self.buffer.state = AutomataState::Jungseong;
+            return AutomataResult::handled(committed, self.buffer.to_string());
+        };
+        let Some(next_l) = unicode::compat_to_choseong(second_ch) else {
+            // 둘째 자모 초성 변환 불가: 현재 음절 그대로 확정 + 새 모음만 시작
+            crate::warn_unexpected("compat_to_choseong", second_ch);
+            let committed = self.commit_current();
+            self.buffer.jungseong = Some(v_idx);
+            self.buffer.state = AutomataState::Jungseong;
+            return AutomataResult::handled(committed, self.buffer.to_string());
+        };
 
         // 현재 음절: 첫째 종성만 유지하고 확정
         let committed = unicode::compose_syllable(l, v, first_t)
@@ -258,28 +306,28 @@ impl Automata for JamoAutomata {
         match self.buffer.state {
             AutomataState::Empty => {
                 if is_consonant {
-                    let l_idx = unicode::compat_to_choseong(ch).unwrap();
+                    let l_idx = try_convert!(unicode::compat_to_choseong(ch), self, "compat_to_choseong", ch);
                     self.process_empty_consonant(l_idx)
                 } else {
-                    let v_idx = unicode::compat_to_jungseong(ch).unwrap();
+                    let v_idx = try_convert!(unicode::compat_to_jungseong(ch), self, "compat_to_jungseong", ch);
                     self.process_empty_vowel(v_idx)
                 }
             }
             AutomataState::Choseong => {
                 if is_vowel {
-                    let v_idx = unicode::compat_to_jungseong(ch).unwrap();
+                    let v_idx = try_convert!(unicode::compat_to_jungseong(ch), self, "compat_to_jungseong", ch);
                     self.process_choseong_vowel(v_idx)
                 } else {
-                    let l_idx = unicode::compat_to_choseong(ch).unwrap();
+                    let l_idx = try_convert!(unicode::compat_to_choseong(ch), self, "compat_to_choseong", ch);
                     self.process_choseong_consonant(l_idx)
                 }
             }
             AutomataState::Jungseong => {
                 if is_vowel {
-                    let v_idx = unicode::compat_to_jungseong(ch).unwrap();
+                    let v_idx = try_convert!(unicode::compat_to_jungseong(ch), self, "compat_to_jungseong", ch);
                     self.process_jungseong_vowel(v_idx, layout)
                 } else {
-                    let l_idx = unicode::compat_to_choseong(ch).unwrap();
+                    let l_idx = try_convert!(unicode::compat_to_choseong(ch), self, "compat_to_choseong", ch);
                     self.process_jungseong_consonant(ch, l_idx)
                 }
             }
@@ -287,30 +335,33 @@ impl Automata for JamoAutomata {
                 if is_vowel {
                     // 겹모음 상태에서 또 모음 → 현재 확정 + 새 모음
                     let committed = self.commit_current();
-                    let v_idx = unicode::compat_to_jungseong(ch).unwrap();
+                    let Some(v_idx) = unicode::compat_to_jungseong(ch) else {
+                        crate::warn_unexpected("compat_to_jungseong", ch);
+                        return AutomataResult::handled(committed, None);
+                    };
                     self.buffer.jungseong = Some(v_idx);
                     self.buffer.state = AutomataState::Jungseong;
                     AutomataResult::handled(committed, self.buffer.to_string())
                 } else {
-                    let l_idx = unicode::compat_to_choseong(ch).unwrap();
+                    let l_idx = try_convert!(unicode::compat_to_choseong(ch), self, "compat_to_choseong", ch);
                     self.process_jungseong2_consonant(ch, l_idx)
                 }
             }
             AutomataState::Jongseong => {
                 if is_vowel {
-                    let v_idx = unicode::compat_to_jungseong(ch).unwrap();
+                    let v_idx = try_convert!(unicode::compat_to_jungseong(ch), self, "compat_to_jungseong", ch);
                     self.process_jongseong_vowel(v_idx)
                 } else {
-                    let l_idx = unicode::compat_to_choseong(ch).unwrap();
+                    let l_idx = try_convert!(unicode::compat_to_choseong(ch), self, "compat_to_choseong", ch);
                     self.process_jongseong_consonant(ch, l_idx, layout)
                 }
             }
             AutomataState::Jongseong2 => {
                 if is_vowel {
-                    let v_idx = unicode::compat_to_jungseong(ch).unwrap();
+                    let v_idx = try_convert!(unicode::compat_to_jungseong(ch), self, "compat_to_jungseong", ch);
                     self.process_jongseong2_vowel(v_idx)
                 } else {
-                    let l_idx = unicode::compat_to_choseong(ch).unwrap();
+                    let l_idx = try_convert!(unicode::compat_to_choseong(ch), self, "compat_to_choseong", ch);
                     self.process_jongseong2_consonant(l_idx)
                 }
             }

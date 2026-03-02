@@ -31,5 +31,9 @@ fuzz/artifacts/
 fuzz/corpus/
 fuzz/target/
 
+# Profiling
+*.profraw
+*.profdata
+
 # macOS
 .DS_Store

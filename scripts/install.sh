@@ -47,6 +47,47 @@ mkdir -p "$INSTALL_DIR"
 rm -rf "$INSTALL_DIR/Ongeul.app"
 cp -r "$APP_BUNDLE" "$INSTALL_DIR/"
 
+# ── 5. 손쉬운 사용(Accessibility) 권한 설정 ──
+
+BUNDLE_ID="io.github.hiking90.inputmethod.Ongeul"
+TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
+INSTALLED_APP="$INSTALL_DIR/Ongeul.app"
+
+echo "=== Setting up Accessibility permission ==="
+
+# 앱이 재서명되면 기존 TCC 항목이 무효화되므로 리셋
+sudo tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
+
+SIP_STATUS=$(csrutil status 2>&1)
+if echo "$SIP_STATUS" | grep -q "disabled"; then
+    # SIP 비활성화 상태: sqlite3로 자동 권한 부여
+    # 서명된 앱에서 csreq blob 생성
+    CSREQ_VALUE="NULL"
+    REQ_STR=$(codesign -d -r- "$INSTALLED_APP" 2>&1 | awk -F ' => ' '/designated/{print $2}')
+    if [ -n "$REQ_STR" ]; then
+        CSREQ_TMP=$(mktemp /tmp/ongeul_csreq.XXXXXX)
+        if echo "$REQ_STR" | csreq -r- -b "$CSREQ_TMP" 2>/dev/null; then
+            REQ_HEX=$(xxd -p "$CSREQ_TMP" | tr -d '\n')
+            CSREQ_VALUE="X'${REQ_HEX}'"
+        fi
+        rm -f "$CSREQ_TMP"
+    fi
+
+    sudo sqlite3 "$TCC_DB" \
+        "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAccessibility', '${BUNDLE_ID}', 0, 2, 3, 1, ${CSREQ_VALUE}, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+
+    # tccd 재시작으로 변경사항 반영
+    sudo killall tccd 2>/dev/null || true
+
+    echo "    Accessibility 권한이 자동으로 부여되었습니다."
+else
+    # SIP 활성화 상태: 수동 설정 안내
+    echo "    SIP이 활성화되어 있어 자동 권한 부여가 불가합니다."
+    echo "    시스템 설정 → 개인 정보 보호 및 보안 → 손쉬운 사용 에서"
+    echo "    Ongeul을 추가하고 활성화해 주세요."
+fi
+echo ""
+
 echo "=== Installation complete ==="
 echo ""
 echo "다음 단계:"

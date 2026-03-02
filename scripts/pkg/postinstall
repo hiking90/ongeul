@@ -1,2 +1,48 @@
 #!/bin/bash
+# Ongeul .pkg postinstall script
+# Accessibility 권한 안내 다이얼로그 표시 및 시스템 설정 열기
+
+BUNDLE_ID="io.github.hiking90.inputmethod.Ongeul"
+
+# 앱이 재서명되면 기존 TCC 항목이 무효화되므로 리셋
+tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
+
+# 현재 로그인된 사용자 확인
+CONSOLE_USER=$(/usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ && ! /loginwindow/ { print $3 }')
+
+# 로그인된 사용자가 없으면 (로그인 화면, Setup Assistant 등) 건너뛰기
+if [ -z "$CONSOLE_USER" ] || [ "$CONSOLE_USER" = "_mbsetupuser" ]; then
+    exit 0
+fi
+
+CONSOLE_UID=$(id -u "$CONSOLE_USER")
+
+# 사용자 GUI 세션에서 안내 다이얼로그 표시
+# - postinstall은 root로 실행되므로 launchctl asuser로 사용자 컨텍스트 전환
+# - giving up after 120: 무인 설치 시 자동 닫힘
+launchctl asuser "$CONSOLE_UID" /usr/bin/osascript <<'APPLESCRIPT'
+try
+    set sysLang to do shell script "defaults read -g AppleLocale"
+    if sysLang starts with "ko" then
+        set dialogTitle to "Ongeul"
+        set dialogMessage to "Shift+Space 한영 전환을 사용하려면 손쉬운 사용(Accessibility) 권한이 필요합니다." & return & return & "시스템 설정에서 Ongeul을 추가하고 활성화해 주세요."
+        set openBtn to "설정 열기"
+        set laterBtn to "나중에"
+    else
+        set dialogTitle to "Ongeul"
+        set dialogMessage to "Ongeul requires Accessibility permission for Shift+Space input switching." & return & return & "Please add and enable Ongeul in System Settings."
+        set openBtn to "Open Settings"
+        set laterBtn to "Later"
+    end if
+
+    tell application "System Events"
+        activate
+        set response to display dialog dialogMessage with title dialogTitle buttons {laterBtn, openBtn} default button openBtn giving up after 120
+        if button returned of response is openBtn then
+            do shell script "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'"
+        end if
+    end tell
+end try
+APPLESCRIPT
+
 exit 0

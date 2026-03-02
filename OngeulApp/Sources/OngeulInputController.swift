@@ -189,6 +189,12 @@ class OngeulInputController: IMKInputController {
     private var toggleExpiredAt: CFAbsoluteTime = 0
     private static let toggleTimeoutSeconds: CFAbsoluteTime = 0.5
 
+    // 합성 Enter 재진입 감지용 CGEvent userData 매직 넘버 (design/24 참조)
+    private static let syntheticEnterMarker: Int64 = 0x4F6E6765  // "Onge"
+
+    // 현재 조합 중인 텍스트 (composedString 콜백용)
+    private var currentComposingText: String?
+
     // 4키 동시 감지용 (English Lock)
     private var fourKeysSeen: Set<UInt16> = []
     private var allFourReached = false
@@ -324,8 +330,12 @@ class OngeulInputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         KeyEventTap.activeController = self
-        if Self.toggleKey == .shiftSpace {
-            KeyEventTap.shared.install()  // 권한 있으면 설치, 없으면 무시
+
+        if !AXIsProcessTrusted() {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+            AXIsProcessTrustedWithOptions(options)
+        } else if Self.toggleKey == .shiftSpace {
+            KeyEventTap.shared.install()
         }
         loadLayoutIfNeeded()
 
@@ -379,6 +389,10 @@ class OngeulInputController: IMKInputController {
                        currentMode == .korean ? "korean" : "english")
             }
         }
+    }
+
+    override func composedString(_ sender: Any!) -> Any! {
+        return (currentComposingText ?? "") as NSString
     }
 
     override func commitComposition(_ sender: Any!) {
@@ -568,25 +582,9 @@ class OngeulInputController: IMKInputController {
                        log: log, type: .default,
                        Self.toggleKey.rawValue, newLayout, Self.escapeToEnglish)
 
-                // Shift+Space 선택 시 CGEventTap 권한 확인/안내
-                let previousToggleKey = toggleKeyTitles[currentToggleIndex].0
+                // Shift+Space 선택 시 CGEventTap 설치/해제
                 if Self.toggleKey == .shiftSpace {
-                    if KeyEventTap.shared.isAccessibilityGranted() {
-                        KeyEventTap.shared.install()
-                    } else if previousToggleKey != .shiftSpace {
-                        let accessAlert = NSAlert()
-                        accessAlert.messageText = NSLocalizedString("accessibility.title", comment: "")
-                        accessAlert.informativeText = NSLocalizedString("accessibility.message", comment: "")
-                        accessAlert.addButton(withTitle: NSLocalizedString("accessibility.openSettings", comment: ""))
-                        accessAlert.addButton(withTitle: NSLocalizedString("accessibility.later", comment: ""))
-                        accessAlert.alertStyle = .informational
-
-                        if accessAlert.runModal() == .alertFirstButtonReturn {
-                            // 앱을 접근성 목록에 자동 등록 + 시스템 설정 열기
-                            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-                            AXIsProcessTrustedWithOptions(options)
-                        }
-                    }
+                    KeyEventTap.shared.install()
                 } else {
                     KeyEventTap.shared.uninstall()
                 }
@@ -864,10 +862,46 @@ class OngeulInputController: IMKInputController {
             return result.handled
         }
 
-        // Enter → flush 후 시스템 위임
+        // Enter — 토큰 필드 조합 글자 중복 방지 (design/24-token-field-enter-duplicate.md)
+        //
+        // 문제: NSTokenField 등에서 조합 중 Enter를 누르면 insertText("동")과 Enter가
+        //       같은 이벤트 사이클에서 처리되어, 토큰 [홍길동] 생성 후 "동"이 중복 입력됨.
+        //
+        // 해결: 접근성 권한이 있으면 insertText로 조합을 확정한 뒤, 원본 Enter를 소비하고
+        //       합성 Enter를 다음 런루프에서 .cghidEventTap으로 재전달한다.
+        //       CGEvent의 eventSourceUserData 필드에 매직 넘버를 삽입하여 재진입을 감지하고,
+        //       합성 Enter는 엔진 처리를 건너뛰고 바로 시스템에 전달된다.
+        //       접근성 권한이 없으면 기존 방식(insertText + return false)으로 폴백한다.
         if event.keyCode == KeyCode.enter {
+            if let cgEvent = event.cgEvent,
+               cgEvent.getIntegerValueField(.eventSourceUserData) == Self.syntheticEnterMarker {
+                os_log("Enter: synthetic (userData), passing to system", log: log, type: .debug)
+                return false
+            }
+
             let result = engine.flush()
-            applyResult(result, to: client)
+            if result.committed != nil {
+                applyResult(result, to: client)
+                if AXIsProcessTrusted() {
+                    let originalFlags = event.cgEvent?.flags ?? []
+                    DispatchQueue.main.async {
+                        let src = CGEventSource(stateID: .hidSystemState)
+                        if let down = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.enter, keyDown: true) {
+                            down.flags = originalFlags
+                            down.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEnterMarker)
+                            down.post(tap: .cghidEventTap)
+                        }
+                        if let up = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.enter, keyDown: false) {
+                            up.flags = originalFlags
+                            up.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEnterMarker)
+                            up.post(tap: .cghidEventTap)
+                        }
+                    }
+                    os_log("Enter: flushed, posting synthetic Enter via cghidEventTap", log: log, type: .debug)
+                    return true
+                }
+                os_log("Enter: flushed, no accessibility — fallback to return false", log: log, type: .debug)
+            }
             return false
         }
 
@@ -956,6 +990,7 @@ class OngeulInputController: IMKInputController {
         }
 
         if let composing = result.composing {
+            currentComposingText = composing
             let styled = NSAttributedString(string: composing, attributes: [
                 .underlineStyle: 0,
                 .backgroundColor: NSColor.clear,
@@ -966,6 +1001,7 @@ class OngeulInputController: IMKInputController {
                 replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
             )
         } else {
+            currentComposingText = nil
             client.setMarkedText(
                 "" as NSString,
                 selectionRange: NSRange(location: 0, length: 0),

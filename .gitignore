@@ -6,6 +6,7 @@
 ongeul-automata/target/
 
 # Xcode
+*.xcodeproj
 xcuserdata/
 *.hmap
 *.ipa
@@ -24,6 +25,11 @@ OngeulApp/Generated/
 
 # Reference IME sources
 /imes/
+
+# Fuzzing
+fuzz/artifacts/
+fuzz/corpus/
+fuzz/target/
 
 # macOS
 .DS_Store

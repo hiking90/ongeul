@@ -8,6 +8,15 @@
    - **시스템 전체 설치**: `/Library/Input Methods`에 설치됩니다 (관리자 권한 필요).
    - **현재 사용자만**: `~/Library/Input Methods`에 설치됩니다.
 
+### 손쉬운 사용(Accessibility) 권한
+
+Ongeul은 Shift+Space 한/영 전환 등 시스템 레벨 키 입력 처리를 위해 **손쉬운 사용(Accessibility)** 권한이 필요합니다. 설치가 완료되면 권한 설정을 안내하는 다이얼로그가 표시됩니다.
+
+1. 설치 완료 후 표시되는 안내에 따라 **시스템 설정** → **개인 정보 보호 및 보안** → **손쉬운 사용** 을 엽니다.
+2. 목록에서 **Ongeul** 을 찾아 활성화합니다.
+
+> 설치 시 권한을 설정하지 않았더라도, Ongeul 첫 실행 시 macOS 시스템 권한 다이얼로그가 다시 표시됩니다.
+
 ### Gatekeeper 경고
 
 공증(notarization)되지 않은 빌드의 경우 macOS Gatekeeper가 실행을 차단할 수 있습니다.

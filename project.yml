@@ -1,0 +1,63 @@
+name: Ongeul
+options:
+  bundleIdPrefix: io.github.hiking90.inputmethod
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+targets:
+  Ongeul:
+    type: application
+    platform: macOS
+    sources:
+      - path: OngeulApp/Sources
+      - path: OngeulApp/Generated
+        excludes:
+          - "*.modulemap"   # modulemap은 SWIFT_INCLUDE_PATHS로 처리
+    resources:
+      - path: OngeulApp/Resources
+        excludes:
+          - Info.plist
+      - path: ongeul-automata/layouts
+        buildPhase: resources
+    dependencies:
+      - framework: target/aarch64-apple-darwin/release/libongeul_automata.a
+        embed: false
+      - sdk: InputMethodKit.framework
+      - sdk: Cocoa.framework
+      - sdk: ApplicationServices.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.hiking90.inputmethod.Ongeul
+        SWIFT_OBJC_BRIDGING_HEADER: OngeulApp/Sources/Ongeul-Bridging-Header.h
+        SWIFT_INCLUDE_PATHS: OngeulApp/Generated  # OngeulAutomataFFI.modulemap
+        INFOPLIST_FILE: OngeulApp/Resources/Info.plist
+        LIBRARY_SEARCH_PATHS: target/aarch64-apple-darwin/release
+
+  # Phase A: HangulEngine UniFFI 바인딩 테스트
+  # 앱을 실행하지 않고 Rust 라이브러리를 직접 링크하여 테스트.
+  # main.swift의 NSApplication.shared.run()이 테스트를 차단하는 문제를 회피.
+  OngeulTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - OngeulTests
+      - path: OngeulApp/Generated
+        excludes:
+          - "*.modulemap"
+      # Phase B PoC: IMKInputController 통합 테스트를 위해 앱 소스 포함
+      - path: OngeulApp/Sources
+        excludes:
+          - main.swift   # NSApplication.shared.run()이 테스트를 차단하므로 제외
+    dependencies:
+      - framework: target/aarch64-apple-darwin/release/libongeul_automata.a
+        embed: false
+      - sdk: InputMethodKit.framework
+      - sdk: Cocoa.framework
+      - sdk: ApplicationServices.framework
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_OBJC_BRIDGING_HEADER: OngeulApp/Sources/Ongeul-Bridging-Header.h
+        SWIFT_INCLUDE_PATHS: OngeulApp/Generated
+        LIBRARY_SEARCH_PATHS: target/aarch64-apple-darwin/release

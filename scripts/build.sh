@@ -94,13 +94,13 @@ clang -c \
     "$OBJC_SOURCES_DIR/ObjCExceptionCatcher.m" \
     -o "$BUILD_DIR/ObjCExceptionCatcher.o"
 
-# Swift 소스 파일 수집
+# Swift 소스 파일 수집 (Generated + OngeulApp/Sources/*.swift)
 SWIFT_SOURCES=(
     "$GENERATED_DIR/OngeulAutomata.swift"
-    "$PROJECT_ROOT/OngeulApp/Sources/main.swift"
-    "$PROJECT_ROOT/OngeulApp/Sources/OngeulInputController.swift"
-    "$PROJECT_ROOT/OngeulApp/Sources/KeyEventTap.swift"
 )
+while IFS= read -r -d '' f; do
+    SWIFT_SOURCES+=("$f")
+done < <(find "$PROJECT_ROOT/OngeulApp/Sources" -name '*.swift' -print0)
 
 swiftc \
     -target "$APPLE_TARGET" \

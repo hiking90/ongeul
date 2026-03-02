@@ -4,24 +4,6 @@ import os.log
 
 private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", category: "input")
 
-private enum KeyCode {
-    static let enter: UInt16      = 36
-    static let space: UInt16      = 49
-    static let backspace: UInt16  = 51
-    static let escape: UInt16     = 53
-    static let rightCommand: UInt16 = 54
-    static let leftCommand: UInt16 = 55
-    static let leftShift: UInt16  = 56
-    static let capsLock: UInt16   = 57
-    static let leftOption: UInt16 = 58
-    static let rightShift: UInt16 = 60
-    static let rightOption: UInt16 = 61
-    static let arrowLeft: UInt16  = 123
-    static let arrowRight: UInt16 = 124
-    static let arrowDown: UInt16  = 125
-    static let arrowUp: UInt16    = 126
-}
-
 // MARK: - Mode Indicator (커서 근처 한/영 표시)
 
 private final class ModeIndicator {
@@ -185,9 +167,7 @@ private final class LockOverlay {
 class OngeulInputController: IMKInputController {
     private let engine = HangulEngine()
     private var loadedLayoutId: String?
-    private var togglePendingKeyCode: UInt16? = nil
-    private var toggleExpiredAt: CFAbsoluteTime = 0
-    private static let toggleTimeoutSeconds: CFAbsoluteTime = 0.5
+    private var toggleDetector = ToggleDetector()
 
     // 합성 Enter 재진입 감지용 CGEvent userData 매직 넘버 (design/24 참조)
     private static let syntheticEnterMarker: Int64 = 0x4F6E6765  // "Onge"
@@ -195,9 +175,10 @@ class OngeulInputController: IMKInputController {
     // 현재 조합 중인 텍스트 (composedString 콜백용)
     private var currentComposingText: String?
 
-    // 4키 동시 감지용 (English Lock)
-    private var fourKeysSeen: Set<UInt16> = []
-    private var allFourReached = false
+    #if DEBUG
+    /// 테스트에서 Bundle.main 대신 사용할 레이아웃 디렉토리 URL
+    var testLayoutsURL: URL?
+    #endif
 
     // Chromium-based apps auto-commit marked text on focus loss,
     // so deactivateServer must skip insertText to avoid duplication.
@@ -219,35 +200,6 @@ class OngeulInputController: IMKInputController {
     private static let toggleKeyKey = "toggleKey"
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
-
-    enum ToggleKey: String, CaseIterable {
-        case rightCommand = "rightCommand"
-        case rightOption = "rightOption"
-        case leftShift = "leftShift"
-        case rightShift = "rightShift"
-        case shiftSpace = "shiftSpace"
-
-        /// flagsChanged에서 감지할 keyCode (shiftSpace는 nil → keyDown에서 처리)
-        var keyCode: UInt16? {
-            switch self {
-            case .rightCommand: return KeyCode.rightCommand
-            case .rightOption:  return KeyCode.rightOption
-            case .leftShift:    return KeyCode.leftShift
-            case .rightShift:   return KeyCode.rightShift
-            case .shiftSpace:   return nil
-            }
-        }
-
-        /// press/release 판정에 사용할 modifier flag
-        var modifierFlag: NSEvent.ModifierFlags? {
-            switch self {
-            case .rightCommand: return .command
-            case .rightOption:  return .option
-            case .leftShift, .rightShift: return .shift
-            case .shiftSpace:   return nil
-            }
-        }
-    }
 
     private static var toggleKey: ToggleKey {
         get {
@@ -280,50 +232,11 @@ class OngeulInputController: IMKInputController {
 
     // MARK: - Per-App Mode Store
 
-    // IMKit의 스레딩 정책이 문서화되어 있지 않으므로 방어적으로 동기화
-    private static var appModeStore: [String: InputMode] = [:]
-    private static let appModeStoreLock = NSLock()
-
-    private static func savedMode(for bundleId: String) -> InputMode? {
-        appModeStoreLock.lock()
-        defer { appModeStoreLock.unlock() }
-        return appModeStore[bundleId]
-    }
-
-    private static func saveMode(_ mode: InputMode, for bundleId: String) {
-        appModeStoreLock.lock()
-        defer { appModeStoreLock.unlock() }
-        appModeStore[bundleId] = mode
-    }
+    private static let perAppModeStore = PerAppModeStore()
+    private static let englishLockStore = EnglishLockStore()
 
     private static var activeAppBundleId: String?   // 현재 활성 앱
     private var currentBundleId: String?
-
-    // MARK: - English Lock Store (UserDefaults)
-
-    private static let englishLockDefaultsKey = "EnglishLockApps"
-
-    /// 저장 형식: [String: String] — bundleId → 잠금 직전 모드 ("korean" / "english")
-    private static func englishLockStore() -> [String: String] {
-        UserDefaults.standard.dictionary(forKey: englishLockDefaultsKey) as? [String: String] ?? [:]
-    }
-
-    private static func addEnglishLock(for bundleId: String, previousMode: InputMode) {
-        var store = englishLockStore()
-        store[bundleId] = previousMode == .korean ? "korean" : "english"
-        UserDefaults.standard.set(store, forKey: englishLockDefaultsKey)
-    }
-
-    private static func removeEnglishLock(for bundleId: String) -> InputMode? {
-        var store = englishLockStore()
-        guard let raw = store.removeValue(forKey: bundleId) else { return nil }
-        UserDefaults.standard.set(store, forKey: englishLockDefaultsKey)
-        return raw == "korean" ? .korean : .english
-    }
-
-    private static func isEnglishLocked(_ bundleId: String) -> Bool {
-        englishLockStore()[bundleId] != nil
-    }
 
     // MARK: - Lifecycle
 
@@ -348,7 +261,7 @@ class OngeulInputController: IMKInputController {
         }
 
         // English Lock 우선 체크
-        if Self.isEnglishLocked(bundleId) {
+        if Self.englishLockStore.isLocked(bundleId) {
             engine.setMode(mode: .english)
             if isAppSwitch {
                 os_log("activateServer: appSwitch to LOCKED %{public}@",
@@ -361,7 +274,7 @@ class OngeulInputController: IMKInputController {
             }
         } else {
             let currentMode: InputMode
-            if let savedMode = Self.savedMode(for: bundleId) {
+            if let savedMode = Self.perAppModeStore.savedMode(for: bundleId) {
                 engine.setMode(mode: savedMode)
                 currentMode = savedMode
             } else {
@@ -369,10 +282,10 @@ class OngeulInputController: IMKInputController {
                 engine.setMode(mode: .english)
                 currentMode = .english
             }
-            Self.saveMode(currentMode, for: bundleId)
+            Self.perAppModeStore.saveMode(currentMode, for: bundleId)
 
             if isAppSwitch {
-                let prevMode = Self.activeAppBundleId.flatMap { Self.savedMode(for: $0) }
+                let prevMode = Self.activeAppBundleId.flatMap { Self.perAppModeStore.savedMode(for: $0) }
                 os_log("activateServer: appSwitch to %{public}@ mode=%{public}@ (prev=%{public}@)",
                        log: log, type: .default, bundleId,
                        currentMode == .korean ? "korean" : "english",
@@ -407,7 +320,7 @@ class OngeulInputController: IMKInputController {
         }
         if let bundleId = currentBundleId {
             let mode = engine.getMode()
-            Self.saveMode(mode, for: bundleId)
+            Self.perAppModeStore.saveMode(mode, for: bundleId)
             os_log("deactivateServer: save mode=%{public}@ for bundleId=%{public}@",
                    log: log, type: .default,
                    mode == .korean ? "korean" : "english", bundleId)
@@ -621,93 +534,24 @@ class OngeulInputController: IMKInputController {
         return false
     }
 
-    // MARK: - Private: Modifier Key Handling (4키 감지 + 한/영 전환)
-
-    private static let fourKeys: Set<UInt16> = [
-        KeyCode.leftCommand, KeyCode.rightCommand,
-        KeyCode.leftOption, KeyCode.rightOption,
-    ]
+    // MARK: - Private: Modifier Key Handling (ToggleDetector에 위임)
 
     private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
-        let keyCode = event.keyCode
-        let flags = event.modifierFlags
-        let toggleKey = Self.toggleKey
-
-        // === 4키 English Lock 감지 ===
-
-        // Step 1: 대상 키 → Set에 누적 (멱등, 중복 이벤트 무관)
-        //         다른 modifier → 사이클 취소
-        if Self.fourKeys.contains(keyCode) {
-            fourKeysSeen.insert(keyCode)
-        } else {
-            fourKeysSeen.removeAll()
-            allFourReached = false
-        }
-
-        // Step 2: 4키 모두 감지
-        if fourKeysSeen.count == 4 {
-            allFourReached = true
-            togglePendingKeyCode = nil
-        }
-
-        // Step 3: 모든 modifier 해제 시
-        let allReleased = !flags.contains(.command) && !flags.contains(.option)
-        if allReleased {
-            if allFourReached {
-                fourKeysSeen.removeAll()
-                allFourReached = false
-                handleEnglishLockToggle(client: client)
-                return true
-            }
-            fourKeysSeen.removeAll()
-        }
-
-        // === 통합 modifier tap 감지 ===
-
-        // shiftSpace는 keyDown 경로에서 처리
-        guard let toggleKeyCode = toggleKey.keyCode,
-              let toggleFlag = toggleKey.modifierFlag else {
+        let action = toggleDetector.handleFlagsChanged(
+            keyCode: event.keyCode,
+            flags: event.modifierFlags,
+            toggleKey: Self.toggleKey
+        )
+        switch action {
+        case .none:
             return false
+        case .toggle:
+            performToggle(source: "flagsChanged", client: client)
+            return true
+        case .englishLockToggle:
+            handleEnglishLockToggle(client: client)
+            return true
         }
-
-        // ① 다중 modifier 가드 (CapsLock 제외)
-        let activeCount: Int = [
-            NSEvent.ModifierFlags.shift,
-            NSEvent.ModifierFlags.command,
-            NSEvent.ModifierFlags.option,
-            NSEvent.ModifierFlags.control,
-        ].filter { flags.contains($0) }.count
-        if activeCount > 1 {
-            togglePendingKeyCode = nil
-            return false
-        }
-
-        // ② 설정된 전환 키의 press 감지
-        if keyCode == toggleKeyCode
-            && flags.contains(toggleFlag)
-            && togglePendingKeyCode == nil
-            && !allFourReached {
-            togglePendingKeyCode = keyCode
-            toggleExpiredAt = CFAbsoluteTimeGetCurrent() + Self.toggleTimeoutSeconds
-            return false
-        }
-
-        // ③ 설정된 전환 키의 release 감지
-        if keyCode == toggleKeyCode
-            && !flags.contains(toggleFlag) {
-            if togglePendingKeyCode == keyCode
-                && CFAbsoluteTimeGetCurrent() < toggleExpiredAt {
-                togglePendingKeyCode = nil
-                performToggle(source: "flagsChanged", client: client)
-                return true
-            }
-            togglePendingKeyCode = nil
-            return false
-        }
-
-        // ④ 다른 modifier 키 → pending 해제
-        togglePendingKeyCode = nil
-        return false
     }
 
     // MARK: - Private: English Lock Toggle
@@ -715,11 +559,11 @@ class OngeulInputController: IMKInputController {
     private func handleEnglishLockToggle(client: any IMKTextInput) {
         guard let bundleId = currentBundleId else { return }
 
-        if Self.isEnglishLocked(bundleId) {
+        if Self.englishLockStore.isLocked(bundleId) {
             // 해제: 저장된 이전 모드 복원
-            let previousMode = Self.removeEnglishLock(for: bundleId) ?? .korean
+            let previousMode = Self.englishLockStore.removeLock(for: bundleId) ?? .korean
             engine.setMode(mode: previousMode)
-            Self.saveMode(previousMode, for: bundleId)
+            Self.perAppModeStore.saveMode(previousMode, for: bundleId)
             os_log("English Lock OFF: %{public}@ → restore %{public}@",
                    log: log, type: .default, bundleId,
                    previousMode == .korean ? "korean" : "english")
@@ -727,7 +571,7 @@ class OngeulInputController: IMKInputController {
         } else {
             // 잠금: 현재 모드 저장 → 영어 강제
             let currentMode = engine.getMode()
-            Self.addEnglishLock(for: bundleId, previousMode: currentMode)
+            Self.englishLockStore.addLock(for: bundleId, previousMode: currentMode)
             // 한글 조합 중이면 flush로 확정
             if currentMode == .korean {
                 let result = engine.flush()
@@ -744,7 +588,7 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Toggle (common)
 
     private func performToggle(source: String, client: any IMKTextInput) {
-        if let bundleId = currentBundleId, Self.isEnglishLocked(bundleId) { return }
+        if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) { return }
 
         let result = engine.toggleMode()
         applyResult(result, to: client)
@@ -752,7 +596,7 @@ class OngeulInputController: IMKInputController {
         os_log("toggleMode (%{public}@) → %{public}@", log: log, type: .default,
                source, newMode == .korean ? "korean" : "english")
         if let bundleId = currentBundleId {
-            Self.saveMode(newMode, for: bundleId)
+            Self.perAppModeStore.saveMode(newMode, for: bundleId)
         }
         showModeIndicator(client: client)
     }
@@ -828,9 +672,7 @@ class OngeulInputController: IMKInputController {
         let modifiers = event.modifierFlags
 
         // 키 입력 → modifier tap 판정 취소 + 4키 사이클 취소
-        togglePendingKeyCode = nil
-        fourKeysSeen.removeAll()
-        allFourReached = false
+        toggleDetector.cancelOnKeyDown()
 
         // Shift+Space → 한/영 전환 (shiftSpace 모드일 때)
         if Self.toggleKey == .shiftSpace
@@ -923,7 +765,7 @@ class OngeulInputController: IMKInputController {
             if Self.escapeToEnglish && engine.getMode() == .korean {
                 engine.setMode(mode: .english)
                 if let bundleId = currentBundleId {
-                    Self.saveMode(.english, for: bundleId)
+                    Self.perAppModeStore.saveMode(.english, for: bundleId)
                 }
                 showModeIndicator(client: client)
             }
@@ -953,30 +795,12 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Key Label Conversion
 
     private func keyLabelFromEvent(_ event: NSEvent) -> String? {
-        guard let chars = event.characters, !chars.isEmpty else {
-            return nil
-        }
-
-        let ch = chars.first!
-        let modifiers = event.modifierFlags
-
-        // CapsLock 보정: 한글 모드에서 CapsLock 영향 무효화
-        if ch.isASCII && ch.isLetter {
-            let capsLock = modifiers.contains(.capsLock)
-            let shift = modifiers.contains(.shift)
-
-            if capsLock && !shift {
-                return String(ch).lowercased()
-            } else if capsLock && shift {
-                return String(ch).uppercased()
-            }
-        }
-
-        if ch.isASCII && (ch.isLetter || ch.isNumber || ch.isPunctuation || ch.isSymbol) {
-            return String(ch)
-        }
-
-        return nil
+        guard let chars = event.characters else { return nil }
+        return keyLabel(
+            characters: chars,
+            capsLock: event.modifierFlags.contains(.capsLock),
+            shift: event.modifierFlags.contains(.shift)
+        )
     }
 
     // MARK: - Private: Result Application
@@ -1024,8 +848,18 @@ class OngeulInputController: IMKInputController {
             }
         }
 
-        guard let url = Bundle.main.url(forResource: desiredLayoutId, withExtension: "json5"),
-              let json = try? String(contentsOf: url, encoding: .utf8) else {
+        let url: URL?
+        #if DEBUG
+        if let testURL = testLayoutsURL {
+            url = testURL.appendingPathComponent("\(desiredLayoutId).json5")
+        } else {
+            url = Bundle.main.url(forResource: desiredLayoutId, withExtension: "json5")
+        }
+        #else
+        url = Bundle.main.url(forResource: desiredLayoutId, withExtension: "json5")
+        #endif
+
+        guard let url, let json = try? String(contentsOf: url, encoding: .utf8) else {
             os_log("Failed to load layout: %{public}@.json5", log: log, type: .error, desiredLayoutId)
             return
         }

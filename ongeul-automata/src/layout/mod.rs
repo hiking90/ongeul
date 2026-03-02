@@ -123,4 +123,116 @@ mod tests {
         assert_eq!(parse_hex_char("0xAC00"), Some('가'));
         assert_eq!(parse_hex_char("invalid"), None);
     }
+
+    // ── 오류 처리 테스트 ──
+
+    #[test]
+    fn test_missing_required_fields() {
+        // id 누락
+        let json = r#"{ name: "test", type: "jamo", keymap: {}, combinations: [] }"#;
+        assert!(KeyboardLayout::from_json(json).is_err());
+
+        // name 누락
+        let json = r#"{ id: "test", type: "jamo", keymap: {}, combinations: [] }"#;
+        assert!(KeyboardLayout::from_json(json).is_err());
+
+        // type 누락
+        let json = r#"{ id: "test", name: "test", keymap: {}, combinations: [] }"#;
+        assert!(KeyboardLayout::from_json(json).is_err());
+    }
+
+    #[test]
+    fn test_invalid_hex_in_keymap() {
+        let json = r#"{
+            id: "test", name: "test", type: "jamo",
+            keymap: { "a": "not_hex" },
+            combinations: [],
+        }"#;
+        let result = KeyboardLayout::from_json(json);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid hex"));
+    }
+
+    #[test]
+    fn test_invalid_hex_in_combination() {
+        // first가 잘못된 hex
+        let json = r#"{
+            id: "test", name: "test", type: "jamo",
+            keymap: {},
+            combinations: [{ first: "bad", second: "0x3131", result: "0x3132" }],
+        }"#;
+        assert!(KeyboardLayout::from_json(json)
+            .unwrap_err()
+            .contains("Invalid hex"));
+
+        // second가 잘못된 hex
+        let json = r#"{
+            id: "test", name: "test", type: "jamo",
+            keymap: {},
+            combinations: [{ first: "0x3131", second: "bad", result: "0x3132" }],
+        }"#;
+        assert!(KeyboardLayout::from_json(json)
+            .unwrap_err()
+            .contains("Invalid hex"));
+
+        // result가 잘못된 hex
+        let json = r#"{
+            id: "test", name: "test", type: "jamo",
+            keymap: {},
+            combinations: [{ first: "0x3131", second: "0x3132", result: "bad" }],
+        }"#;
+        assert!(KeyboardLayout::from_json(json)
+            .unwrap_err()
+            .contains("Invalid hex"));
+    }
+
+    #[test]
+    fn test_empty_keymap_is_valid() {
+        let json = r#"{
+            id: "test", name: "test", type: "jamo",
+            keymap: {},
+            combinations: [],
+        }"#;
+        let layout = KeyboardLayout::from_json(json).unwrap();
+        assert_eq!(layout.map_key("a"), None);
+    }
+
+    #[test]
+    fn test_invalid_layout_type() {
+        let json = r#"{
+            id: "test", name: "test", type: "unknown",
+            keymap: {},
+            combinations: [],
+        }"#;
+        assert!(KeyboardLayout::from_json(json).is_err());
+    }
+
+    #[test]
+    fn test_parse_hex_char_edge_cases() {
+        // 0x 접두사 없음
+        assert_eq!(parse_hex_char("3131"), None);
+        // 빈 문자열
+        assert_eq!(parse_hex_char(""), None);
+        // 0x만
+        assert_eq!(parse_hex_char("0x"), None);
+        // 대문자 0X 접두사
+        assert_eq!(parse_hex_char("0X3131"), Some('ㄱ'));
+        // 잘못된 유니코드 코드포인트 (서로게이트)
+        assert_eq!(parse_hex_char("0xD800"), None);
+    }
+
+    #[test]
+    fn test_duplicate_key_last_wins() {
+        // JSON5에서 동일 키가 중복되면 마지막 값이 사용됨
+        let json = r#"{
+            id: "test", name: "test", type: "jamo",
+            keymap: {
+                "a": "0x3131",  // ㄱ
+                "a": "0x3134",  // ㄴ (덮어씀)
+            },
+            combinations: [],
+        }"#;
+        let layout = KeyboardLayout::from_json(json).unwrap();
+        assert_eq!(layout.map_key("a"), Some('ㄴ'));
+    }
 }

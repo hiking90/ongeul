@@ -21,7 +21,7 @@ Ongeul의 설정은 메뉴 막대에서 접근할 수 있습니다.
 
 모든 modifier 기반 전환 키는 500ms 이내에 떼야 전환됩니다.
 
-> **Shift + Space** 를 선택하면 손쉬운 사용(Accessibility) 권한 안내가 표시될 수 있습니다. 이 권한은 JetBrains IDE 등 일부 앱에서 공백이 함께 입력되는 문제를 방지합니다. 권한 없이도 대부분의 앱에서 정상 동작하므로 선택 사항입니다. 자세한 내용은 [한/영 전환 > Shift + Space](features/mode-switching.md#shift--space)를 참고하세요.
+> **Shift + Space** 를 사용하려면 손쉬운 사용(Accessibility) 권한이 필요합니다. 이 권한은 설치 시 자동으로 안내됩니다. 자세한 내용은 [설치 > 손쉬운 사용 권한](installation.md#손쉬운-사용accessibility-권한) 및 [한/영 전환 > Shift + Space](features/mode-switching.md#shift--space)를 참고하세요.
 
 ### 키보드 레이아웃
 

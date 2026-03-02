@@ -7,9 +7,42 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  # Layer 1: Rust 엔진 테스트
+  rust-test:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test -p ongeul-automata
+
+  # Layer 2: Swift UniFFI 바인딩 테스트
+  swift-test:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust library
+        run: cargo build --release --target aarch64-apple-darwin -p ongeul-automata
+
+      - name: Generate UniFFI Swift bindings
+        run: |
+          mkdir -p OngeulApp/Generated
+          cargo run --manifest-path ongeul-automata/Cargo.toml \
+            --bin uniffi-bindgen generate \
+            --library target/aarch64-apple-darwin/release/libongeul_automata.dylib \
+            --language swift \
+            --out-dir OngeulApp/Generated
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen
+
+      - name: Run Swift tests
+        run: |
+          xcodebuild test \
+            -scheme OngeulTests \
+            -destination 'platform=macOS' \
+            -derivedDataPath .build/DerivedData

@@ -14,5 +14,8 @@ serde = { version = "1", features = ["derive"] }
 json5 = "0.4"
 thiserror = "2"
 
+[dev-dependencies]
+proptest = "1"
+
 [build-dependencies]
 uniffi = { version = "0.31", features = ["build"] }

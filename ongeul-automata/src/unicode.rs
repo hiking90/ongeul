@@ -605,4 +605,165 @@ mod tests {
         assert!(!is_syllable('ㄱ'));
         assert!(!is_syllable('A'));
     }
+
+    // ── 경계값 테스트 ──
+
+    #[test]
+    fn test_compose_syllable_boundary() {
+        // 각 인덱스의 경계: 최솟값
+        assert_eq!(compose_syllable(0, 0, 0), Some('가'));
+        // 각 인덱스의 경계: 최댓값
+        assert_eq!(compose_syllable(L_COUNT - 1, V_COUNT - 1, T_COUNT - 1), Some('힣'));
+        // 종성 없음 (t=0)
+        assert_eq!(compose_syllable(0, 0, 0), Some('가'));
+        // 종성 최대: 가 + 종성 27 = 갛 (U+AC1B)
+        assert!(compose_syllable(0, 0, T_COUNT - 1).is_some());
+        // 인덱스 범위 초과
+        assert_eq!(compose_syllable(L_COUNT, 0, 0), None);
+        assert_eq!(compose_syllable(0, V_COUNT, 0), None);
+        assert_eq!(compose_syllable(0, 0, T_COUNT), None);
+        assert_eq!(compose_syllable(u32::MAX, 0, 0), None);
+        assert_eq!(compose_syllable(0, u32::MAX, 0), None);
+        assert_eq!(compose_syllable(0, 0, u32::MAX), None);
+    }
+
+    #[test]
+    fn test_decompose_syllable_boundary() {
+        // 범위 직전 문자 (가 앞)
+        assert_eq!(decompose_syllable(char::from_u32(S_BASE - 1).unwrap()), None);
+        // 범위 직후 문자 (힣 뒤)
+        assert_eq!(
+            decompose_syllable(char::from_u32(S_BASE + S_COUNT).unwrap()),
+            None
+        );
+        // 호환 자모는 음절이 아님
+        assert_eq!(decompose_syllable('ㄱ'), None);
+        assert_eq!(decompose_syllable('ㅏ'), None);
+    }
+
+    #[test]
+    fn test_index_to_compat_out_of_range() {
+        // 초성 범위 초과
+        assert_eq!(choseong_to_compat(L_COUNT), None);
+        assert_eq!(choseong_to_compat(u32::MAX), None);
+        // 중성 범위 초과
+        assert_eq!(jungseong_to_compat(V_COUNT), None);
+        assert_eq!(jungseong_to_compat(u32::MAX), None);
+        // 종성 범위 초과
+        assert_eq!(jongseong_to_compat(T_COUNT), None);
+        assert_eq!(jongseong_to_compat(u32::MAX), None);
+        // 종성 0은 "종성 없음"
+        assert_eq!(jongseong_to_compat(0), None);
+    }
+
+    #[test]
+    fn test_jongseong_choseong_cross_conversion() {
+        // 종성 불가 자음(ㄸ, ㅃ, ㅉ)은 초성→종성 변환 불가
+        let l_dd = compat_to_choseong('ㄸ').unwrap(); // ㄸ 초성(4)
+        assert_eq!(choseong_to_jongseong(l_dd), None);
+        let l_bb = compat_to_choseong('ㅃ').unwrap(); // ㅃ 초성(8)
+        assert_eq!(choseong_to_jongseong(l_bb), None);
+        let l_jj = compat_to_choseong('ㅉ').unwrap(); // ㅉ 초성(13)
+        assert_eq!(choseong_to_jongseong(l_jj), None);
+
+        // 종성 0은 choseong 변환 불가
+        assert_eq!(jongseong_to_choseong(0), None);
+        // 겹종성(ㄳ=3)도 초성 변환 불가 (ㄳ은 초성에 없음)
+        assert_eq!(jongseong_to_choseong(3), None);
+    }
+
+    #[test]
+    fn test_split_double_jongseong_all() {
+        // 모든 겹종성이 올바르게 분리되는지 확인
+        let expected: &[(u32, u32, char)] = &[
+            (3, 1, 'ㅅ'),   // ㄳ → ㄱ + ㅅ
+            (5, 4, 'ㅈ'),   // ㄵ → ㄴ + ㅈ
+            (6, 4, 'ㅎ'),   // ㄶ → ㄴ + ㅎ
+            (9, 8, 'ㄱ'),   // ㄺ → ㄹ + ㄱ
+            (10, 8, 'ㅁ'),  // ㄻ → ㄹ + ㅁ
+            (11, 8, 'ㅂ'),  // ㄼ → ㄹ + ㅂ
+            (12, 8, 'ㅅ'),  // ㄽ → ㄹ + ㅅ
+            (13, 8, 'ㅌ'),  // ㄾ → ㄹ + ㅌ
+            (14, 8, 'ㅍ'),  // ㄿ → ㄹ + ㅍ
+            (15, 8, 'ㅎ'),  // ㅀ → ㄹ + ㅎ
+            (18, 17, 'ㅅ'), // ㅄ → ㅂ + ㅅ
+        ];
+        for &(t, first, second) in expected {
+            assert_eq!(split_double_jongseong(t), Some((first, second)));
+            assert!(is_double_jongseong(t));
+        }
+        // 단일 종성은 겹종성이 아님
+        for t in [1, 2, 4, 7, 8, 16, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27] {
+            assert_eq!(split_double_jongseong(t), None);
+            assert!(!is_double_jongseong(t));
+        }
+    }
+
+    #[test]
+    fn test_split_double_jungseong_all() {
+        // 모든 겹모음이 올바르게 분리되는지 확인
+        let expected: &[(u32, u32, u32)] = &[
+            (9, 8, 0),    // ㅘ → ㅗ + ㅏ
+            (10, 8, 1),   // ㅙ → ㅗ + ㅐ
+            (11, 8, 20),  // ㅚ → ㅗ + ㅣ
+            (14, 13, 4),  // ㅝ → ㅜ + ㅓ
+            (15, 13, 5),  // ㅞ → ㅜ + ㅔ
+            (16, 13, 20), // ㅟ → ㅜ + ㅣ
+            (19, 18, 20), // ㅢ → ㅡ + ㅣ
+        ];
+        for &(v, first, second) in expected {
+            assert_eq!(split_double_jungseong(v), Some((first, second)));
+            assert!(is_double_jungseong(v));
+        }
+        // 단일 모음은 겹모음이 아님
+        for v in [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 17, 18, 20] {
+            assert_eq!(split_double_jungseong(v), None);
+            assert!(!is_double_jungseong(v));
+        }
+    }
+
+    #[test]
+    fn test_positional_jamo_boundary() {
+        // 초성 범위 바로 밖
+        assert!(!is_choseong(char::from_u32(L_BASE - 1).unwrap()));
+        assert!(!is_choseong(char::from_u32(L_BASE + L_COUNT).unwrap()));
+        // 중성 범위 바로 밖
+        assert!(!is_jungseong(char::from_u32(V_BASE - 1).unwrap()));
+        assert!(!is_jungseong(char::from_u32(V_BASE + V_COUNT).unwrap()));
+        // 종성 범위 바로 밖 (T_BASE 자체는 "종성 없음"이므로 종성 아님)
+        assert!(!is_jongseong(char::from_u32(T_BASE).unwrap()));
+        assert!(!is_jongseong(char::from_u32(T_BASE + T_COUNT).unwrap()));
+    }
+
+    #[test]
+    fn test_positional_index_conversion() {
+        // 초성 인덱스 변환
+        assert_eq!(choseong_to_index('\u{1100}'), Some(0));
+        assert_eq!(choseong_to_index('\u{1112}'), Some(18));
+        assert_eq!(choseong_to_index('ㄱ'), None); // 호환 자모는 위치 자모가 아님
+        // 중성 인덱스 변환
+        assert_eq!(jungseong_to_index('\u{1161}'), Some(0));
+        assert_eq!(jungseong_to_index('\u{1175}'), Some(20));
+        assert_eq!(jungseong_to_index('ㅏ'), None);
+        // 종성 인덱스 변환
+        assert_eq!(jongseong_to_index('\u{11A8}'), Some(1));
+        assert_eq!(jongseong_to_index('\u{11C2}'), Some(27));
+        assert_eq!(jongseong_to_index('ㄱ'), None);
+    }
+
+    #[test]
+    fn test_is_korean_jamo_comprehensive() {
+        // 위치 자모
+        assert!(is_korean_jamo('\u{1100}')); // 위치 초성 ㄱ
+        assert!(is_korean_jamo('\u{1161}')); // 위치 중성 ㅏ
+        assert!(is_korean_jamo('\u{11A8}')); // 위치 종성 ㄱ
+        // 호환 자모
+        assert!(is_korean_jamo('ㄱ'));
+        assert!(is_korean_jamo('ㅏ'));
+        // 비자모
+        assert!(!is_korean_jamo('가')); // 완성형 음절
+        assert!(!is_korean_jamo('A'));
+        assert!(!is_korean_jamo('1'));
+        assert!(!is_korean_jamo(' '));
+    }
 }

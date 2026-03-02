@@ -180,19 +180,49 @@ class OngeulInputController: IMKInputController {
     var testLayoutsURL: URL?
     #endif
 
-    // Chromium-based apps auto-commit marked text on focus loss,
-    // so deactivateServer must skip insertText to avoid duplication.
-    private static let chromiumBundlePrefixes = [
-        "com.microsoft.VSCode",
-        "com.google.Chrome",
-        "com.brave.Browser",
-        "com.microsoft.edgemac",
-        "com.operasoftware.Opera",
-    ]
+    // Chromium-based apps auto-commit marked text on focus loss via their
+    // renderer process (resignFirstResponder → Blur → ImeFinishComposingText).
+    // Detected at runtime by looking for "*Helper (Renderer).app" inside the
+    // app bundle — the multi-process renderer helper unique to Chromium.
+    private static var chromiumAppCache: [String: Bool] = [:]
 
     private var clientAutoCommitsMarkedText: Bool {
         guard let bundleId = currentBundleId else { return false }
-        return Self.chromiumBundlePrefixes.contains { bundleId.hasPrefix($0) }
+        if let cached = Self.chromiumAppCache[bundleId] {
+            return cached
+        }
+        let result = Self.isChromiumBased(bundleId: bundleId)
+        Self.chromiumAppCache[bundleId] = result
+        return result
+    }
+
+    private static func isChromiumBased(bundleId: String) -> Bool {
+        guard let app = NSWorkspace.shared.runningApplications.first(
+                where: { $0.bundleIdentifier == bundleId }),
+              let bundleURL = app.bundleURL else {
+            return false
+        }
+        let frameworksPath = bundleURL.appendingPathComponent("Contents/Frameworks").path
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: frameworksPath) else {
+            return false
+        }
+        // Chromium apps place renderer helpers directly in Contents/Frameworks/
+        // (Electron) or inside *.framework/Helpers/ (Chrome, Edge, Brave, etc.)
+        if contents.contains(where: { $0.hasSuffix("Helper (Renderer).app") }) {
+            return true
+        }
+        for name in contents where name.hasSuffix(".framework") {
+            let helpersPath = (frameworksPath as NSString).appendingPathComponent(name)
+            // Check versioned and unversioned Helpers paths
+            for sub in ["Helpers", "Versions/Current/Helpers"] {
+                let dir = (helpersPath as NSString).appendingPathComponent(sub)
+                if let helpers = try? FileManager.default.contentsOfDirectory(atPath: dir),
+                   helpers.contains(where: { $0.hasSuffix("Helper (Renderer).app") }) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     // MARK: - Settings (UserDefaults)
@@ -254,6 +284,11 @@ class OngeulInputController: IMKInputController {
 
         guard let bundleId = (sender as? (any IMKTextInput))?.bundleIdentifier() else { return }
         currentBundleId = bundleId
+
+        // Pre-cache Chromium detection so deactivateServer always hits the cache.
+        if Self.chromiumAppCache[bundleId] == nil {
+            Self.chromiumAppCache[bundleId] = Self.isChromiumBased(bundleId: bundleId)
+        }
 
         let isAppSwitch = (bundleId != Self.activeAppBundleId)
         if isAppSwitch {
@@ -327,9 +362,8 @@ class OngeulInputController: IMKInputController {
         }
         if let client = sender as? (any IMKTextInput) {
             let result = engine.flush()
-            // Chromium-based apps (VSCode, Chrome, etc.) auto-commit marked text
-            // on focus loss. Calling insertText here would duplicate the text.
-            // Native Cocoa apps do NOT auto-commit, so we must insert explicitly.
+            // Chromium-based apps auto-commit marked text on focus loss via
+            // their renderer process. Calling insertText would duplicate it.
             if result.committed != nil && !clientAutoCommitsMarkedText {
                 applyResult(result, to: client)
             }

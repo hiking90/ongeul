@@ -85,6 +85,14 @@ cargo test -p ongeul-automata
 log stream --predicate 'subsystem == "io.github.hiking90.inputmethod.Ongeul"'
 ```
 
+## 후원
+
+Ongeul은 현재 **ad-hoc 서명**으로 배포되고 있어, 설치 시 macOS Gatekeeper 경고가 발생합니다. **Apple Developer Program**에 등록하면 공식 Developer ID 서명을 적용하여 경고 없이 설치할 수 있습니다.
+
+연간 등록비(USD 99)를 후원금으로 충당하고자 합니다. 후원해 주시면 더 나은 설치 경험을 제공하는 데 직접적으로 기여하게 됩니다.
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-♡-ea4aaa?logo=github)](https://github.com/sponsors/hiking90)
+
 ## 라이선스
 
 [Apache License 2.0](LICENSE)

@@ -7,6 +7,7 @@ on:
       - 'docs/**'
 
 permissions:
+  contents: write
   pages: write
   id-token: write
 
@@ -32,11 +33,38 @@ jobs:
       - name: Build documentation
         run: mdbook build docs/
 
-      - name: Upload artifact
+      - name: Assemble site
+        run: |
+          mkdir -p build/site
+
+          # Restore versioned docs from gh-pages branch
+          git fetch origin gh-pages --depth=1 2>/dev/null || true
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            # Only restore known files: versions.json, index.html, and version directories
+            git show origin/gh-pages:versions.json > build/site/versions.json 2>/dev/null || true
+            git show origin/gh-pages:index.html > build/site/index.html 2>/dev/null || true
+            if [[ -f build/site/versions.json ]]; then
+              for v in $(jq -r '.[]' build/site/versions.json); do
+                git archive origin/gh-pages "$v" | tar -x -C build/site 2>/dev/null || true
+              done
+            fi
+          fi
+
+          # Update dev docs
+          rm -rf build/site/dev
+          cp -r build/book build/site/dev
+
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: build/book
+          path: build/site
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Update version storage
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/site

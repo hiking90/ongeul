@@ -11,3 +11,5 @@ build-dir = "../build/book"
 default-theme = "light"
 git-repository-url = "https://github.com/hiking90/ongeul"
 edit-url-template = "https://github.com/hiking90/ongeul/edit/main/docs/src/{path}"
+additional-js = ["theme/version-selector.js"]
+additional-css = ["theme/version-selector.css"]

@@ -11,7 +11,25 @@
 
 > 호스트 Mac의 보안을 유지하려면 **Tart VM**에서 실행을 권장한다.
 
+## 아키텍처
+
+호스트에서 빌드하고, VM에는 빌드 결과물만 전달하여 테스트한다. VM에는 Rust 툴체인이 불필요하다.
+
+```
+호스트 Mac                          Tart VM
+─────────                          ────────
+./scripts/build.sh                 (마운트된 디렉토리 접근)
+    ↓                                  ↓
+build/Ongeul.app  ──── --dir ────→  ~/ongeul/build/Ongeul.app
+                                       ↓
+                                   cp → ~/Library/Input Methods/
+                                   Accessibility 권한 설정
+                                   swift test-e2e/run_e2e.swift
+```
+
 ## Tart VM 초기 설정 (최초 1회)
+
+### 호스트에서
 
 ```bash
 # 1. Tart 설치
@@ -36,11 +54,8 @@ csrutil disable
 sudo pmset -a displaysleep 0 sleep 0    # 슬립 비활성화
 # 시스템 설정 → 사용자 및 그룹 → 자동 로그인 활성화
 
-# 3. Ongeul 빌드 및 설치
-git clone https://github.com/hiking90/ongeul.git ~/ongeul
-cd ~/ongeul
-./scripts/install.sh
-# → 로그아웃/로그인 → 시스템 설정에서 Ongeul 입력 소스 추가
+# 3. Xcode Command Line Tools 설치 (swift 실행에 필요)
+xcode-select --install
 
 # 4. E2E 테스트 러너에 Accessibility 권한 부여
 sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
@@ -48,29 +63,73 @@ sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
 sudo killall tccd 2>/dev/null || true
 ```
 
-Accessibility 권한은 두 주체에 각각 필요하다:
+설정 완료 후 이 상태를 기본 이미지로 보존한다 (VM 종료).
 
-| 주체 | 용도 | 부여 방법 |
-|------|------|----------|
-| **Ongeul 앱** | KeyEventTap (Shift+Space) | `install.sh`가 자동 부여 |
-| **테스트 러너** (`/usr/bin/swift`) | CGEventPost + AXUIElement | 위 sqlite3 명령 |
+## E2E 테스트 실행 (매번)
 
-## E2E 테스트 실행
+### 1. 호스트에서 빌드
 
 ```bash
-# 1. 깨끗한 VM 복사본 생성
+cd ~/ongeul   # 또는 프로젝트 경로
+./scripts/build.sh
+```
+
+### 2. VM 실행 및 테스트
+
+```bash
+# 호스트에서: 깨끗한 VM 복사본 생성 + 프로젝트 디렉토리 마운트
 tart clone ongeul-e2e ongeul-e2e-run
-
-# 2. VM 실행 (프로젝트 디렉토리 마운트)
 tart run --dir=ongeul:~/ongeul ongeul-e2e-run
+```
 
-# 3. VM 내부에서 실행
-cd ~/ongeul
-swift test-e2e/run_e2e.swift
+```bash
+# VM 내부에서:
 
-# 4. 테스트 완료 후 VM 삭제
+# Ongeul 설치 (호스트에서 빌드된 앱 복사)
+ARCH="$(uname -m)"
+case "$ARCH" in
+    arm64)  TARGET="aarch64-apple-darwin" ;;
+    x86_64) TARGET="x86_64-apple-darwin" ;;
+esac
+killall Ongeul 2>/dev/null || true
+mkdir -p "$HOME/Library/Input Methods"
+rm -rf "$HOME/Library/Input Methods/Ongeul.app"
+cp -r ~/ongeul/build/$TARGET/Ongeul.app "$HOME/Library/Input Methods/"
+
+# Ongeul 앱에 Accessibility 권한 부여
+BUNDLE_ID="io.github.hiking90.inputmethod.Ongeul"
+APP="$HOME/Library/Input Methods/Ongeul.app"
+REQ_STR=$(codesign -d -r- "$APP" 2>&1 | awk -F ' => ' '/designated/{print $2}')
+CSREQ_VALUE="NULL"
+if [ -n "$REQ_STR" ]; then
+    CSREQ_TMP=$(mktemp)
+    if echo "$REQ_STR" | csreq -r- -b "$CSREQ_TMP" 2>/dev/null; then
+        REQ_HEX=$(xxd -p "$CSREQ_TMP" | tr -d '\n')
+        CSREQ_VALUE="X'${REQ_HEX}'"
+    fi
+    rm -f "$CSREQ_TMP"
+fi
+sudo sqlite3 "/Library/Application Support/com.apple.TCC/TCC.db" \
+  "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAccessibility', '${BUNDLE_ID}', 0, 2, 3, 1, ${CSREQ_VALUE}, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+sudo killall tccd 2>/dev/null || true
+
+# 최초 설치 시: 로그아웃/로그인 → 시스템 설정에서 Ongeul 입력 소스 추가
+
+# E2E 테스트 실행
+swift ~/ongeul/test-e2e/run_e2e.swift
+```
+
+```bash
+# 호스트에서: 테스트 완료 후 VM 삭제
 tart delete ongeul-e2e-run
 ```
+
+### Accessibility 권한 요약
+
+| 주체 | 용도 | 부여 시점 |
+|------|------|----------|
+| **Ongeul 앱** | KeyEventTap (Shift+Space) | 매번 설치 시 (코드 서명이 바뀌므로) |
+| **테스트 러너** (`/usr/bin/swift`) | CGEventPost + AXUIElement | 초기 설정 시 1회 |
 
 ## 테스트 목록
 

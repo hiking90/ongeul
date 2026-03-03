@@ -4,6 +4,10 @@ on:
   push:
     tags: ["v*"]
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: macos-15
@@ -28,8 +32,100 @@ jobs:
           SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
           NOTES=$(gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
             -f tag_name="$GITHUB_REF_NAME" --jq '.body')
-          FOOTER=$(printf '\n\n---\n**SHA-256:** `%s`\nVerify: `shasum -a 256 Ongeul-%s.pkg`' "$SHA256" "$VERSION")
+          DOCS_URL="https://hiking90.github.io/ongeul/${VERSION}/user/installation.html"
+          FOOTER=$(printf '\n\n---\n📖 [설치 가이드](%s)\n**SHA-256:** `%s`\nVerify: `shasum -a 256 Ongeul-%s.pkg`' "$DOCS_URL" "$SHA256" "$VERSION")
           gh release create "$GITHUB_REF_NAME" \
             "$PKG_FILE" \
             --title "Ongeul ${VERSION}" \
             --notes "${NOTES}${FOOTER}"
+
+  deploy-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version
+        id: config
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Skip pre-release tags (e.g. v0.2.0-rc1)
+          if [[ "$VERSION" == *-* ]]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping pre-release tag: $VERSION"
+          else
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install mdBook
+        if: steps.config.outputs.should_deploy == 'true'
+        run: |
+          MDBOOK_VERSION="0.4.40"
+          curl -sSL "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C /usr/local/bin
+
+      - name: Build documentation
+        if: steps.config.outputs.should_deploy == 'true'
+        run: mdbook build docs/
+
+      - name: Assemble versioned site
+        if: steps.config.outputs.should_deploy == 'true'
+        run: |
+          VERSION="${{ steps.config.outputs.version }}"
+          mkdir -p build/site
+
+          # Restore existing docs from gh-pages branch
+          git fetch origin gh-pages --depth=1 2>/dev/null || true
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            # Only restore known files: versions.json, index.html, dev/, and version directories
+            git show origin/gh-pages:versions.json > build/site/versions.json 2>/dev/null || true
+            git show origin/gh-pages:index.html > build/site/index.html 2>/dev/null || true
+            git archive origin/gh-pages dev | tar -x -C build/site 2>/dev/null || true
+            if [[ -f build/site/versions.json ]]; then
+              for v in $(jq -r '.[]' build/site/versions.json); do
+                git archive origin/gh-pages "$v" | tar -x -C build/site 2>/dev/null || true
+              done
+            fi
+          fi
+
+          # Add versioned docs
+          rm -rf "build/site/${VERSION}"
+          mkdir -p "build/site/${VERSION}"
+          cp -r build/book/* "build/site/${VERSION}/"
+
+          # Update versions.json
+          EXISTING='[]'
+          if [[ -f build/site/versions.json ]]; then
+            EXISTING=$(cat build/site/versions.json)
+          fi
+          UPDATED=$(echo "$EXISTING" | jq --arg v "$VERSION" \
+            '([$v] + .) | unique | sort_by(split(".") | map(tonumber)) | reverse')
+          echo "$UPDATED" > build/site/versions.json
+
+          # Update root redirect
+          cp docs/theme/redirect-index.html build/site/index.html
+
+      - name: Upload Pages artifact
+        if: steps.config.outputs.should_deploy == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+      - name: Deploy to GitHub Pages
+        if: steps.config.outputs.should_deploy == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Update version storage
+        if: steps.config.outputs.should_deploy == 'true'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/site

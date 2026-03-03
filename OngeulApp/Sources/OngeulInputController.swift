@@ -265,6 +265,7 @@ class OngeulInputController: IMKInputController {
     private static let perAppModeStore = PerAppModeStore()
     private static let englishLockStore = EnglishLockStore()
 
+    private static var hasPromptedAccessibility = false
     private static var activeAppBundleId: String?   // 현재 활성 앱
     private var currentBundleId: String?
 
@@ -275,8 +276,11 @@ class OngeulInputController: IMKInputController {
         KeyEventTap.activeController = self
 
         if !AXIsProcessTrusted() {
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-            AXIsProcessTrustedWithOptions(options)
+            if !Self.hasPromptedAccessibility {
+                Self.hasPromptedAccessibility = true
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
+                AXIsProcessTrustedWithOptions(options)
+            }
         } else if Self.toggleKey == .shiftSpace {
             KeyEventTap.shared.install()
         }

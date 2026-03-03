@@ -792,14 +792,10 @@ class OngeulInputController: IMKInputController {
             return false
         }
 
-        // Escape → 조합 폐기 (+ 옵션: 영문 전환)
+        // Escape → 조합 확정 (+ 옵션: 영문 전환)
         if event.keyCode == KeyCode.escape {
-            engine.reset()
-            client.setMarkedText(
-                "" as NSString,
-                selectionRange: NSRange(location: 0, length: 0),
-                replacementRange: NSRange(location: NSNotFound, length: NSNotFound)
-            )
+            let result = engine.flush()
+            applyResult(result, to: client)
             if Self.escapeToEnglish && engine.getMode() == .korean {
                 engine.setMode(mode: .english)
                 if let bundleId = currentBundleId {

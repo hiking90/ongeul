@@ -9,7 +9,7 @@ on:
 jobs:
   # Layer 1: Rust 엔진 테스트
   rust-test:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -17,7 +17,7 @@ jobs:
 
   # Layer 2: Swift UniFFI 바인딩 테스트
   swift-test:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

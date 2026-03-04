@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>Ongeul 문서</title>
+  <script>
+    fetch('./versions.json')
+      .then(function (r) { return r.json(); })
+      .then(function (versions) {
+        if (versions.length > 0) {
+          window.location.replace('./' + versions[0] + '/');
+        }
+      })
+      .catch(function () {
+        window.location.replace('./dev/');
+      });
+  </script>
+  <noscript>
+    <meta http-equiv="refresh" content="0; url=./dev/">
+  </noscript>
+</head>
+<body>
+  <p>문서 페이지로 이동 중입니다... <a href="./dev/">여기를 클릭하세요</a></p>
+</body>
+</html>

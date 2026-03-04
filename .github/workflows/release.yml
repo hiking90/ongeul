@@ -32,7 +32,8 @@ jobs:
           SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
           NOTES=$(gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
             -f tag_name="$GITHUB_REF_NAME" --jq '.body')
-          DOCS_URL="https://hiking90.github.io/ongeul/${VERSION}/user/installation.html"
+          DOCS_VERSION="${VERSION%%-*}"
+          DOCS_URL="https://hiking90.github.io/ongeul/${DOCS_VERSION}/user/installation.html"
           FOOTER=$(printf '\n\n---\n📖 [설치 가이드](%s)\n**SHA-256:** `%s`\nVerify: `shasum -a 256 Ongeul-%s.pkg`' "$DOCS_URL" "$SHA256" "$VERSION")
           gh release create "$GITHUB_REF_NAME" \
             "$PKG_FILE" \
@@ -51,32 +52,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check version
+      - name: Extract version
         id: config
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          # Skip pre-release tags (e.g. v0.2.0-rc1)
-          if [[ "$VERSION" == *-* ]]; then
-            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "Skipping pre-release tag: $VERSION"
-          else
-            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
-            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          fi
+          # Strip pre-release suffix (e.g. 0.2.0-rc3 → 0.2.0)
+          VERSION="${VERSION%%-*}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install mdBook
-        if: steps.config.outputs.should_deploy == 'true'
         run: |
           MDBOOK_VERSION="0.4.40"
           curl -sSL "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
             | tar -xz -C /usr/local/bin
 
       - name: Build documentation
-        if: steps.config.outputs.should_deploy == 'true'
         run: mdbook build docs/
 
       - name: Assemble versioned site
-        if: steps.config.outputs.should_deploy == 'true'
         run: |
           VERSION="${{ steps.config.outputs.version }}"
           mkdir -p build/site
@@ -113,18 +106,15 @@ jobs:
           cp docs/theme/redirect-index.html build/site/index.html
 
       - name: Upload Pages artifact
-        if: steps.config.outputs.should_deploy == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: build/site
 
       - name: Deploy to GitHub Pages
-        if: steps.config.outputs.should_deploy == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
 
       - name: Update version storage
-        if: steps.config.outputs.should_deploy == 'true'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

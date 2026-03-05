@@ -1,0 +1,22 @@
+.version-selector-wrapper {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+#version-selector {
+  appearance: auto;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--sidebar-separator);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85em;
+  cursor: pointer;
+  height: 28px;
+}
+
+#version-selector:focus {
+  outline: 2px solid var(--sidebar-active);
+  outline-offset: 1px;
+}

@@ -1,0 +1,1055 @@
+<!DOCTYPE HTML>
+<html lang="ko" class="light" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Ongeul 한글 입력기</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+        
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="theme/version-selector.css">
+
+    </head>
+    <body class="sidebar-visible no-js">
+    <div id="body-container">
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('light')
+            html.classList.add(theme);
+            var body = document.querySelector('body');
+            body.classList.remove('no-js')
+            body.classList.add('js');
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var body = document.querySelector('body');
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            body.classList.remove('sidebar-visible');
+            body.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">소개</a></li><li class="chapter-item expanded affix "><li class="part-title">사용자 가이드</li><li class="chapter-item expanded "><a href="user/installation.html"><strong aria-hidden="true">1.</strong> 설치</a></li><li class="chapter-item expanded "><a href="user/getting-started.html"><strong aria-hidden="true">2.</strong> 시작하기</a></li><li class="chapter-item expanded "><a href="user/features/index.html"><strong aria-hidden="true">3.</strong> 기능</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="user/features/layouts.html"><strong aria-hidden="true">3.1.</strong> 키보드 레이아웃</a></li><li class="chapter-item expanded "><a href="user/features/mode-switching.html"><strong aria-hidden="true">3.2.</strong> 한/영 전환</a></li><li class="chapter-item expanded "><a href="user/features/indicator.html"><strong aria-hidden="true">3.3.</strong> 모드 인디케이터</a></li><li class="chapter-item expanded "><a href="user/features/per-app-mode.html"><strong aria-hidden="true">3.4.</strong> 앱별 모드 기억</a></li><li class="chapter-item expanded "><a href="user/features/english-lock.html"><strong aria-hidden="true">3.5.</strong> 영문 잠금</a></li><li class="chapter-item expanded "><a href="user/features/capslock.html"><strong aria-hidden="true">3.6.</strong> CapsLock 정규화</a></li></ol></li><li class="chapter-item expanded "><a href="user/preferences.html"><strong aria-hidden="true">4.</strong> 설정</a></li><li class="chapter-item expanded "><a href="user/troubleshooting.html"><strong aria-hidden="true">5.</strong> 문제 해결</a></li><li class="chapter-item expanded "><a href="user/uninstall.html"><strong aria-hidden="true">6.</strong> 제거</a></li><li class="chapter-item expanded affix "><li class="part-title">개발자 가이드</li><li class="chapter-item expanded "><a href="dev/building.html"><strong aria-hidden="true">7.</strong> 빌드</a></li><li class="chapter-item expanded "><a href="dev/architecture.html"><strong aria-hidden="true">8.</strong> 아키텍처</a></li><li class="chapter-item expanded "><a href="dev/packaging.html"><strong aria-hidden="true">9.</strong> 패키징</a></li><li class="chapter-item expanded "><a href="dev/contributing.html"><strong aria-hidden="true">10.</strong> 기여 가이드</a></li><li class="chapter-item expanded affix "><li class="spacer"></li><li class="chapter-item expanded affix "><a href="license.html">라이선스</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <!-- Track and set sidebar scroll position -->
+        <script>
+            var sidebarScrollbox = document.querySelector('#sidebar .sidebar-scrollbox');
+            sidebarScrollbox.addEventListener('click', function(e) {
+                if (e.target.tagName === 'A') {
+                    sessionStorage.setItem('sidebar-scroll', sidebarScrollbox.scrollTop);
+                }
+            }, { passive: true });
+            var sidebarScrollTop = sessionStorage.getItem('sidebar-scroll');
+            sessionStorage.removeItem('sidebar-scroll');
+            if (sidebarScrollTop) {
+                // preserve sidebar scroll position when navigating via links within sidebar
+                sidebarScrollbox.scrollTop = sidebarScrollTop;
+            } else {
+                // scroll sidebar to current active section when navigating via "next/previous chapter" buttons
+                var activeSection = document.querySelector('#sidebar .active');
+                if (activeSection) {
+                    activeSection.scrollIntoView({ block: 'center' });
+                }
+            }
+        </script>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Ongeul 한글 입력기</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/hiking90/ongeul" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="ongeul-온글"><a class="header" href="#ongeul-온글">Ongeul (온글)</a></h1>
+<p align="center">
+  <img src="user/images/ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
+</p>
+<p>macOS용 한글 입력기 — <strong>하나의 입력 소스</strong>로 한글과 영문을 모두 처리합니다.</p>
+<h2 id="ongeul이란"><a class="header" href="#ongeul이란">Ongeul이란?</a></h2>
+<p>macOS 기본 한글 입력기는 한/영 전환 시 <strong>입력 소스를 전환</strong>합니다. 이 과정에서 InputMethodKit의 세션 간섭 버그로 인해 글자가 씹히거나 지연이 발생할 수 있습니다.</p>
+<p>Ongeul은 <strong>단일 입력 소스</strong> 안에서 한글과 영문을 모두 처리하여 이 문제를 근본적으로 해결합니다.</p>
+<h2 id="기존-입력기와의-차이점"><a class="header" href="#기존-입력기와의-차이점">기존 입력기와의 차이점</a></h2>
+<div class="table-wrapper"><table><thead><tr><th></th><th>기존 입력기</th><th>Ongeul</th></tr></thead><tbody>
+<tr><td>영문 입력</td><td>시스템에 위임 (ABC 전환)</td><td>엔진이 직접 입력</td></tr>
+<tr><td>등록된 입력 소스</td><td>2개 (한글 + ABC)</td><td>1개 (Ongeul만)</td></tr>
+<tr><td>한/영 전환</td><td>macOS 입력 소스 전환</td><td>내부 모드 전환</td></tr>
+<tr><td>세션 간섭</td><td>발생 가능</td><td>원천 차단</td></tr>
+</tbody></table>
+</div>
+<h2 id="주요-특징"><a class="header" href="#주요-특징">주요 특징</a></h2>
+<ul>
+<li><strong>세 가지 키보드 레이아웃</strong> — 두벌식 표준, 세벌식 390, 세벌식 최종</li>
+<li><strong>유연한 한/영 전환</strong> — 오른쪽 Command, Option, Shift 단독, Shift + Space</li>
+<li><strong>모드 인디케이터</strong> — 커서 근처에 현재 모드 표시</li>
+<li><strong>앱별 모드 기억</strong> — 앱마다 마지막 입력 모드 자동 복원</li>
+<li><strong>영문 잠금</strong> — 특정 앱을 영문 전용으로 고정</li>
+<li><strong>CapsLock 정규화</strong> — 한글 모드에서 CapsLock 무시</li>
+</ul>
+<h2 id="시작하기"><a class="header" href="#시작하기">시작하기</a></h2>
+<p>Ongeul을 사용하려면 <a href="user/installation.html">설치</a> 페이지를 참고하세요.</p>
+<p>개발에 참여하려면 <a href="dev/building.html">빌드</a> 페이지를 참고하세요.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="설치"><a class="header" href="#설치">설치</a></h1>
+<h2 id="pkg-설치-권장"><a class="header" href="#pkg-설치-권장">.pkg 설치 (권장)</a></h2>
+<ol>
+<li><a href="https://github.com/hiking90/ongeul/releases">GitHub Releases</a> 페이지에서 최신 <code>.pkg</code> 파일을 다운로드합니다.</li>
+<li>다운로드한 <code>.pkg</code> 파일을 더블클릭합니다.</li>
+<li>Installer의 안내에 따라 설치합니다.
+<ul>
+<li><strong>시스템 전체 설치</strong>: <code>/Library/Input Methods</code>에 설치됩니다 (관리자 권한 필요).</li>
+<li><strong>현재 사용자만</strong>: <code>~/Library/Input Methods</code>에 설치됩니다.</li>
+</ul>
+</li>
+</ol>
+<h3 id="실행-권한-gatekeeper"><a class="header" href="#실행-권한-gatekeeper">실행 권한 (Gatekeeper)</a></h3>
+<p>Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 설치 파일과 앱 실행을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.</p>
+<h4 id="pkg-파일-열기"><a class="header" href="#pkg-파일-열기">.pkg 파일 열기</a></h4>
+<p>다운로드한 <code>.pkg</code> 파일을 더블클릭하면 다음과 같은 경고가 표시될 수 있습니다.</p>
+<p align="center">
+<img src="user/images/gatekeeper-pkg-warning.png" alt="Gatekeeper .pkg 차단 경고" width="265">
+</p>
+<ol>
+<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
+<li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
+<li>하단의 보안 섹션에서 <strong>"Ongeul-x.x.x.pkg이(가) Mac을 보호하기 위해 차단되었습니다"</strong> 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/gatekeeper-open-anyway.png" alt="개인 정보 보호 및 보안에서 확인 없이 열기" width="500">
+</p>
+<ol start="4">
+<li>macOS가 다시 확인을 요청하면 <strong>열기</strong> 를 클릭합니다.</li>
+</ol>
+<blockquote>
+<p>이 과정은 최초 1회만 필요합니다. 이후에는 Gatekeeper가 Ongeul을 차단하지 않습니다.</p>
+</blockquote>
+<h3 id="입력기-등록"><a class="header" href="#입력기-등록">입력기 등록</a></h3>
+<p><code>.pkg</code> 설치가 완료되면, macOS에 Ongeul을 입력 소스로 등록해야 합니다. 등록하지 않으면 Ongeul이 설치되어 있어도 입력기로 사용할 수 없습니다.</p>
+<blockquote>
+<p>최초 설치 시 macOS가 새 입력기를 인식하려면 <strong>로그아웃 후 재로그인</strong>이 필요할 수 있습니다. 입력 소스 목록에 Ongeul이 보이지 않는다면 로그아웃 후 다시 시도하세요.</p>
+</blockquote>
+<ol>
+<li>메뉴 막대 우측의 <strong>입력기 아이콘</strong> 을 클릭합니다.</li>
+<li>드롭다운 메뉴 하단의 <strong>"Open Keyboard Settings..."</strong> 를 선택합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/menubar-keyboard-settings.png" alt="메뉴 막대에서 Open Keyboard Settings 선택" width="229">
+</p>
+<ol start="3">
+<li>현재 설정된 입력 소스 목록이 표시됩니다. 좌측 하단의 <strong>+</strong> 버튼을 클릭합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/input-source-list.png" alt="입력 소스 목록에서 + 버튼 클릭" width="500">
+</p>
+<ol start="4">
+<li>왼쪽 언어 목록에서 <strong>한국어</strong> 를 선택합니다.</li>
+<li>오른쪽에 나타나는 입력기 목록에서 <strong>Ongeul</strong> 을 선택하고 <strong>추가</strong> 를 클릭합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/add-input-source.png" alt="입력 소스 추가에서 Korean > Ongeul 선택" width="450">
+</p>
+<h4 id="기존-입력-소스-정리"><a class="header" href="#기존-입력-소스-정리">기존 입력 소스 정리</a></h4>
+<p>Ongeul은 한글과 영문을 모두 하나의 입력기에서 처리하므로, 기존 한글 입력기(예: 2-Set Korean)는 제거하는 것을 권장합니다.</p>
+<ol>
+<li>입력 소스 목록에서 기존 <strong>한글 입력기</strong>를 선택하고 <strong>−</strong> 버튼으로 제거합니다.</li>
+</ol>
+<blockquote>
+<p><strong>ABC</strong> 입력 소스는 macOS 기본 입력기로 삭제할 수 없습니다. Ongeul이 영문 입력도 처리하므로 ABC가 남아 있어도 무방합니다.</p>
+</blockquote>
+<blockquote>
+<p>기존 한글 입력기를 제거하고 Ongeul만 사용하면 입력 소스 전환으로 인한 지연이 크게 줄어듭니다. 자세한 설정은 <a href="user/getting-started.html">시작하기</a> 페이지를 참고하세요.</p>
+</blockquote>
+<h3 id="손쉬운-사용accessibility-권한"><a class="header" href="#손쉬운-사용accessibility-권한">손쉬운 사용(Accessibility) 권한</a></h3>
+<p>Ongeul은 <strong>손쉬운 사용(Accessibility)</strong> 권한이 필요합니다. 이 권한이 부여되면 Ongeul이 시스템 레벨에서 키 이벤트를 가로채어(CGEventTap) 모든 앱에서 안정적으로 동작합니다.</p>
+<h4 id="왜-필요한가요"><a class="header" href="#왜-필요한가요">왜 필요한가요?</a></h4>
+<p>macOS의 입력기 프레임워크(InputMethodKit)만으로는 해결할 수 없는 앱별 호환성 문제들이 있습니다. Accessibility 권한이 부여되면 Ongeul이 시스템 레벨(CGEventTap)에서 키 이벤트를 직접 처리하여 이러한 문제를 해결합니다.</p>
+<ul>
+<li><strong>토큰 필드 조합 글자 중복</strong>: 메시지 앱의 "받는 사람" 입력창 등 토큰 필드(NSTokenField)에서 한글 조합 중 Enter를 누르면 마지막 조합 글자가 중복 입력되는 macOS 버그가 있습니다. 예를 들어 "홍길동"을 입력하고 Enter를 누르면 토큰 <code>[홍길동]</code> 옆에 "동"이 추가로 나타납니다. Accessibility 권한이 있으면 텍스트 확정과 Enter 키 전달을 별도 이벤트 사이클로 분리하여 이 문제를 방지합니다.</li>
+<li><strong>Shift+Space 한/영 전환 시 공백 삽입</strong>: JetBrains IDE(RustRover, IntelliJ, WebStorm 등), iTerm2 등 일부 앱은 자체적인 키 입력 처리를 구현하여 입력기의 키 처리 결과를 무시합니다. 이로 인해 Shift+Space로 한/영 전환 시 공백 문자가 함께 삽입됩니다. Accessibility 권한이 있으면 키 이벤트가 앱에 도달하기 전에 시스템 레벨에서 가로채므로 이 문제가 발생하지 않습니다.</li>
+</ul>
+<blockquote>
+<p>권한이 없어도 기본적인 한글 입력과 오른쪽 Command 전환은 정상 동작합니다. 위 문제들이 발생하는 특정 앱에서만 차이가 있으며, 해당 상황에서는 기존 방식으로 폴백하여 동작합니다.</p>
+</blockquote>
+<h4 id="권한-설정-방법"><a class="header" href="#권한-설정-방법">권한 설정 방법</a></h4>
+<p>Ongeul을 입력 소스로 등록하고 처음 활성화하면, 다음과 같은 Accessibility 권한 요청 다이얼로그가 자동으로 표시됩니다.</p>
+<p align="center">
+<img src="user/images/accessibility-dialog.png" alt="Accessibility 권한 요청 다이얼로그" width="400">
+</p>
+<ol>
+<li>다이얼로그에서 <strong>"Open System Settings"</strong> 를 클릭합니다.</li>
+<li><strong>손쉬운 사용</strong> 설정 화면이 열리면 목록에서 <strong>Ongeul</strong> 을 찾아 토글을 켭니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/accessibility-settings.png" alt="손쉬운 사용 설정에서 Ongeul 토글" width="500">
+</p>
+<p><strong>다이얼로그가 표시되지 않는 경우:</strong></p>
+<ol>
+<li><strong>시스템 설정</strong> 을 엽니다.</li>
+<li><strong>개인 정보 보호 및 보안</strong> → <strong>손쉬운 사용</strong> 을 선택합니다.</li>
+<li>목록에서 <strong>Ongeul</strong> 을 찾아 토글을 켭니다.</li>
+<li>목록에 Ongeul이 보이지 않는 경우, 하단의 <strong>+</strong> 버튼을 클릭하고 <code>/Library/Input Methods/Ongeul.app</code> (시스템 전체 설치) 또는 <code>~/Library/Input Methods/Ongeul.app</code> (현재 사용자 설치)을 선택합니다.</li>
+</ol>
+<blockquote>
+<p><strong>업데이트 시 참고</strong>: Ongeul을 업데이트하면 앱이 재서명되어 기존 Accessibility 권한이 자동으로 초기화됩니다. 업데이트 후 Ongeul을 처음 활성화하면 권한 요청 다이얼로그가 다시 표시되므로, 위 절차에 따라 권한을 다시 부여해 주세요.</p>
+</blockquote>
+<h2 id="소스에서-빌드"><a class="header" href="#소스에서-빌드">소스에서 빌드</a></h2>
+<p>개발 환경에서 직접 빌드하려면 <a href="user/../dev/building.html">빌드</a> 페이지를 참고하세요.</p>
+<pre><code class="language-bash"># 빌드 + 설치
+./scripts/install.sh
+</code></pre>
+<h2 id="요구사항"><a class="header" href="#요구사항">요구사항</a></h2>
+<ul>
+<li>macOS 14.0 (Sonoma) 이상</li>
+<li>Apple Silicon (aarch64) 또는 Intel (x86_64)</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="시작하기-1"><a class="header" href="#시작하기-1">시작하기</a></h1>
+<p>설치가 완료되면 다음 단계를 따라 Ongeul을 활성화하세요.</p>
+<h2 id="1-로그아웃로그인"><a class="header" href="#1-로그아웃로그인">1. 로그아웃/로그인</a></h2>
+<p>최초 설치 시 macOS가 새 입력기를 인식하려면 <strong>로그아웃 후 재로그인</strong>이 필요합니다.</p>
+<blockquote>
+<p>macOS는 입력기 목록을 로그인 시점에 캐시합니다. 로그아웃하지 않으면 Ongeul이 입력 소스 목록에 나타나지 않습니다.</p>
+</blockquote>
+<h2 id="2-입력-소스-추가"><a class="header" href="#2-입력-소스-추가">2. 입력 소스 추가</a></h2>
+<ol>
+<li><strong>시스템 설정</strong> → <strong>키보드</strong> → <strong>입력 소스</strong> → <strong>편집...</strong> 을 클릭합니다.</li>
+<li>좌측 하단의 <strong>+</strong> 버튼을 클릭합니다.</li>
+<li>목록에서 <strong>Ongeul</strong> 을 찾아 추가합니다.</li>
+</ol>
+<h2 id="3-기존-입력-소스-정리"><a class="header" href="#3-기존-입력-소스-정리">3. 기존 입력 소스 정리</a></h2>
+<p>Ongeul은 한글과 영문을 모두 처리하므로, 기존 한글 입력기는 제거합니다. 영문 입력 소스(ABC 등)는 제거해도 되고 남겨둬도 됩니다.</p>
+<ol>
+<li>입력 소스 목록에서 기존 <strong>한글 입력기</strong>를 선택하고 <strong>−</strong> 버튼으로 제거합니다.</li>
+</ol>
+<blockquote>
+<p><strong>ABC</strong> 입력 소스는 macOS 기본 입력기로 삭제할 수 없습니다. Ongeul이 영문 입력도 처리하므로 ABC가 남아 있어도 무방합니다. ABC가 남아 있는 경우에는 macOS 입력 소스 전환 단축키로 전환하여 사용할 수 있습니다.</p>
+</blockquote>
+<h2 id="4-capslock-전환-비활성화-abc를-남긴-경우"><a class="header" href="#4-capslock-전환-비활성화-abc를-남긴-경우">4. CapsLock 전환 비활성화 (ABC를 남긴 경우)</a></h2>
+<p>ABC 등 다른 입력 소스를 남겨둔 경우, CapsLock 관련 옵션을 비활성화하세요.</p>
+<ol>
+<li><strong>시스템 설정</strong> → <strong>키보드</strong> 로 이동합니다.</li>
+<li><strong>"Caps Lock으로 ABC 입력 소스 전환"</strong> 옵션을 <strong>끕니다</strong>.</li>
+</ol>
+<blockquote>
+<p>이 옵션이 켜져 있으면 CapsLock을 누를 때 Ongeul에서 ABC로 전환되어 버립니다. Ongeul만 사용하는 경우에는 전환 대상이 없으므로 이 설정을 신경 쓸 필요가 없습니다.</p>
+</blockquote>
+<h2 id="5-손쉬운-사용-권한-확인"><a class="header" href="#5-손쉬운-사용-권한-확인">5. 손쉬운 사용 권한 확인</a></h2>
+<p>Ongeul은 시스템 레벨 키 입력 처리를 위해 <strong>손쉬운 사용(Accessibility)</strong> 권한이 필요합니다. 설치 시 권한 안내가 표시되지만, 아직 설정하지 않았다면 아래 단계를 따르세요.</p>
+<ol>
+<li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> → <strong>손쉬운 사용</strong> 을 엽니다.</li>
+<li>목록에서 <strong>Ongeul</strong> 을 찾아 활성화합니다.</li>
+</ol>
+<blockquote>
+<p>이 권한이 없으면 Shift+Space 전환 키가 정상 동작하지 않을 수 있습니다. 자세한 내용은 <a href="user/installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치 &gt; 손쉬운 사용 권한</a>을 참고하세요.</p>
+</blockquote>
+<h2 id="6-첫-입력-테스트"><a class="header" href="#6-첫-입력-테스트">6. 첫 입력 테스트</a></h2>
+<ol>
+<li>아무 텍스트 편집기를 엽니다.</li>
+<li>한글을 입력해 봅니다 — 기본 모드는 영문이므로, <strong>오른쪽 Command</strong> 를 눌러 한글 모드로 전환합니다.</li>
+<li>커서 근처에 <strong>한</strong> 인디케이터가 나타나면 정상입니다.</li>
+<li>한글을 입력하고, 다시 오른쪽 Command를 눌러 영문 모드로 전환합니다.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="기능"><a class="header" href="#기능">기능</a></h1>
+<p>Ongeul의 주요 기능을 소개합니다.</p>
+<ul>
+<li><strong><a href="user/features/layouts.html">키보드 레이아웃</a></strong> — 두벌식 표준, 세벌식 390, 세벌식 최종</li>
+<li><strong><a href="user/features/mode-switching.html">한/영 전환</a></strong> — 오른쪽 Command, Option, Shift 단독, Shift + Space</li>
+<li><strong><a href="user/features/indicator.html">모드 인디케이터</a></strong> — 커서 근처에 현재 모드 표시</li>
+<li><strong><a href="user/features/per-app-mode.html">앱별 모드 기억</a></strong> — 앱마다 마지막 입력 모드 자동 복원</li>
+<li><strong><a href="user/features/english-lock.html">영문 잠금</a></strong> — 특정 앱을 영문 전용으로 고정</li>
+<li><strong><a href="user/features/capslock.html">CapsLock 정규화</a></strong> — 한글 모드에서 CapsLock 무시</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="키보드-레이아웃"><a class="header" href="#키보드-레이아웃">키보드 레이아웃</a></h1>
+<p>Ongeul은 세 가지 한글 키보드 레이아웃을 지원합니다. <a href="user/features/../preferences.html">설정</a>에서 원하는 레이아웃을 선택할 수 있습니다.</p>
+<h2 id="두벌식-표준"><a class="header" href="#두벌식-표준">두벌식 표준</a></h2>
+<p>가장 널리 사용되는 한글 키보드 배열입니다.</p>
+<img src="user/features/../images/2-standard.svg" alt="두벌식 표준 키보드 배열" style="max-width: 100%;">
+<ul>
+<li>자음과 모음 두 벌로 구성</li>
+<li>왼손 자음, 오른손 모음 배치</li>
+<li>Shift로 쌍자음 입력 (ㄱ → ㄲ, ㄷ → ㄸ 등)</li>
+<li>겹받침 자동 조합: ㄱ+ㅅ=ㄳ, ㄹ+ㄱ=ㄺ 등</li>
+<li>겹모음 자동 조합: ㅗ+ㅏ=ㅘ, ㅜ+ㅓ=ㅝ 등</li>
+<li>종성 뒤 모음 입력 시 자동 분리: 간+ㅕ → 가+녀</li>
+</ul>
+<h3 id="조합-과정"><a class="header" href="#조합-과정">조합 과정</a></h3>
+<p>두벌식은 6단계 상태 머신으로 한글을 조합합니다.</p>
+<ol>
+<li>초성 입력</li>
+<li>중성 입력</li>
+<li>겹중성 입력 (해당 시)</li>
+<li>종성 입력</li>
+<li>겹종성 입력 (해당 시)</li>
+<li>다음 음절로 이동 (종성 분리 포함)</li>
+</ol>
+<p>백스페이스를 누르면 조합 단계가 하나씩 취소됩니다.</p>
+<h2 id="세벌식-390"><a class="header" href="#세벌식-390">세벌식 390</a></h2>
+<p>초성, 중성, 종성을 각각 다른 키에 배치한 세벌식 자판입니다.</p>
+<img src="user/features/../images/3-390.svg" alt="세벌식 390 키보드 배열" style="max-width: 100%;">
+<ul>
+<li>초성(왼쪽), 중성(오른쪽), 종성(왼쪽 아래) 분리 배치</li>
+<li>숫자열에 특수 문자 리매핑</li>
+<li>Shift 없이 대부분의 한글 입력 가능</li>
+</ul>
+<h2 id="세벌식-최종"><a class="header" href="#세벌식-최종">세벌식 최종</a></h2>
+<p>세벌식 최종 자판은 390 배열을 더 세밀하게 조정한 배열입니다.</p>
+<img src="user/features/../images/3-final.svg" alt="세벌식 최종 키보드 배열" style="max-width: 100%;">
+<ul>
+<li>390과 유사한 초/중/종 분리 배치</li>
+<li>추가 특수 기호 및 인용부호 지원</li>
+<li>숫자열 배치 차이</li>
+</ul>
+<h2 id="레이아웃-정의"><a class="header" href="#레이아웃-정의">레이아웃 정의</a></h2>
+<p>모든 레이아웃은 JSON5 형식으로 정의되어 있어 구조를 확인하거나 기존 레이아웃의 키 배치를 편집할 수 있습니다.</p>
+<p>레이아웃 파일 위치: <code>ongeul-automata/layouts/</code></p>
+<ul>
+<li><code>2-standard.json5</code> — 두벌식 표준</li>
+<li><code>3-390.json5</code> — 세벌식 390</li>
+<li><code>3-final.json5</code> — 세벌식 최종</li>
+</ul>
+<blockquote>
+<p>새로운 자판 레이아웃의 추가를 원하시면 <a href="https://github.com/hiking90/ongeul/issues">GitHub Issues</a>에 등록해 주세요.</p>
+</blockquote>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="한영-전환"><a class="header" href="#한영-전환">한/영 전환</a></h1>
+<p>Ongeul은 다양한 한/영 전환 방식을 지원합니다. 설정에서 원하는 방식을 선택할 수 있습니다.</p>
+<h2 id="오른쪽-command-기본값"><a class="header" href="#오른쪽-command-기본값">오른쪽 Command (기본값)</a></h2>
+<ul>
+<li><strong>오른쪽 Command</strong> 키를 <strong>단독으로 누른 뒤 떼면</strong> 한/영이 전환됩니다.</li>
+<li>다른 키와 함께 누르면 (예: Cmd+C) 전환되지 않고 일반 Command 키로 동작합니다.</li>
+<li>500ms 이내에 떼야 전환됩니다. 오래 누르고 있으면 전환되지 않습니다.</li>
+</ul>
+<h2 id="오른쪽-option"><a class="header" href="#오른쪽-option">오른쪽 Option</a></h2>
+<ul>
+<li><strong>오른쪽 Option</strong> 키를 <strong>단독으로 누른 뒤 떼면</strong> 한/영이 전환됩니다.</li>
+<li>한국어 키보드의 한/영 키 위치와 동일합니다.</li>
+</ul>
+<h2 id="왼쪽--오른쪽-shift-단독"><a class="header" href="#왼쪽--오른쪽-shift-단독">왼쪽 / 오른쪽 Shift (단독)</a></h2>
+<ul>
+<li><strong>Shift</strong> 키를 <strong>다른 키 없이 단독으로 누른 뒤 떼면</strong> 한/영이 전환됩니다.</li>
+<li>대문자 입력 등 다른 키와 함께 누르면 전환되지 않습니다.</li>
+<li>RIME 입력기에서 사용하는 방식입니다.</li>
+</ul>
+<h2 id="shift--space"><a class="header" href="#shift--space">Shift + Space</a></h2>
+<ul>
+<li><strong>Shift</strong> 를 누른 상태에서 <strong>Space</strong> 를 누르면 한/영이 전환됩니다.</li>
+<li>전통적인 한/영 전환 방식을 선호하는 사용자를 위한 옵션입니다.</li>
+</ul>
+<p>Shift+Space를 전환 키로 사용하려면 <strong>손쉬운 사용(Accessibility)</strong> 권한이 필요합니다. 권한이 부여되면 Ongeul이 시스템 레벨에서 Shift+Space를 가로채어, JetBrains IDE나 iTerm2 등에서 공백이 함께 입력되는 문제 없이 모든 앱에서 정상 동작합니다.</p>
+<blockquote>
+<p>손쉬운 사용 권한은 설치 시 자동으로 안내됩니다. 권한 설정 방법은 <a href="user/features/../installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치</a>를 참고하세요.</p>
+</blockquote>
+<h2 id="전환-키-변경"><a class="header" href="#전환-키-변경">전환 키 변경</a></h2>
+<p><a href="user/features/../preferences.html">설정</a>에서 <strong>전환 키</strong> 항목을 변경할 수 있습니다.</p>
+<h2 id="동작-방식"><a class="header" href="#동작-방식">동작 방식</a></h2>
+<p>한/영 전환은 macOS 입력 소스 전환이 아닌 <strong>Ongeul 내부 모드 전환</strong>입니다.</p>
+<ul>
+<li>입력 소스가 변경되지 않으므로 InputMethodKit의 세션 간섭이 발생하지 않습니다.</li>
+<li>전환 시 커서 근처에 <a href="user/features/indicator.html">모드 인디케이터</a>가 표시됩니다.</li>
+<li>모든 modifier 기반 전환 키는 500ms 타임아웃이 적용됩니다.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="모드-인디케이터"><a class="header" href="#모드-인디케이터">모드 인디케이터</a></h1>
+<p>한/영 전환 시 커서 근처에 현재 모드를 표시하는 인디케이터가 나타납니다.</p>
+<h2 id="표시-방식"><a class="header" href="#표시-방식">표시 방식</a></h2>
+<ul>
+<li><strong>한글 모드</strong>: 강조 색상 배경에 <strong>한</strong> 표시</li>
+<li><strong>영문 모드</strong>: <strong>A</strong> 표시</li>
+<li>1.6초 후 자동으로 사라집니다.</li>
+</ul>
+<h2 id="위치"><a class="header" href="#위치">위치</a></h2>
+<p>인디케이터는 현재 텍스트 커서 위치 근처에 표시됩니다. 앱이 커서 위치 정보를 제공하지 않는 경우에는 화면 중앙 하단에 표시됩니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="앱별-모드-기억"><a class="header" href="#앱별-모드-기억">앱별 모드 기억</a></h1>
+<p>Ongeul은 앱마다 마지막으로 사용한 입력 모드를 기억합니다.</p>
+<h2 id="동작-방식-1"><a class="header" href="#동작-방식-1">동작 방식</a></h2>
+<ul>
+<li>브라우저에서 한글을 쓰다가 터미널로 전환하면, 터미널에서 마지막으로 사용한 모드가 자동으로 복원됩니다.</li>
+<li>다시 브라우저로 돌아오면 한글 모드가 복원됩니다.</li>
+<li>이전에 사용한 적이 없는 앱은 기본적으로 영문 모드로 시작합니다.</li>
+</ul>
+<h2 id="기억-범위"><a class="header" href="#기억-범위">기억 범위</a></h2>
+<ul>
+<li>앱 단위(Bundle ID 기준)로 모드를 저장합니다.</li>
+<li>메모리에만 저장되므로, Ongeul을 재시작하면 초기화됩니다.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="영문-잠금"><a class="header" href="#영문-잠금">영문 잠금</a></h1>
+<p>특정 앱에서 한/영 전환을 막고 영문 전용으로 고정할 수 있습니다.</p>
+<h2 id="잠금해제-방법"><a class="header" href="#잠금해제-방법">잠금/해제 방법</a></h2>
+<p><strong>4키 동시 입력</strong>으로 영문 잠금을 토글합니다:</p>
+<ul>
+<li><strong>좌측 Option</strong> + <strong>좌측 Command</strong> + <strong>우측 Command</strong> + <strong>우측 Option</strong></li>
+</ul>
+<p>네 키를 모두 누르고 있으면 잠금이 토글됩니다.</p>
+<h2 id="잠금-상태-표시"><a class="header" href="#잠금-상태-표시">잠금 상태 표시</a></h2>
+<ul>
+<li>잠금이 활성화되면 화면 중앙에 <strong>잠금 아이콘</strong>이 잠시 표시됩니다.</li>
+<li>해제 시에는 <strong>잠금 해제 아이콘</strong>이 표시됩니다.</li>
+</ul>
+<h2 id="지속성"><a class="header" href="#지속성">지속성</a></h2>
+<ul>
+<li>영문 잠금 상태는 UserDefaults에 저장되어 <strong>앱 재시작 후에도 유지</strong>됩니다.</li>
+<li>앱별(Bundle ID 기준)로 독립적으로 관리됩니다.</li>
+</ul>
+<h2 id="사용-예시"><a class="header" href="#사용-예시">사용 예시</a></h2>
+<p>터미널이나 코드 편집기처럼 주로 영문만 사용하는 앱에서 유용합니다. 영문 잠금을 설정하면 실수로 한글 모드로 전환되는 것을 방지할 수 있습니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="capslock-정규화"><a class="header" href="#capslock-정규화">CapsLock 정규화</a></h1>
+<p>Ongeul은 CapsLock 상태에 관계없이 일관된 입력을 제공합니다.</p>
+<h2 id="동작-방식-2"><a class="header" href="#동작-방식-2">동작 방식</a></h2>
+<ul>
+<li><strong>한글 모드</strong>: CapsLock이 켜져 있어도 정상적으로 한글이 입력됩니다. CapsLock 상태를 무시합니다.</li>
+<li><strong>영문 모드</strong>: CapsLock이 켜져 있으면 기존 대문자 동작이 그대로 유지됩니다.</li>
+</ul>
+<h2 id="capslock--shift"><a class="header" href="#capslock--shift">CapsLock + Shift</a></h2>
+<ul>
+<li>한글 모드에서 CapsLock + Shift 조합은 쌍자음 등 Shift 본래의 동작을 유지합니다.</li>
+<li>영문 모드에서 CapsLock + Shift 조합은 소문자를 입력합니다 (macOS 기본 동작과 동일).</li>
+</ul>
+<h2 id="참고-capslock-입력-소스-전환"><a class="header" href="#참고-capslock-입력-소스-전환">참고: CapsLock 입력 소스 전환</a></h2>
+<p>ABC 등 다른 입력 소스를 함께 사용하는 경우, 시스템 설정에서 <strong>"Caps Lock으로 ABC 입력 소스 전환"</strong> 옵션을 비활성화하세요. 이 옵션이 켜져 있으면 CapsLock을 누를 때 Ongeul에서 ABC로 전환되어 버립니다.</p>
+<p>Ongeul만 사용하는 경우에는 전환 대상이 없으므로 이 설정을 신경 쓸 필요가 없습니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="설정"><a class="header" href="#설정">설정</a></h1>
+<p>Ongeul의 설정은 메뉴 막대에서 접근할 수 있습니다.</p>
+<h2 id="설정-열기"><a class="header" href="#설정-열기">설정 열기</a></h2>
+<ol>
+<li>메뉴 막대의 <strong>Ongeul 아이콘</strong>을 클릭합니다.</li>
+<li><strong>설정(Preference)</strong> 을 선택합니다.</li>
+</ol>
+<h2 id="설정-항목"><a class="header" href="#설정-항목">설정 항목</a></h2>
+<h3 id="전환-키"><a class="header" href="#전환-키">전환 키</a></h3>
+<p>한/영 전환에 사용할 키를 선택합니다.</p>
+<ul>
+<li><strong>오른쪽 Command</strong> (기본값) — 단독으로 누른 뒤 떼면 전환</li>
+<li><strong>오른쪽 Option</strong> — 한국어 키보드의 한/영 키 위치</li>
+<li><strong>왼쪽 Shift (단독)</strong> — 다른 키 없이 단독으로 눌렀다 떼면 전환 (RIME 방식)</li>
+<li><strong>오른쪽 Shift (단독)</strong> — 다른 키 없이 단독으로 눌렀다 떼면 전환</li>
+<li><strong>Shift + Space</strong> — 전통적인 전환 방식</li>
+</ul>
+<p>모든 modifier 기반 전환 키는 500ms 이내에 떼야 전환됩니다.</p>
+<blockquote>
+<p><strong>Shift + Space</strong> 를 사용하려면 손쉬운 사용(Accessibility) 권한이 필요합니다. 이 권한은 설치 시 자동으로 안내됩니다. 자세한 내용은 <a href="user/installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치 &gt; 손쉬운 사용 권한</a> 및 <a href="user/features/mode-switching.html#shift--space">한/영 전환 &gt; Shift + Space</a>를 참고하세요.</p>
+</blockquote>
+<h3 id="키보드-레이아웃-1"><a class="header" href="#키보드-레이아웃-1">키보드 레이아웃</a></h3>
+<p>한글 키보드 레이아웃을 선택합니다.</p>
+<ul>
+<li><strong>두벌식 표준</strong> — 가장 널리 사용되는 배열</li>
+<li><strong>세벌식 390</strong> — 초/중/종 분리 배치, 숫자열 리매핑</li>
+<li><strong>세벌식 최종</strong> — 세벌식 최종 자판</li>
+</ul>
+<p>레이아웃을 변경하면 즉시 적용됩니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="문제-해결"><a class="header" href="#문제-해결">문제 해결</a></h1>
+<h2 id="입력기-목록에-ongeul이-보이지-않음"><a class="header" href="#입력기-목록에-ongeul이-보이지-않음">입력기 목록에 Ongeul이 보이지 않음</a></h2>
+<p><strong>원인</strong>: macOS는 입력기 목록을 로그인 시점에 캐시합니다.</p>
+<p><strong>해결</strong>: 로그아웃 후 재로그인하세요. 설치 직후에는 반드시 이 과정이 필요합니다.</p>
+<h2 id="gatekeeper가-pkg-또는-앱-실행을-차단함"><a class="header" href="#gatekeeper가-pkg-또는-앱-실행을-차단함">Gatekeeper가 .pkg 또는 앱 실행을 차단함</a></h2>
+<p><strong>원인</strong>: Ongeul은 오픈소스 프로젝트로 Apple Developer 인증서로 서명되어 있지 않아, macOS Gatekeeper가 <code>.pkg</code> 설치 파일이나 앱 실행을 차단합니다.</p>
+<p><strong>해결</strong>:</p>
+<ol>
+<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
+<li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
+<li>하단 보안 섹션에서 차단 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
+</ol>
+<p>자세한 내용은 <a href="user/installation.html#%EC%8B%A4%ED%96%89-%EA%B6%8C%ED%95%9C-gatekeeper">설치 &gt; 실행 권한</a>을 참고하세요.</p>
+<h2 id="한글-조합이-되지-않음"><a class="header" href="#한글-조합이-되지-않음">한글 조합이 되지 않음</a></h2>
+<p>다음 사항을 확인하세요:</p>
+<ol>
+<li>현재 입력 모드가 한글 모드인지 확인합니다 (오른쪽 Command로 전환).</li>
+<li>메뉴 막대의 아이콘이 한글 모드 아이콘으로 표시되는지 확인합니다.</li>
+<li>해당 앱에 <a href="user/features/english-lock.html">영문 잠금</a>이 설정되어 있지 않은지 확인합니다.</li>
+</ol>
+<h2 id="shiftspace-전환-시-공백이-입력됨"><a class="header" href="#shiftspace-전환-시-공백이-입력됨">Shift+Space 전환 시 공백이 입력됨</a></h2>
+<p><strong>원인</strong>: iTerm2, JetBrains IDE(RustRover, IntelliJ, WebStorm 등) 등 일부 앱은 입력기의 키 처리 결과를 무시하여 Shift+Space 전환 시 공백 문자를 함께 삽입합니다.</p>
+<p><strong>해결</strong>: <strong>손쉬운 사용(Accessibility)</strong> 권한이 부여되어 있는지 확인하세요. 이 권한이 부여되면 Ongeul이 시스템 레벨에서 Shift+Space를 가로채므로 모든 앱에서 공백 없이 전환됩니다.</p>
+<ol>
+<li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> → <strong>손쉬운 사용</strong> 을 엽니다.</li>
+<li>목록에서 <strong>Ongeul</strong> 이 활성화되어 있는지 확인합니다.</li>
+</ol>
+<blockquote>
+<p>손쉬운 사용 권한은 설치 시 자동으로 안내됩니다. 자세한 내용은 <a href="user/installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치 &gt; 손쉬운 사용 권한</a>을 참고하세요.</p>
+</blockquote>
+<h2 id="디버그-로그-확인"><a class="header" href="#디버그-로그-확인">디버그 로그 확인</a></h2>
+<p>문제를 진단하려면 콘솔에서 Ongeul의 로그를 확인할 수 있습니다.</p>
+<pre><code class="language-bash">log stream --predicate 'subsystem == "io.github.hiking90.inputmethod.Ongeul"'
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="제거"><a class="header" href="#제거">제거</a></h1>
+<h2 id="1-앱-삭제"><a class="header" href="#1-앱-삭제">1. 앱 삭제</a></h2>
+<p>설치 시 선택한 위치에 따라 해당 경로의 <code>Ongeul.app</code>을 삭제합니다.</p>
+<h3 id="시스템-전체-설치를-선택한-경우"><a class="header" href="#시스템-전체-설치를-선택한-경우">시스템 전체 설치를 선택한 경우</a></h3>
+<pre><code class="language-bash">sudo rm -rf "/Library/Input Methods/Ongeul.app"
+</code></pre>
+<h3 id="현재-사용자만-설치를-선택한-경우"><a class="header" href="#현재-사용자만-설치를-선택한-경우">현재 사용자만 설치를 선택한 경우</a></h3>
+<pre><code class="language-bash">rm -rf ~/Library/Input\ Methods/Ongeul.app
+</code></pre>
+<h2 id="2-입력-소스-제거"><a class="header" href="#2-입력-소스-제거">2. 입력 소스 제거</a></h2>
+<ol>
+<li><strong>시스템 설정</strong> → <strong>키보드</strong> → <strong>입력 소스</strong> → <strong>편집...</strong> 을 클릭합니다.</li>
+<li>목록에서 <strong>Ongeul</strong> 을 선택합니다.</li>
+<li><strong>−</strong> 버튼을 클릭하여 제거합니다.</li>
+<li><strong>ABC</strong> 등 다른 입력 소스를 추가합니다 (입력 소스가 최소 1개 필요).</li>
+</ol>
+<h2 id="3-로그아웃로그인"><a class="header" href="#3-로그아웃로그인">3. 로그아웃/로그인</a></h2>
+<p>변경 사항을 완전히 반영하려면 로그아웃 후 재로그인하세요.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="빌드"><a class="header" href="#빌드">빌드</a></h1>
+<h2 id="요구사항-1"><a class="header" href="#요구사항-1">요구사항</a></h2>
+<ul>
+<li><strong>macOS 14.0</strong> (Sonoma) 이상</li>
+<li><strong>Rust toolchain</strong>: <code>aarch64-apple-darwin</code> 타겟 (기본 설치됨)</li>
+<li><strong>Xcode Command Line Tools</strong>: <code>swiftc</code>, <code>clang</code>, <code>codesign</code> 등</li>
+<li>(선택) Intel 빌드를 위한 추가 타겟: <code>rustup target add x86_64-apple-darwin</code></li>
+</ul>
+<h2 id="디렉토리-구조"><a class="header" href="#디렉토리-구조">디렉토리 구조</a></h2>
+<pre><code>ongeul-automata/       # Rust 한글 엔진
+  src/
+    lib.rs             # UniFFI 공개 API
+    engine.rs          # 입력 모드, 키 처리
+    automata/          # 한글 조합 상태 머신
+    layout/            # 키보드 레이아웃 파서 (JSON5)
+    unicode.rs         # 한글 유니코드 유틸리티
+  layouts/             # 레이아웃 정의 파일 (JSON5)
+  tests/               # 통합 테스트
+
+OngeulApp/             # Swift macOS 프론트엔드
+  Sources/
+    main.swift         # IMKServer 초기화
+    OngeulInputController.swift  # IMKInputController
+  Generated/           # UniFFI 자동 생성 (빌드 시)
+  Resources/           # Info.plist, 아이콘, 로컬라이제이션
+
+scripts/
+  build.sh             # 빌드 스크립트
+  install.sh           # 빌드 + 설치
+  package.sh           # universal .pkg 생성
+  gen_icon.swift       # 메뉴바 아이콘 생성
+</code></pre>
+<h2 id="빌드-1"><a class="header" href="#빌드-1">빌드</a></h2>
+<pre><code class="language-bash"># 기본 빌드 (Apple Silicon)
+./scripts/build.sh
+
+# Intel 타겟 빌드
+./scripts/build.sh x86_64-apple-darwin
+</code></pre>
+<p>빌드 결과물은 <code>build/&lt;target&gt;/Ongeul.app</code>에 생성됩니다.</p>
+<h3 id="빌드-과정"><a class="header" href="#빌드-과정">빌드 과정</a></h3>
+<p><code>build.sh</code>는 다음 단계를 수행합니다:</p>
+<ol>
+<li><strong>Rust 빌드</strong>: <code>cargo build</code>로 <code>libongeul_automata.a</code> 정적 라이브러리 생성</li>
+<li><strong>UniFFI 바인딩</strong>: Rust 라이브러리에서 Swift 바인딩 코드 자동 생성</li>
+<li><strong>Swift 컴파일</strong>: <code>swiftc</code>로 Swift 소스 및 Obj-C 소스 컴파일</li>
+<li><strong>앱 번들</strong>: <code>Ongeul.app</code> 번들 구조 생성 (Info.plist, 리소스 복사)</li>
+<li><strong>코드 서명</strong>: ad-hoc 서명</li>
+</ol>
+<h2 id="테스트"><a class="header" href="#테스트">테스트</a></h2>
+<pre><code class="language-bash">cargo test -p ongeul-automata
+</code></pre>
+<p>유니코드 처리, 두벌식/세벌식 오토마타, 레이아웃 파서, 통합 테스트를 포함합니다.</p>
+<h2 id="설치-1"><a class="header" href="#설치-1">설치</a></h2>
+<pre><code class="language-bash">./scripts/install.sh
+</code></pre>
+<p>빌드 후 <code>~/Library/Input Methods/</code>에 설치합니다. 최초 설치 시 로그아웃/로그인이 필요합니다.</p>
+<h2 id="디버그-로그"><a class="header" href="#디버그-로그">디버그 로그</a></h2>
+<pre><code class="language-bash">log stream --predicate 'subsystem == "io.github.hiking90.inputmethod.Ongeul"'
+</code></pre>
+<h2 id="pkg와-installsh-중복-설치"><a class="header" href="#pkg와-installsh-중복-설치">.pkg와 install.sh 중복 설치</a></h2>
+<p><code>.pkg</code>로 설치하면 <code>/Library/Input Methods/</code>에, <code>install.sh</code>로 설치하면 <code>~/Library/Input Methods/</code>에 설치됩니다. 두 곳에 모두 설치된 경우 충돌이 발생할 수 있습니다.</p>
+<p>한쪽의 <code>Ongeul.app</code>을 삭제하고 로그아웃/로그인하세요.</p>
+<pre><code class="language-bash"># .pkg 설치본 제거 (관리자 권한 필요)
+sudo rm -rf "/Library/Input Methods/Ongeul.app"
+
+# 또는 install.sh 설치본 제거
+rm -rf ~/Library/Input\ Methods/Ongeul.app
+</code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="아키텍처"><a class="header" href="#아키텍처">아키텍처</a></h1>
+<p>Ongeul은 <strong>Rust 엔진 + Swift 프론트엔드</strong> 하이브리드 구조입니다.</p>
+<h2 id="전체-구조"><a class="header" href="#전체-구조">전체 구조</a></h2>
+<pre><code>┌─────────────────────────────────┐
+│  OngeulApp (Swift)              │
+│  macOS InputMethodKit 연동      │
+│  모드 인디케이터, 설정 UI        │
+└──────────┬──────────────────────┘
+           │ UniFFI (FFI)
+┌──────────▼──────────────────────┐
+│  ongeul-automata (Rust)                │
+│  한글 조합 오토마타              │
+│  자모 합성/분해, 유니코드 처리   │
+│  키보드 레이아웃 파서            │
+└─────────────────────────────────┘
+</code></pre>
+<h3 id="ongeul-automata-rust"><a class="header" href="#ongeul-automata-rust">ongeul-automata (Rust)</a></h3>
+<p>한글 조합의 <strong>모든 로직</strong>을 담당합니다. Swift 쪽에는 한글 처리 로직이 전혀 없습니다.</p>
+<ul>
+<li><code>HangulEngine</code>: UniFFI로 노출되는 공개 API 객체</li>
+<li><code>ProcessResult</code>: 키 처리 결과 (committed text, composing text, handled flag)</li>
+<li><code>EngineState</code>: 레이아웃과 오토마타를 관리하는 내부 상태</li>
+<li><code>InputMode</code>: 영문(English) / 한글(Korean) 모드</li>
+</ul>
+<h3 id="ongeulapp-swift"><a class="header" href="#ongeulapp-swift">OngeulApp (Swift)</a></h3>
+<p>macOS InputMethodKit과의 연동만 담당하는 <strong>얇은 셸</strong>입니다.</p>
+<ul>
+<li><code>OngeulInputController</code>: IMKInputController 구현
+<ul>
+<li>키 이벤트 수신 → Rust 엔진에 위임 → 결과 적용</li>
+<li>한/영 전환 키 감지 (flagsChanged)</li>
+<li>앱별 모드 저장/복원</li>
+<li>영문 잠금 관리</li>
+</ul>
+</li>
+<li>모드 인디케이터 (NSPanel)</li>
+<li>설정 다이얼로그</li>
+</ul>
+<h3 id="uniffi"><a class="header" href="#uniffi">UniFFI</a></h3>
+<p><a href="https://mozilla.github.io/uniffi-rs/">Mozilla UniFFI</a>를 통해 Rust와 Swift를 연결합니다. <code>HangulEngine</code>의 메서드들이 Swift에서 직접 호출 가능한 형태로 자동 생성됩니다.</p>
+<h2 id="키-이벤트-처리-흐름"><a class="header" href="#키-이벤트-처리-흐름">키 이벤트 처리 흐름</a></h2>
+<pre><code>1. macOS  →  키 이벤트 발생 (NSEvent)
+2. Swift  →  OngeulInputController.handle(event:client:) 수신
+3. Swift  →  전환 키 확인 (Cmd/Shift+Space)
+4. Swift  →  engine.process_key(keyCode, char, shift) 호출
+5. Rust   →  현재 모드에 따라 처리
+              English → 문자 그대로 반환
+              Korean  → 오토마타로 한글 조합
+6. Rust   →  ProcessResult 반환 (committed, composing, handled)
+7. Swift  →  결과를 IMKTextInput에 적용
+              committed → insertText
+              composing → setMarkedText
+</code></pre>
+<h2 id="한글-조합-오토마타"><a class="header" href="#한글-조합-오토마타">한글 조합 오토마타</a></h2>
+<h3 id="두벌식-6단계-상태-머신"><a class="header" href="#두벌식-6단계-상태-머신">두벌식 6단계 상태 머신</a></h3>
+<pre><code>Empty → Choseong → Jungseong → Jungseong2 → Jongseong → Jongseong2
+</code></pre>
+<ul>
+<li>초성 입력 → 중성 입력 시 조합 시작</li>
+<li>종성 입력 후 모음이 오면 종성을 다음 음절의 초성으로 분리</li>
+<li>겹받침(ㄳ, ㄺ 등) 뒤에 모음이 오면 겹받침을 분리</li>
+</ul>
+<h3 id="세벌식"><a class="header" href="#세벌식">세벌식</a></h3>
+<p>초성, 중성, 종성이 키보드에서 분리되어 있어 위치(position) 기반으로 처리합니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="패키징"><a class="header" href="#패키징">패키징</a></h1>
+<p><code>scripts/package.sh</code>로 universal <code>.pkg</code> 설치 파일을 생성합니다.</p>
+<h2 id="사전-준비"><a class="header" href="#사전-준비">사전 준비</a></h2>
+<p>Intel(x86_64) 타겟이 설치되어 있어야 합니다:</p>
+<pre><code class="language-bash">rustup target add x86_64-apple-darwin
+</code></pre>
+<h2 id="패키지-생성"><a class="header" href="#패키지-생성">패키지 생성</a></h2>
+<pre><code class="language-bash">./scripts/package.sh
+</code></pre>
+<p>결과물: <code>build/Ongeul-&lt;version&gt;.pkg</code></p>
+<h2 id="빌드-과정-1"><a class="header" href="#빌드-과정-1">빌드 과정</a></h2>
+<p><code>package.sh</code>는 다음 단계를 수행합니다:</p>
+<ol>
+<li><strong>사전 검증</strong>: x86_64 타겟 설치 확인</li>
+<li><strong>aarch64 빌드</strong>: <code>build.sh aarch64-apple-darwin</code></li>
+<li><strong>x86_64 빌드</strong>: <code>build.sh x86_64-apple-darwin</code></li>
+<li><strong>Universal 바이너리</strong>: <code>lipo</code>로 양쪽 아키텍처 바이너리를 합침</li>
+<li><strong>코드 서명</strong>: ad-hoc 서명</li>
+<li><strong>패키지 생성</strong>: <code>pkgbuild</code> → <code>productbuild</code></li>
+</ol>
+<h2 id="패키지-구조"><a class="header" href="#패키지-구조">패키지 구조</a></h2>
+<pre><code>scripts/pkg/
+  distribution.xml     # Installer 설정 (제목, 요구사항, 설치 옵션)
+  resources/
+    welcome.html       # 설치 시작 화면
+    conclusion.html    # 설치 완료 화면
+  postinstall          # 설치 후 스크립트
+</code></pre>
+<h3 id="distributionxml"><a class="header" href="#distributionxml">distribution.xml</a></h3>
+<ul>
+<li>설치 대상: macOS 14.0 이상</li>
+<li>아키텍처: x86_64, arm64</li>
+<li>설치 위치: <code>/Library/Input Methods</code> (시스템) 또는 <code>~/Library/Input Methods</code> (사용자)</li>
+</ul>
+<h2 id="코드-서명-및-공증"><a class="header" href="#코드-서명-및-공증">코드 서명 및 공증</a></h2>
+<p>Developer ID 인증서가 있는 경우, 배포 전에 코드 서명과 공증을 수행할 수 있습니다:</p>
+<pre><code class="language-bash"># 코드 서명
+codesign --force --sign "Developer ID Application: &lt;이름&gt;" build/universal/Ongeul.app
+
+# 패키지 서명
+productsign --sign "Developer ID Installer: &lt;이름&gt;" \
+    build/Ongeul-&lt;version&gt;.pkg \
+    build/Ongeul-&lt;version&gt;-signed.pkg
+
+# 공증
+xcrun notarytool submit build/Ongeul-&lt;version&gt;-signed.pkg \
+    --apple-id &lt;Apple ID&gt; \
+    --team-id &lt;Team ID&gt; \
+    --password &lt;앱 전용 비밀번호&gt; \
+    --wait
+</code></pre>
+<p>공증이 완료되면 Gatekeeper 경고 없이 설치할 수 있습니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="기여-가이드"><a class="header" href="#기여-가이드">기여 가이드</a></h1>
+<p>Ongeul 프로젝트에 기여해 주셔서 감사합니다!</p>
+<h2 id="개발-환경-설정"><a class="header" href="#개발-환경-설정">개발 환경 설정</a></h2>
+<p><a href="dev/building.html">빌드</a> 페이지를 참고하여 개발 환경을 설정하세요.</p>
+<h2 id="코드-스타일"><a class="header" href="#코드-스타일">코드 스타일</a></h2>
+<h3 id="rust"><a class="header" href="#rust">Rust</a></h3>
+<ul>
+<li><code>cargo fmt</code>로 포맷팅합니다.</li>
+<li><code>cargo clippy</code>로 린트 검사를 수행합니다.</li>
+<li>공개 API에는 문서 주석(<code>///</code>)을 작성합니다.</li>
+</ul>
+<h3 id="swift"><a class="header" href="#swift">Swift</a></h3>
+<ul>
+<li>Xcode 기본 Swift 스타일을 따릅니다.</li>
+<li>4칸 들여쓰기를 사용합니다.</li>
+</ul>
+<h2 id="테스트-1"><a class="header" href="#테스트-1">테스트</a></h2>
+<p>변경 사항에 대한 테스트를 작성하거나 기존 테스트가 통과하는지 확인하세요.</p>
+<pre><code class="language-bash">cargo test -p ongeul-automata
+</code></pre>
+<h2 id="pull-request"><a class="header" href="#pull-request">Pull Request</a></h2>
+<ol>
+<li>이슈를 먼저 확인하거나 새 이슈를 생성합니다.</li>
+<li><code>main</code> 브랜치에서 feature 브랜치를 생성합니다.</li>
+<li>변경 사항을 커밋합니다.</li>
+<li>테스트가 통과하는지 확인합니다.</li>
+<li>Pull Request를 생성합니다.</li>
+</ol>
+<h3 id="pr-작성-시-참고사항"><a class="header" href="#pr-작성-시-참고사항">PR 작성 시 참고사항</a></h3>
+<ul>
+<li>변경 사항을 명확하게 설명합니다.</li>
+<li>관련 이슈가 있다면 링크합니다.</li>
+<li>스크린샷이 필요한 UI 변경 시 첨부합니다.</li>
+</ul>
+<h2 id="프로젝트-구조"><a class="header" href="#프로젝트-구조">프로젝트 구조</a></h2>
+<ul>
+<li><strong>ongeul-automata</strong>: 한글 엔진 로직은 이 크레이트에서 관리합니다.</li>
+<li><strong>OngeulApp</strong>: macOS 연동 코드만 포함합니다. 한글 처리 로직을 여기에 넣지 마세요.</li>
+<li><strong>레이아웃</strong>: <code>ongeul-automata/layouts/</code>의 JSON5 파일로 관리합니다.</li>
+</ul>
+<h2 id="라이선스"><a class="header" href="#라이선스">라이선스</a></h2>
+<p>기여하신 코드는 <a href="dev/../license.html">Apache License 2.0</a> 하에 제공됩니다.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="라이선스-1"><a class="header" href="#라이선스-1">라이선스</a></h1>
+<p>Ongeul은 Apache License 2.0 하에 배포됩니다.</p>
+<pre><code class="language-text">                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+</code></pre>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="theme/version-selector.js"></script>
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+    </div>
+    </body>
+</html>

@@ -1,7 +1,7 @@
 # Ongeul (온글)
 
 <p align="center">
-  <img src="ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
+  <img src="user/images/ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
 </p>
 
 macOS용 한글 입력기 — **하나의 입력 소스**로 한글과 영문을 모두 처리합니다.

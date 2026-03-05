@@ -10,15 +10,63 @@
 
 ### 실행 권한 (Gatekeeper)
 
-Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 첫 실행 시 앱을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.
+Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 설치 파일과 앱 실행을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.
 
-설치 후 처음 Ongeul이 로드될 때 **"Ongeul.app을(를) 확인할 수 없습니다"** 경고가 표시되면 다음 절차로 실행을 허용하세요:
+#### .pkg 파일 열기
 
-1. **시스템 설정** → **개인 정보 보호 및 보안** 으로 이동합니다.
-2. 하단에 **"Ongeul.app이(가) 차단되었습니다"** 메시지를 확인합니다.
-3. **확인 없이 열기** 를 클릭합니다.
+다운로드한 `.pkg` 파일을 더블클릭하면 다음과 같은 경고가 표시될 수 있습니다.
+
+<p align="center">
+<img src="images/gatekeeper-pkg-warning.png" alt="Gatekeeper .pkg 차단 경고" width="265">
+</p>
+
+1. 경고 다이얼로그에서 **완료** 를 클릭합니다.
+2. **시스템 설정** → **개인 정보 보호 및 보안** 으로 이동합니다.
+3. 하단의 보안 섹션에서 **"Ongeul-x.x.x.pkg이(가) Mac을 보호하기 위해 차단되었습니다"** 메시지를 확인하고 **확인 없이 열기** 를 클릭합니다.
+
+<p align="center">
+<img src="images/gatekeeper-open-anyway.png" alt="개인 정보 보호 및 보안에서 확인 없이 열기" width="500">
+</p>
+
+4. macOS가 다시 확인을 요청하면 **열기** 를 클릭합니다.
 
 > 이 과정은 최초 1회만 필요합니다. 이후에는 Gatekeeper가 Ongeul을 차단하지 않습니다.
+
+### 입력기 등록
+
+`.pkg` 설치가 완료되면, macOS에 Ongeul을 입력 소스로 등록해야 합니다. 등록하지 않으면 Ongeul이 설치되어 있어도 입력기로 사용할 수 없습니다.
+
+> 최초 설치 시 macOS가 새 입력기를 인식하려면 **로그아웃 후 재로그인**이 필요할 수 있습니다. 입력 소스 목록에 Ongeul이 보이지 않는다면 로그아웃 후 다시 시도하세요.
+
+1. 메뉴 막대 우측의 **입력기 아이콘** 을 클릭합니다.
+2. 드롭다운 메뉴 하단의 **"Open Keyboard Settings..."** 를 선택합니다.
+
+<p align="center">
+<img src="images/menubar-keyboard-settings.png" alt="메뉴 막대에서 Open Keyboard Settings 선택" width="229">
+</p>
+
+3. 현재 설정된 입력 소스 목록이 표시됩니다. 좌측 하단의 **+** 버튼을 클릭합니다.
+
+<p align="center">
+<img src="images/input-source-list.png" alt="입력 소스 목록에서 + 버튼 클릭" width="500">
+</p>
+
+4. 왼쪽 언어 목록에서 **한국어** 를 선택합니다.
+5. 오른쪽에 나타나는 입력기 목록에서 **Ongeul** 을 선택하고 **추가** 를 클릭합니다.
+
+<p align="center">
+<img src="images/add-input-source.png" alt="입력 소스 추가에서 Korean > Ongeul 선택" width="450">
+</p>
+
+#### 기존 입력 소스 정리
+
+Ongeul은 한글과 영문을 모두 하나의 입력기에서 처리하므로, 기존 한글 입력기(예: 2-Set Korean)는 제거하는 것을 권장합니다.
+
+1. 입력 소스 목록에서 기존 **한글 입력기**를 선택하고 **−** 버튼으로 제거합니다.
+
+> **ABC** 입력 소스는 macOS 기본 입력기로 삭제할 수 없습니다. Ongeul이 영문 입력도 처리하므로 ABC가 남아 있어도 무방합니다.
+
+> 기존 한글 입력기를 제거하고 Ongeul만 사용하면 입력 소스 전환으로 인한 지연이 크게 줄어듭니다. 자세한 설정은 [시작하기](getting-started.md) 페이지를 참고하세요.
 
 ### 손쉬운 사용(Accessibility) 권한
 
@@ -35,14 +83,16 @@ macOS의 입력기 프레임워크(InputMethodKit)만으로는 해결할 수 없
 
 #### 권한 설정 방법
 
-Ongeul 설치 후 첫 실행 시 macOS 시스템 권한 다이얼로그가 자동으로 표시됩니다.
+Ongeul을 입력 소스로 등록하고 처음 활성화하면, 다음과 같은 Accessibility 권한 요청 다이얼로그가 자동으로 표시됩니다.
 
-**자동 안내 다이얼로그가 표시된 경우:**
+<p align="center">
+<img src="images/accessibility-dialog.png" alt="Accessibility 권한 요청 다이얼로그" width="400">
+</p>
 
-1. 다이얼로그에서 **"시스템 설정 열기"** 를 클릭합니다.
+1. 다이얼로그에서 **"Open System Settings"** 를 클릭합니다.
 2. **손쉬운 사용** 설정 화면이 열리면 목록에서 **Ongeul** 을 찾아 토글을 켭니다.
 
-**수동으로 설정하는 경우:**
+**다이얼로그가 표시되지 않는 경우:**
 
 1. **시스템 설정** 을 엽니다.
 2. **개인 정보 보호 및 보안** → **손쉬운 사용** 을 선택합니다.

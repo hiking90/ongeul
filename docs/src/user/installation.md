@@ -92,6 +92,10 @@ Ongeul을 입력 소스로 등록하고 처음 활성화하면, 다음과 같은
 1. 다이얼로그에서 **"Open System Settings"** 를 클릭합니다.
 2. **손쉬운 사용** 설정 화면이 열리면 목록에서 **Ongeul** 을 찾아 토글을 켭니다.
 
+<p align="center">
+<img src="images/accessibility-settings.png" alt="손쉬운 사용 설정에서 Ongeul 토글" width="500">
+</p>
+
 **다이얼로그가 표시되지 않는 경우:**
 
 1. **시스템 설정** 을 엽니다.

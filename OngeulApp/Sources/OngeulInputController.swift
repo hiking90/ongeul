@@ -204,19 +204,22 @@ private final class PreferencesPanel {
         for (_, title) in toggleKeyTitles {
             togglePopup.addItem(withTitle: title)
         }
-        let toggleRow = NSStackView(views: [toggleLabel, togglePopup])
-        toggleRow.orientation = .horizontal
-        toggleRow.spacing = 8
-
         // -- 한글 자판 --
         let layoutLabel = NSTextField(labelWithString: NSLocalizedString("prefs.layout.label", comment: ""))
         layoutPopup = NSPopUpButton(frame: .zero, pullsDown: false)
         layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.2standard", comment: ""))
         layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3_390", comment: ""))
         layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3final", comment: ""))
-        let layoutRow = NSStackView(views: [layoutLabel, layoutPopup])
-        layoutRow.orientation = .horizontal
-        layoutRow.spacing = 8
+
+        // 라벨-팝업 그리드 (열 정렬)
+        let settingsGrid = NSGridView(views: [
+            [toggleLabel, togglePopup],
+            [layoutLabel, layoutPopup],
+        ])
+        settingsGrid.rowSpacing = 8
+        settingsGrid.columnSpacing = 8
+        settingsGrid.column(at: 0).xPlacement = .trailing
+        settingsGrid.column(at: 1).xPlacement = .leading
 
         // -- ESC → 영문 전환 --
         escapeCheckbox = NSButton(
@@ -234,18 +237,6 @@ private final class PreferencesPanel {
         let separator = NSBox()
         separator.boxType = .separator
 
-        let aboutGroup = NSStackView()
-        aboutGroup.orientation = .vertical
-        aboutGroup.alignment = .centerX
-        aboutGroup.spacing = 4
-
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let aboutLabel = NSTextField(labelWithString: "Ongeul v\(version)  —  hiking90")
-        aboutLabel.font = NSFont.systemFont(ofSize: 12)
-        aboutLabel.textColor = .secondaryLabelColor
-        aboutLabel.alignment = .center
-        aboutGroup.addArrangedSubview(aboutLabel)
-
         let linkTitle = NSAttributedString(string: "github.com/hiking90/ongeul", attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.linkColor,
@@ -256,7 +247,6 @@ private final class PreferencesPanel {
         projectLink.attributedTitle = linkTitle
         projectLink.bezelStyle = .inline
         projectLink.isBordered = false
-        aboutGroup.addArrangedSubview(projectLink)
 
         // -- 버튼 --
         let cancelButton = NSButton(
@@ -291,8 +281,18 @@ private final class PreferencesPanel {
         let titleLabel = NSTextField(labelWithString: "온글(Ongeul)")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
 
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let versionLabel = NSTextField(labelWithString: "v\(version)")
+        versionLabel.font = NSFont.systemFont(ofSize: 12)
+        versionLabel.textColor = .secondaryLabelColor
+
+        let titleGroup = NSStackView(views: [titleLabel, versionLabel])
+        titleGroup.orientation = .vertical
+        titleGroup.alignment = .leading
+        titleGroup.spacing = 2
+
         headerGroup.addArrangedSubview(iconView)
-        headerGroup.addArrangedSubview(titleLabel)
+        headerGroup.addArrangedSubview(titleGroup)
 
         // -- 전체 레이아웃 --
         let container = NSStackView()
@@ -301,12 +301,22 @@ private final class PreferencesPanel {
         container.spacing = 12
         container.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
         container.addArrangedSubview(headerGroup)
-        container.addArrangedSubview(toggleRow)
-        container.addArrangedSubview(layoutRow)
-        container.addArrangedSubview(escapeCheckbox)
-        container.addArrangedSubview(indicatorCheckbox)
+
+        // 그리드 + 체크박스를 하나의 설정 그룹으로 묶어 정렬
+        let checkboxGroup = NSStackView(views: [escapeCheckbox, indicatorCheckbox])
+        checkboxGroup.orientation = .vertical
+        checkboxGroup.alignment = .leading
+        checkboxGroup.spacing = 8
+
+        let settingsGroup = NSStackView(views: [settingsGrid, checkboxGroup])
+        settingsGroup.orientation = .vertical
+        settingsGroup.alignment = .centerX
+        settingsGroup.spacing = 12
+
+        container.setCustomSpacing(20, after: headerGroup)
+        container.addArrangedSubview(settingsGroup)
         container.addArrangedSubview(separator)
-        container.addArrangedSubview(aboutGroup)
+        container.addArrangedSubview(projectLink)
         container.addArrangedSubview(buttonRow)
 
         panel.contentView = container

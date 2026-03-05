@@ -79,7 +79,7 @@ private final class ModeIndicator {
                cursorRect.size.width, cursorRect.size.height)
 
         hideTimer?.invalidate()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.6, repeats: false) { [weak self] _ in
             guard let self else { return }
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.2
@@ -88,6 +88,8 @@ private final class ModeIndicator {
                 self.panel.orderOut(nil)
             })
         }
+        RunLoop.main.add(timer, forMode: .common)
+        hideTimer = timer
     }
 }
 
@@ -143,7 +145,7 @@ private final class LockOverlay {
         panel.orderFrontRegardless()
 
         hideTimer?.invalidate()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: 2.0, repeats: false) { [weak self] _ in
             guard let self else { return }
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.5
@@ -152,12 +154,208 @@ private final class LockOverlay {
                 self.panel.orderOut(nil)
             })
         }
+        RunLoop.main.add(timer, forMode: .common)
+        hideTimer = timer
     }
 
     func hide() {
         hideTimer?.invalidate()
         hideTimer = nil
         panel.orderOut(nil)
+    }
+}
+
+// MARK: - Preferences Panel (비활성화 패널 기반 설정)
+
+private final class PreferencesPanel {
+    static let shared = PreferencesPanel()
+
+    private let panel: NSPanel
+    private let togglePopup: NSPopUpButton
+    private let layoutPopup: NSPopUpButton
+    private let escapeCheckbox: NSButton
+    private let toggleKeyTitles: [(ToggleKey, String)]
+
+    private init() {
+        toggleKeyTitles = [
+            (.rightCommand, NSLocalizedString("prefs.toggleKey.rightCommand", comment: "")),
+            (.rightOption,  NSLocalizedString("prefs.toggleKey.rightOption", comment: "")),
+            (.leftShift,    NSLocalizedString("prefs.toggleKey.leftShift", comment: "")),
+            (.rightShift,   NSLocalizedString("prefs.toggleKey.rightShift", comment: "")),
+            (.shiftSpace,   NSLocalizedString("prefs.toggleKey.shiftSpace", comment: "")),
+        ]
+
+        panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 260),
+            styleMask: [.titled, .closable, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        panel.title = NSLocalizedString("prefs.title", comment: "")
+        panel.level = .floating
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
+        panel.hidesOnDeactivate = false
+
+        // -- 한/영 전환 키 --
+        let toggleLabel = NSTextField(labelWithString: NSLocalizedString("prefs.toggleKey.label", comment: ""))
+        togglePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        for (_, title) in toggleKeyTitles {
+            togglePopup.addItem(withTitle: title)
+        }
+        let toggleRow = NSStackView(views: [toggleLabel, togglePopup])
+        toggleRow.orientation = .horizontal
+        toggleRow.spacing = 8
+
+        // -- 한글 자판 --
+        let layoutLabel = NSTextField(labelWithString: NSLocalizedString("prefs.layout.label", comment: ""))
+        layoutPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.2standard", comment: ""))
+        layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3_390", comment: ""))
+        layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3final", comment: ""))
+        let layoutRow = NSStackView(views: [layoutLabel, layoutPopup])
+        layoutRow.orientation = .horizontal
+        layoutRow.spacing = 8
+
+        // -- ESC → 영문 전환 --
+        escapeCheckbox = NSButton(
+            checkboxWithTitle: NSLocalizedString("prefs.escapeToEnglish", comment: ""),
+            target: nil, action: nil
+        )
+
+        // -- 버전 및 개발자 정보 --
+        let separator = NSBox()
+        separator.boxType = .separator
+
+        let aboutGroup = NSStackView()
+        aboutGroup.orientation = .vertical
+        aboutGroup.alignment = .centerX
+        aboutGroup.spacing = 4
+
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let aboutLabel = NSTextField(labelWithString: "Ongeul v\(version)  —  hiking90")
+        aboutLabel.font = NSFont.systemFont(ofSize: 12)
+        aboutLabel.textColor = .secondaryLabelColor
+        aboutLabel.alignment = .center
+        aboutGroup.addArrangedSubview(aboutLabel)
+
+        let linkTitle = NSAttributedString(string: "github.com/hiking90/ongeul", attributes: [
+            .font: NSFont.systemFont(ofSize: 12),
+            .foregroundColor: NSColor.linkColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue,
+            .cursor: NSCursor.pointingHand,
+        ])
+        let projectLink = NSButton(title: "", target: nil, action: #selector(openProjectPage(_:)))
+        projectLink.attributedTitle = linkTitle
+        projectLink.bezelStyle = .inline
+        projectLink.isBordered = false
+        aboutGroup.addArrangedSubview(projectLink)
+
+        // -- 버튼 --
+        let cancelButton = NSButton(
+            title: NSLocalizedString("prefs.cancel", comment: ""),
+            target: nil, action: #selector(cancelClicked(_:))
+        )
+        cancelButton.keyEquivalent = "\u{1b}"  // Escape
+        let okButton = NSButton(
+            title: NSLocalizedString("prefs.ok", comment: ""),
+            target: nil, action: #selector(okClicked(_:))
+        )
+        okButton.keyEquivalent = "\r"  // Enter
+        let buttonRow = NSStackView(views: [cancelButton, okButton])
+        buttonRow.orientation = .horizontal
+        buttonRow.spacing = 8
+
+        // -- 헤더: 아이콘 + 앱 이름 --
+        let headerGroup = NSStackView()
+        headerGroup.orientation = .horizontal
+        headerGroup.alignment = .centerY
+        headerGroup.spacing = 8
+
+        let iconView = NSImageView(frame: NSRect(x: 0, y: 0, width: 48, height: 48))
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        if let iconPath = Bundle.main.pathForImageResource("AppIcon"),
+           let icon = NSImage(contentsOfFile: iconPath) {
+            iconView.image = icon
+        }
+        iconView.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 48).isActive = true
+
+        let titleLabel = NSTextField(labelWithString: "온글(Ongeul)")
+        titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
+
+        headerGroup.addArrangedSubview(iconView)
+        headerGroup.addArrangedSubview(titleLabel)
+
+        // -- 전체 레이아웃 --
+        let container = NSStackView()
+        container.orientation = .vertical
+        container.alignment = .centerX
+        container.spacing = 12
+        container.edgeInsets = NSEdgeInsets(top: 16, left: 20, bottom: 16, right: 20)
+        container.addArrangedSubview(headerGroup)
+        container.addArrangedSubview(toggleRow)
+        container.addArrangedSubview(layoutRow)
+        container.addArrangedSubview(escapeCheckbox)
+        container.addArrangedSubview(separator)
+        container.addArrangedSubview(aboutGroup)
+        container.addArrangedSubview(buttonRow)
+
+        panel.contentView = container
+
+        // target을 init 완료 후 설정 (self 참조)
+        projectLink.target = self
+        cancelButton.target = self
+        okButton.target = self
+    }
+
+    func show() {
+        // 현재 설정값 로드
+        let currentToggleIndex = toggleKeyTitles.firstIndex { $0.0 == OngeulInputController.toggleKey } ?? 0
+        togglePopup.selectItem(at: currentToggleIndex)
+
+        switch OngeulInputController.savedLayoutId {
+        case "3-390": layoutPopup.selectItem(at: 1)
+        case "3-final": layoutPopup.selectItem(at: 2)
+        default: layoutPopup.selectItem(at: 0)
+        }
+
+        escapeCheckbox.state = OngeulInputController.escapeToEnglish ? .on : .off
+
+        panel.center()
+        panel.orderFrontRegardless()
+    }
+
+    @objc private func okClicked(_ sender: Any?) {
+        OngeulInputController.toggleKey = toggleKeyTitles[togglePopup.indexOfSelectedItem].0
+
+        let newLayout: String
+        switch layoutPopup.indexOfSelectedItem {
+        case 1: newLayout = "3-390"
+        case 2: newLayout = "3-final"
+        default: newLayout = "2-standard"
+        }
+        OngeulInputController.savedLayoutId = newLayout
+        OngeulInputController.escapeToEnglish = escapeCheckbox.state == .on
+
+        os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
+               log: log, type: .default,
+               OngeulInputController.toggleKey.rawValue, newLayout, OngeulInputController.escapeToEnglish)
+
+        KeyEventTap.toggleKey = OngeulInputController.toggleKey
+        KeyEventTap.shared.install()
+
+        panel.orderOut(nil)
+    }
+
+    @objc private func cancelClicked(_ sender: Any?) {
+        panel.orderOut(nil)
+    }
+
+    @objc private func openProjectPage(_ sender: Any?) {
+        if let url = URL(string: "https://github.com/hiking90/ongeul") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 
@@ -231,7 +429,7 @@ class OngeulInputController: IMKInputController {
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
 
-    private static var toggleKey: ToggleKey {
+    fileprivate static var toggleKey: ToggleKey {
         get {
             let raw = UserDefaults.standard.string(forKey: toggleKeyKey) ?? "rightCommand"
             return ToggleKey(rawValue: raw) ?? .rightCommand
@@ -241,7 +439,7 @@ class OngeulInputController: IMKInputController {
         }
     }
 
-    private static var savedLayoutId: String {
+    fileprivate static var savedLayoutId: String {
         get {
             UserDefaults.standard.string(forKey: layoutIdKey) ?? "2-standard"
         }
@@ -250,7 +448,7 @@ class OngeulInputController: IMKInputController {
         }
     }
 
-    private static var escapeToEnglish: Bool {
+    fileprivate static var escapeToEnglish: Bool {
         get {
             if UserDefaults.standard.object(forKey: escapeToEnglishKey) == nil {
                 return true
@@ -399,12 +597,6 @@ class OngeulInputController: IMKInputController {
         return menu
     }
 
-    @objc private func openProjectPage(_ sender: Any?) {
-        if let url = URL(string: "https://github.com/hiking90/ongeul") {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
     @objc private func openHelp(_ sender: Any?) {
         if let url = URL(string: "https://hiking90.github.io/ongeul/") {
             NSWorkspace.shared.open(url)
@@ -413,134 +605,8 @@ class OngeulInputController: IMKInputController {
 
     @objc private func openPreferences(_ sender: Any?) {
         os_log("openPreferences called", log: log, type: .default)
-        // 메뉴가 닫힌 후 다음 런루프에서 실행
         DispatchQueue.main.async {
-            // IME 프로세스는 백그라운드 앱이므로 윈도우 표시를 위해 활성화 정책 변경
-            NSApp.setActivationPolicy(.accessory)
-            NSApp.activate(ignoringOtherApps: true)
-
-            let alert = NSAlert()
-            alert.messageText = NSLocalizedString("prefs.title", comment: "")
-            alert.alertStyle = .informational
-            if let iconPath = Bundle.main.pathForImageResource("AppIcon"),
-               let icon = NSImage(contentsOfFile: iconPath) {
-                alert.icon = icon
-            }
-            alert.addButton(withTitle: NSLocalizedString("prefs.ok", comment: ""))
-            alert.addButton(withTitle: NSLocalizedString("prefs.cancel", comment: ""))
-
-            // -- Accessory View: Combo Box (NSPopUpButton) --
-            let container = NSStackView()
-            container.orientation = .vertical
-            container.alignment = .centerX
-            container.spacing = 12
-
-            // 한/영 전환 키
-            let toggleLabel = NSTextField(labelWithString: NSLocalizedString("prefs.toggleKey.label", comment: ""))
-            let togglePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-            let toggleKeyTitles: [(ToggleKey, String)] = [
-                (.rightCommand, NSLocalizedString("prefs.toggleKey.rightCommand", comment: "")),
-                (.rightOption,  NSLocalizedString("prefs.toggleKey.rightOption", comment: "")),
-                (.leftShift,    NSLocalizedString("prefs.toggleKey.leftShift", comment: "")),
-                (.rightShift,   NSLocalizedString("prefs.toggleKey.rightShift", comment: "")),
-                (.shiftSpace,   NSLocalizedString("prefs.toggleKey.shiftSpace", comment: "")),
-            ]
-            for (_, title) in toggleKeyTitles {
-                togglePopup.addItem(withTitle: title)
-            }
-            let currentToggleIndex = toggleKeyTitles.firstIndex { $0.0 == Self.toggleKey } ?? 0
-            togglePopup.selectItem(at: currentToggleIndex)
-
-            let toggleRow = NSStackView(views: [toggleLabel, togglePopup])
-            toggleRow.orientation = .horizontal
-            toggleRow.spacing = 8
-
-            // 한글 자판
-            let layoutLabel = NSTextField(labelWithString: NSLocalizedString("prefs.layout.label", comment: ""))
-            let layoutPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-            layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.2standard", comment: ""))
-            layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3_390", comment: ""))
-            layoutPopup.addItem(withTitle: NSLocalizedString("prefs.layout.3final", comment: ""))
-            switch Self.savedLayoutId {
-            case "3-390": layoutPopup.selectItem(at: 1)
-            case "3-final": layoutPopup.selectItem(at: 2)
-            default: layoutPopup.selectItem(at: 0)
-            }
-
-            let layoutRow = NSStackView(views: [layoutLabel, layoutPopup])
-            layoutRow.orientation = .horizontal
-            layoutRow.spacing = 8
-
-            // ESC → 영문 전환
-            let escapeCheckbox = NSButton(
-                checkboxWithTitle: NSLocalizedString("prefs.escapeToEnglish", comment: ""),
-                target: nil, action: nil
-            )
-            escapeCheckbox.state = Self.escapeToEnglish ? .on : .off
-
-            container.addArrangedSubview(toggleRow)
-            container.addArrangedSubview(layoutRow)
-            container.addArrangedSubview(escapeCheckbox)
-
-            // 버전 및 개발자 정보
-            let separator = NSBox()
-            separator.boxType = .separator
-            container.addArrangedSubview(separator)
-
-            let aboutGroup = NSStackView()
-            aboutGroup.orientation = .vertical
-            aboutGroup.alignment = .centerX
-            aboutGroup.spacing = 4
-
-            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-            let aboutLabel = NSTextField(labelWithString: "Ongeul v\(version)  —  hiking90")
-            aboutLabel.font = NSFont.systemFont(ofSize: 12)
-            aboutLabel.textColor = .secondaryLabelColor
-            aboutLabel.alignment = .center
-            aboutGroup.addArrangedSubview(aboutLabel)
-
-            let linkTitle = NSAttributedString(string: "github.com/hiking90/ongeul", attributes: [
-                .font: NSFont.systemFont(ofSize: 12),
-                .foregroundColor: NSColor.linkColor,
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
-                .cursor: NSCursor.pointingHand,
-            ])
-            let projectLink = NSButton(title: "", target: self, action: #selector(self.openProjectPage(_:)))
-            projectLink.attributedTitle = linkTitle
-            projectLink.bezelStyle = .inline
-            projectLink.isBordered = false
-            aboutGroup.addArrangedSubview(projectLink)
-
-            container.addArrangedSubview(aboutGroup)
-
-            // accessoryView에 명시적 크기 설정
-            let size = container.fittingSize
-            container.frame = NSRect(origin: .zero, size: size)
-            alert.accessoryView = container
-
-            let response = alert.runModal()
-            if response == .alertFirstButtonReturn {
-                // 확인 → 저장
-                Self.toggleKey = toggleKeyTitles[togglePopup.indexOfSelectedItem].0
-                let newLayout: String
-                switch layoutPopup.indexOfSelectedItem {
-                case 1: newLayout = "3-390"
-                case 2: newLayout = "3-final"
-                default: newLayout = "2-standard"
-                }
-                Self.savedLayoutId = newLayout
-                Self.escapeToEnglish = escapeCheckbox.state == .on
-                os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
-                       log: log, type: .default,
-                       Self.toggleKey.rawValue, newLayout, Self.escapeToEnglish)
-
-                // CGEventTap에 현재 전환 키 반영
-                KeyEventTap.toggleKey = Self.toggleKey
-                KeyEventTap.shared.install()
-            }
-
-            // 다이얼로그 닫힌 후 원래 정책으로 복원
-            NSApp.setActivationPolicy(.prohibited)
+            PreferencesPanel.shared.show()
         }
     }
 

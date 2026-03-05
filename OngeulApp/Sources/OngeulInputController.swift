@@ -174,6 +174,7 @@ private final class PreferencesPanel {
     private let togglePopup: NSPopUpButton
     private let layoutPopup: NSPopUpButton
     private let escapeCheckbox: NSButton
+    private let indicatorCheckbox: NSButton
     private let toggleKeyTitles: [(ToggleKey, String)]
 
     private init() {
@@ -220,6 +221,12 @@ private final class PreferencesPanel {
         // -- ESC → 영문 전환 --
         escapeCheckbox = NSButton(
             checkboxWithTitle: NSLocalizedString("prefs.escapeToEnglish", comment: ""),
+            target: nil, action: nil
+        )
+
+        // -- 한/영 인디케이터 표시 --
+        indicatorCheckbox = NSButton(
+            checkboxWithTitle: NSLocalizedString("prefs.showModeIndicator", comment: ""),
             target: nil, action: nil
         )
 
@@ -297,6 +304,7 @@ private final class PreferencesPanel {
         container.addArrangedSubview(toggleRow)
         container.addArrangedSubview(layoutRow)
         container.addArrangedSubview(escapeCheckbox)
+        container.addArrangedSubview(indicatorCheckbox)
         container.addArrangedSubview(separator)
         container.addArrangedSubview(aboutGroup)
         container.addArrangedSubview(buttonRow)
@@ -321,6 +329,7 @@ private final class PreferencesPanel {
         }
 
         escapeCheckbox.state = OngeulInputController.escapeToEnglish ? .on : .off
+        indicatorCheckbox.state = OngeulInputController.showModeIndicator ? .on : .off
 
         panel.center()
         panel.orderFrontRegardless()
@@ -337,6 +346,7 @@ private final class PreferencesPanel {
         }
         OngeulInputController.savedLayoutId = newLayout
         OngeulInputController.escapeToEnglish = escapeCheckbox.state == .on
+        OngeulInputController.showModeIndicator = indicatorCheckbox.state == .on
 
         os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
                log: log, type: .default,
@@ -428,6 +438,7 @@ class OngeulInputController: IMKInputController {
     private static let toggleKeyKey = "toggleKey"
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
+    private static let showModeIndicatorKey = "showModeIndicator"
 
     fileprivate static var toggleKey: ToggleKey {
         get {
@@ -456,6 +467,16 @@ class OngeulInputController: IMKInputController {
             return UserDefaults.standard.bool(forKey: escapeToEnglishKey)
         }
         set { UserDefaults.standard.set(newValue, forKey: escapeToEnglishKey) }
+    }
+
+    fileprivate static var showModeIndicator: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: showModeIndicatorKey) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: showModeIndicatorKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: showModeIndicatorKey) }
     }
 
     // MARK: - Per-App Mode Store
@@ -720,6 +741,7 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Mode Indicator
 
     private func showModeIndicator(client: any IMKTextInput) {
+        guard Self.showModeIndicator else { return }
         var rect = cursorRect(from: client)
 
         // cursorRect가 .zero를 반환했거나, 화면 밖 좌표인 경우 → 화면 하단 중앙

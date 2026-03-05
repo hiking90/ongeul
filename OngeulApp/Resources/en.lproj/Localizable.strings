@@ -22,6 +22,9 @@
 /* Escape → English */
 "prefs.escapeToEnglish" = "Switch to English on ESC (Vim mode)";
 
+/* Mode Indicator */
+"prefs.showModeIndicator" = "Show mode indicator on toggle";
+
 
 /* Layout */
 "prefs.layout.label" = "Korean Layout:";

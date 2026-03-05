@@ -180,7 +180,7 @@
                     <main>
                         <h1 id="ongeul-온글"><a class="header" href="#ongeul-온글">Ongeul (온글)</a></h1>
 <p align="center">
-  <img src="ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
+  <img src="user/images/ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
 </p>
 <p>macOS용 한글 입력기 — <strong>하나의 입력 소스</strong>로 한글과 영문을 모두 처리합니다.</p>
 <h2 id="ongeul이란"><a class="header" href="#ongeul이란">Ongeul이란?</a></h2>
@@ -219,15 +219,61 @@
 </li>
 </ol>
 <h3 id="실행-권한-gatekeeper"><a class="header" href="#실행-권한-gatekeeper">실행 권한 (Gatekeeper)</a></h3>
-<p>Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 첫 실행 시 앱을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.</p>
-<p>설치 후 처음 Ongeul이 로드될 때 <strong>"Ongeul.app을(를) 확인할 수 없습니다"</strong> 경고가 표시되면 다음 절차로 실행을 허용하세요:</p>
+<p>Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 설치 파일과 앱 실행을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.</p>
+<h4 id="pkg-파일-열기"><a class="header" href="#pkg-파일-열기">.pkg 파일 열기</a></h4>
+<p>다운로드한 <code>.pkg</code> 파일을 더블클릭하면 다음과 같은 경고가 표시될 수 있습니다.</p>
+<p align="center">
+<img src="user/images/gatekeeper-pkg-warning.png" alt="Gatekeeper .pkg 차단 경고" width="265">
+</p>
 <ol>
+<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
 <li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
-<li>하단에 <strong>"Ongeul.app이(가) 차단되었습니다"</strong> 메시지를 확인합니다.</li>
-<li><strong>확인 없이 열기</strong> 를 클릭합니다.</li>
+<li>하단의 보안 섹션에서 <strong>"Ongeul-x.x.x.pkg이(가) Mac을 보호하기 위해 차단되었습니다"</strong> 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/gatekeeper-open-anyway.png" alt="개인 정보 보호 및 보안에서 확인 없이 열기" width="500">
+</p>
+<ol start="4">
+<li>macOS가 다시 확인을 요청하면 <strong>열기</strong> 를 클릭합니다.</li>
 </ol>
 <blockquote>
 <p>이 과정은 최초 1회만 필요합니다. 이후에는 Gatekeeper가 Ongeul을 차단하지 않습니다.</p>
+</blockquote>
+<h3 id="입력기-등록"><a class="header" href="#입력기-등록">입력기 등록</a></h3>
+<p><code>.pkg</code> 설치가 완료되면, macOS에 Ongeul을 입력 소스로 등록해야 합니다. 등록하지 않으면 Ongeul이 설치되어 있어도 입력기로 사용할 수 없습니다.</p>
+<blockquote>
+<p>최초 설치 시 macOS가 새 입력기를 인식하려면 <strong>로그아웃 후 재로그인</strong>이 필요할 수 있습니다. 입력 소스 목록에 Ongeul이 보이지 않는다면 로그아웃 후 다시 시도하세요.</p>
+</blockquote>
+<ol>
+<li>메뉴 막대 우측의 <strong>입력기 아이콘</strong> 을 클릭합니다.</li>
+<li>드롭다운 메뉴 하단의 <strong>"Open Keyboard Settings..."</strong> 를 선택합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/menubar-keyboard-settings.png" alt="메뉴 막대에서 Open Keyboard Settings 선택" width="229">
+</p>
+<ol start="3">
+<li>현재 설정된 입력 소스 목록이 표시됩니다. 좌측 하단의 <strong>+</strong> 버튼을 클릭합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/input-source-list.png" alt="입력 소스 목록에서 + 버튼 클릭" width="500">
+</p>
+<ol start="4">
+<li>왼쪽 언어 목록에서 <strong>한국어</strong> 를 선택합니다.</li>
+<li>오른쪽에 나타나는 입력기 목록에서 <strong>Ongeul</strong> 을 선택하고 <strong>추가</strong> 를 클릭합니다.</li>
+</ol>
+<p align="center">
+<img src="user/images/add-input-source.png" alt="입력 소스 추가에서 Korean > Ongeul 선택" width="450">
+</p>
+<h4 id="기존-입력-소스-정리"><a class="header" href="#기존-입력-소스-정리">기존 입력 소스 정리</a></h4>
+<p>Ongeul은 한글과 영문을 모두 하나의 입력기에서 처리하므로, 기존 한글 입력기(예: 2-Set Korean)는 제거하는 것을 권장합니다.</p>
+<ol>
+<li>입력 소스 목록에서 기존 <strong>한글 입력기</strong>를 선택하고 <strong>−</strong> 버튼으로 제거합니다.</li>
+</ol>
+<blockquote>
+<p><strong>ABC</strong> 입력 소스는 macOS 기본 입력기로 삭제할 수 없습니다. Ongeul이 영문 입력도 처리하므로 ABC가 남아 있어도 무방합니다.</p>
+</blockquote>
+<blockquote>
+<p>기존 한글 입력기를 제거하고 Ongeul만 사용하면 입력 소스 전환으로 인한 지연이 크게 줄어듭니다. 자세한 설정은 <a href="user/getting-started.html">시작하기</a> 페이지를 참고하세요.</p>
 </blockquote>
 <h3 id="손쉬운-사용accessibility-권한"><a class="header" href="#손쉬운-사용accessibility-권한">손쉬운 사용(Accessibility) 권한</a></h3>
 <p>Ongeul은 <strong>손쉬운 사용(Accessibility)</strong> 권한이 필요합니다. 이 권한이 부여되면 Ongeul이 시스템 레벨에서 키 이벤트를 가로채어(CGEventTap) 모든 앱에서 안정적으로 동작합니다.</p>
@@ -241,13 +287,15 @@
 <p>권한이 없어도 기본적인 한글 입력과 오른쪽 Command 전환은 정상 동작합니다. 위 문제들이 발생하는 특정 앱에서만 차이가 있으며, 해당 상황에서는 기존 방식으로 폴백하여 동작합니다.</p>
 </blockquote>
 <h4 id="권한-설정-방법"><a class="header" href="#권한-설정-방법">권한 설정 방법</a></h4>
-<p>Ongeul 설치 후 첫 실행 시 macOS 시스템 권한 다이얼로그가 자동으로 표시됩니다.</p>
-<p><strong>자동 안내 다이얼로그가 표시된 경우:</strong></p>
+<p>Ongeul을 입력 소스로 등록하고 처음 활성화하면, 다음과 같은 Accessibility 권한 요청 다이얼로그가 자동으로 표시됩니다.</p>
+<p align="center">
+<img src="user/images/accessibility-dialog.png" alt="Accessibility 권한 요청 다이얼로그" width="400">
+</p>
 <ol>
-<li>다이얼로그에서 <strong>"시스템 설정 열기"</strong> 를 클릭합니다.</li>
+<li>다이얼로그에서 <strong>"Open System Settings"</strong> 를 클릭합니다.</li>
 <li><strong>손쉬운 사용</strong> 설정 화면이 열리면 목록에서 <strong>Ongeul</strong> 을 찾아 토글을 켭니다.</li>
 </ol>
-<p><strong>수동으로 설정하는 경우:</strong></p>
+<p><strong>다이얼로그가 표시되지 않는 경우:</strong></p>
 <ol>
 <li><strong>시스템 설정</strong> 을 엽니다.</li>
 <li><strong>개인 정보 보호 및 보안</strong> → <strong>손쉬운 사용</strong> 을 선택합니다.</li>
@@ -283,11 +331,10 @@
 <h2 id="3-기존-입력-소스-정리"><a class="header" href="#3-기존-입력-소스-정리">3. 기존 입력 소스 정리</a></h2>
 <p>Ongeul은 한글과 영문을 모두 처리하므로, 기존 한글 입력기는 제거합니다. 영문 입력 소스(ABC 등)는 제거해도 되고 남겨둬도 됩니다.</p>
 <ol>
-<li>입력 소스 편집 화면에서 기존 <strong>한글 입력기</strong>를 선택하고 <strong>−</strong> 버튼으로 제거합니다.</li>
-<li>(선택) <strong>ABC</strong> 등 영문 입력 소스도 제거할 수 있습니다.</li>
+<li>입력 소스 목록에서 기존 <strong>한글 입력기</strong>를 선택하고 <strong>−</strong> 버튼으로 제거합니다.</li>
 </ol>
 <blockquote>
-<p>Ongeul 하나만 남기면 입력 소스 전환으로 인한 지연이 완전히 사라집니다. ABC를 남겨두는 경우에는 macOS 입력 소스 전환 단축키로 전환하여 사용할 수 있습니다.</p>
+<p><strong>ABC</strong> 입력 소스는 macOS 기본 입력기로 삭제할 수 없습니다. Ongeul이 영문 입력도 처리하므로 ABC가 남아 있어도 무방합니다. ABC가 남아 있는 경우에는 macOS 입력 소스 전환 단축키로 전환하여 사용할 수 있습니다.</p>
 </blockquote>
 <h2 id="4-capslock-전환-비활성화-abc를-남긴-경우"><a class="header" href="#4-capslock-전환-비활성화-abc를-남긴-경우">4. CapsLock 전환 비활성화 (ABC를 남긴 경우)</a></h2>
 <p>ABC 등 다른 입력 소스를 남겨둔 경우, CapsLock 관련 옵션을 비활성화하세요.</p>
@@ -328,7 +375,7 @@
 <p>Ongeul은 세 가지 한글 키보드 레이아웃을 지원합니다. <a href="user/features/../preferences.html">설정</a>에서 원하는 레이아웃을 선택할 수 있습니다.</p>
 <h2 id="두벌식-표준"><a class="header" href="#두벌식-표준">두벌식 표준</a></h2>
 <p>가장 널리 사용되는 한글 키보드 배열입니다.</p>
-<img src="user/features/2-standard.svg" alt="두벌식 표준 키보드 배열" style="max-width: 100%;">
+<img src="user/features/../images/2-standard.svg" alt="두벌식 표준 키보드 배열" style="max-width: 100%;">
 <ul>
 <li>자음과 모음 두 벌로 구성</li>
 <li>왼손 자음, 오른손 모음 배치</li>
@@ -350,7 +397,7 @@
 <p>백스페이스를 누르면 조합 단계가 하나씩 취소됩니다.</p>
 <h2 id="세벌식-390"><a class="header" href="#세벌식-390">세벌식 390</a></h2>
 <p>초성, 중성, 종성을 각각 다른 키에 배치한 세벌식 자판입니다.</p>
-<img src="user/features/3-390.svg" alt="세벌식 390 키보드 배열" style="max-width: 100%;">
+<img src="user/features/../images/3-390.svg" alt="세벌식 390 키보드 배열" style="max-width: 100%;">
 <ul>
 <li>초성(왼쪽), 중성(오른쪽), 종성(왼쪽 아래) 분리 배치</li>
 <li>숫자열에 특수 문자 리매핑</li>
@@ -358,7 +405,7 @@
 </ul>
 <h2 id="세벌식-최종"><a class="header" href="#세벌식-최종">세벌식 최종</a></h2>
 <p>세벌식 최종 자판은 390 배열을 더 세밀하게 조정한 배열입니다.</p>
-<img src="user/features/3-final.svg" alt="세벌식 최종 키보드 배열" style="max-width: 100%;">
+<img src="user/features/../images/3-final.svg" alt="세벌식 최종 키보드 배열" style="max-width: 100%;">
 <ul>
 <li>390과 유사한 초/중/종 분리 배치</li>
 <li>추가 특수 기호 및 인용부호 지원</li>
@@ -503,13 +550,13 @@
 <h2 id="입력기-목록에-ongeul이-보이지-않음"><a class="header" href="#입력기-목록에-ongeul이-보이지-않음">입력기 목록에 Ongeul이 보이지 않음</a></h2>
 <p><strong>원인</strong>: macOS는 입력기 목록을 로그인 시점에 캐시합니다.</p>
 <p><strong>해결</strong>: 로그아웃 후 재로그인하세요. 설치 직후에는 반드시 이 과정이 필요합니다.</p>
-<h2 id="gatekeeper가-실행을-차단함"><a class="header" href="#gatekeeper가-실행을-차단함">Gatekeeper가 실행을 차단함</a></h2>
-<p><strong>원인</strong>: Ongeul은 오픈소스 프로젝트로 Apple Developer 인증서로 서명되어 있지 않아, macOS Gatekeeper가 첫 실행 시 차단합니다.</p>
+<h2 id="gatekeeper가-pkg-또는-앱-실행을-차단함"><a class="header" href="#gatekeeper가-pkg-또는-앱-실행을-차단함">Gatekeeper가 .pkg 또는 앱 실행을 차단함</a></h2>
+<p><strong>원인</strong>: Ongeul은 오픈소스 프로젝트로 Apple Developer 인증서로 서명되어 있지 않아, macOS Gatekeeper가 <code>.pkg</code> 설치 파일이나 앱 실행을 차단합니다.</p>
 <p><strong>해결</strong>:</p>
 <ol>
+<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
 <li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
-<li>하단에 "Ongeul.app이(가) 차단되었습니다" 메시지를 확인합니다.</li>
-<li><strong>확인 없이 열기</strong> 를 클릭합니다.</li>
+<li>하단 보안 섹션에서 차단 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
 </ol>
 <p>자세한 내용은 <a href="user/installation.html#%EC%8B%A4%ED%96%89-%EA%B6%8C%ED%95%9C-gatekeeper">설치 &gt; 실행 권한</a>을 참고하세요.</p>
 <h2 id="한글-조합이-되지-않음"><a class="header" href="#한글-조합이-되지-않음">한글 조합이 되지 않음</a></h2>

@@ -184,13 +184,13 @@
 <h2 id="입력기-목록에-ongeul이-보이지-않음"><a class="header" href="#입력기-목록에-ongeul이-보이지-않음">입력기 목록에 Ongeul이 보이지 않음</a></h2>
 <p><strong>원인</strong>: macOS는 입력기 목록을 로그인 시점에 캐시합니다.</p>
 <p><strong>해결</strong>: 로그아웃 후 재로그인하세요. 설치 직후에는 반드시 이 과정이 필요합니다.</p>
-<h2 id="gatekeeper가-실행을-차단함"><a class="header" href="#gatekeeper가-실행을-차단함">Gatekeeper가 실행을 차단함</a></h2>
-<p><strong>원인</strong>: Ongeul은 오픈소스 프로젝트로 Apple Developer 인증서로 서명되어 있지 않아, macOS Gatekeeper가 첫 실행 시 차단합니다.</p>
+<h2 id="gatekeeper가-pkg-또는-앱-실행을-차단함"><a class="header" href="#gatekeeper가-pkg-또는-앱-실행을-차단함">Gatekeeper가 .pkg 또는 앱 실행을 차단함</a></h2>
+<p><strong>원인</strong>: Ongeul은 오픈소스 프로젝트로 Apple Developer 인증서로 서명되어 있지 않아, macOS Gatekeeper가 <code>.pkg</code> 설치 파일이나 앱 실행을 차단합니다.</p>
 <p><strong>해결</strong>:</p>
 <ol>
+<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
 <li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
-<li>하단에 "Ongeul.app이(가) 차단되었습니다" 메시지를 확인합니다.</li>
-<li><strong>확인 없이 열기</strong> 를 클릭합니다.</li>
+<li>하단 보안 섹션에서 차단 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
 </ol>
 <p>자세한 내용은 <a href="installation.html#%EC%8B%A4%ED%96%89-%EA%B6%8C%ED%95%9C-gatekeeper">설치 &gt; 실행 권한</a>을 참고하세요.</p>
 <h2 id="한글-조합이-되지-않음"><a class="header" href="#한글-조합이-되지-않음">한글 조합이 되지 않음</a></h2>

@@ -281,7 +281,8 @@ class OngeulInputController: IMKInputController {
                 let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
                 AXIsProcessTrustedWithOptions(options)
             }
-        } else if Self.toggleKey == .shiftSpace {
+        } else {
+            KeyEventTap.toggleKey = Self.toggleKey
             KeyEventTap.shared.install()
         }
         loadLayoutIfNeeded()
@@ -533,12 +534,9 @@ class OngeulInputController: IMKInputController {
                        log: log, type: .default,
                        Self.toggleKey.rawValue, newLayout, Self.escapeToEnglish)
 
-                // Shift+Space 선택 시 CGEventTap 설치/해제
-                if Self.toggleKey == .shiftSpace {
-                    KeyEventTap.shared.install()
-                } else {
-                    KeyEventTap.shared.uninstall()
-                }
+                // CGEventTap에 현재 전환 키 반영
+                KeyEventTap.toggleKey = Self.toggleKey
+                KeyEventTap.shared.install()
             }
 
             // 다이얼로그 닫힌 후 원래 정책으로 복원
@@ -575,6 +573,10 @@ class OngeulInputController: IMKInputController {
     // MARK: - Private: Modifier Key Handling (ToggleDetector에 위임)
 
     private func handleFlagsChanged(_ event: NSEvent, client: any IMKTextInput) -> Bool {
+        // CGEventTap이 설치되어 있으면 tap에서 이미 처리했으므로 스킵
+        // (접근성 미허용 시에만 이 경로로 폴백)
+        if KeyEventTap.shared.isInstalled { return false }
+
         let action = toggleDetector.handleFlagsChanged(
             keyCode: event.keyCode,
             flags: event.modifierFlags,
@@ -642,6 +644,11 @@ class OngeulInputController: IMKInputController {
     func performToggleFromTap() {
         guard let client: any IMKTextInput = self.client() else { return }
         performToggle(source: "CGEventTap", client: client)
+    }
+
+    func performEnglishLockToggleFromTap() {
+        guard let client: any IMKTextInput = self.client() else { return }
+        handleEnglishLockToggle(client: client)
     }
 
     // MARK: - Private: Mode Indicator

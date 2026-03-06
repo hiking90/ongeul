@@ -683,6 +683,9 @@ class OngeulInputController: IMKInputController {
         case .none:
             return false
         case .toggle:
+            if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) {
+                return false  // 잠금 상태 → 시스템에 통과
+            }
             performToggle(source: "flagsChanged", client: client)
             return true
         case .englishLockToggle:
@@ -746,6 +749,12 @@ class OngeulInputController: IMKInputController {
     func performEnglishLockToggleFromTap() {
         guard let client: any IMKTextInput = self.client() else { return }
         handleEnglishLockToggle(client: client)
+    }
+
+    /// KeyEventTap에서 호출: 현재 앱이 English Lock 상태인지 반환
+    func isCurrentAppLocked() -> Bool {
+        guard let bundleId = currentBundleId else { return false }
+        return Self.englishLockStore.isLocked(bundleId)
     }
 
     // MARK: - Private: Mode Indicator
@@ -824,6 +833,9 @@ class OngeulInputController: IMKInputController {
             && !modifiers.contains(.option)
             && !modifiers.contains(.command)
             && !modifiers.contains(.control) {
+            if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) {
+                return false  // 잠금 상태 → Shift+Space를 시스템에 통과
+            }
             performToggle(source: "IMK", client: client)
             return true
         }

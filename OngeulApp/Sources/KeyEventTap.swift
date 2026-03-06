@@ -71,6 +71,10 @@ class KeyEventTap {
                     && !flags.contains(.maskAlternate)
                     && !flags.contains(.maskCommand)
                     && !flags.contains(.maskControl) {
+                    // English Lock 상태 → 시스템에 통과 (소비하지 않음)
+                    if KeyEventTap.activeController?.isCurrentAppLocked() == true {
+                        return Unmanaged.passUnretained(event)
+                    }
                     if type == .keyDown {
                         if let controller = KeyEventTap.activeController {
                             os_log("Shift+Space intercepted (keyDown), toggling",
@@ -100,7 +104,8 @@ class KeyEventTap {
                     )
                     switch action {
                     case .toggle:
-                        if let controller = KeyEventTap.activeController {
+                        if let controller = KeyEventTap.activeController,
+                           !controller.isCurrentAppLocked() {
                             os_log("modifier tap intercepted, toggling", log: log, type: .debug)
                             DispatchQueue.main.async {
                                 controller.performToggleFromTap()

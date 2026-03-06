@@ -57,9 +57,21 @@ impl KeyboardLayout {
         })
     }
 
-    /// 키 레이블로 자모를 조회
+    /// 키 레이블로 자모를 조회.
+    /// Shift 키에 대응 글자가 없으면 소문자(unshifted)로 폴백한다.
     pub fn map_key(&self, key: &str) -> Option<char> {
-        self.keymap.get(key).copied()
+        if let Some(&ch) = self.keymap.get(key) {
+            return Some(ch);
+        }
+        // 대문자 ASCII인데 매핑이 없으면 소문자로 폴백
+        if key.len() == 1 {
+            let b = key.as_bytes()[0];
+            if b.is_ascii_uppercase() {
+                let lower = (b | 0x20) as char;
+                return self.keymap.get(&lower.to_string()).copied();
+            }
+        }
+        None
     }
 
     /// 두 자모의 조합 결과를 조회

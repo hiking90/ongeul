@@ -84,8 +84,6 @@ private final class ModeIndicator {
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.2
                 self.panel.animator().alphaValue = 0
-            }, completionHandler: {
-                self.panel.orderOut(nil)
             })
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -150,8 +148,6 @@ private final class LockOverlay {
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.5
                 self.panel.animator().alphaValue = 0
-            }, completionHandler: {
-                self.panel.orderOut(nil)
             })
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -161,7 +157,7 @@ private final class LockOverlay {
     func hide() {
         hideTimer?.invalidate()
         hideTimer = nil
-        panel.orderOut(nil)
+        panel.alphaValue = 0
     }
 }
 

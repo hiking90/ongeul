@@ -33,7 +33,7 @@
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 
-    <key>LSBackgroundOnly</key>
+    <key>LSUIElement</key>
     <true/>
 
     <key>InputMethodConnectionName</key>
@@ -69,6 +69,8 @@
                 <true/>
                 <key>TISIconIsTemplate</key>
                 <true/>
+                <key>tsInputModeDefaultStateKey</key>
+                <true/>
             </dict>
         </dict>
         <key>tsVisibleInputModeOrderedArrayKey</key>
@@ -87,6 +89,9 @@
     <string>icon_ko.tiff</string>
 
     <key>TISIconIsTemplate</key>
+    <true/>
+
+    <key>TICapsLockLanguageSwitchCapable</key>
     <true/>
 
     <key>TISIconLabels</key>

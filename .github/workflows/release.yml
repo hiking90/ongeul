@@ -78,10 +78,11 @@ jobs:
           git fetch origin gh-pages --depth=1 2>/dev/null || true
           if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
             # Only restore known files: versions.json, index.html, dev/, and version directories
-            git show origin/gh-pages:versions.json > build/site/versions.json 2>/dev/null || true
-            git show origin/gh-pages:index.html > build/site/index.html 2>/dev/null || true
+            # Note: avoid `git show ... > file || true` as the redirect creates an empty file even on failure
+            git show origin/gh-pages:versions.json > /tmp/versions.json 2>/dev/null && mv /tmp/versions.json build/site/versions.json || true
+            git show origin/gh-pages:index.html > /tmp/index.html 2>/dev/null && mv /tmp/index.html build/site/index.html || true
             git archive origin/gh-pages dev | tar -x -C build/site 2>/dev/null || true
-            if [[ -f build/site/versions.json ]]; then
+            if [[ -f build/site/versions.json ]] && jq empty build/site/versions.json 2>/dev/null; then
               for v in $(jq -r '.[]' build/site/versions.json); do
                 git archive origin/gh-pages "$v" | tar -x -C build/site 2>/dev/null || true
               done
@@ -95,7 +96,7 @@ jobs:
 
           # Update versions.json
           EXISTING='[]'
-          if [[ -f build/site/versions.json ]]; then
+          if [[ -f build/site/versions.json ]] && jq empty build/site/versions.json 2>/dev/null; then
             EXISTING=$(cat build/site/versions.json)
           fi
           UPDATED=$(echo "$EXISTING" | jq --arg v "$VERSION" \

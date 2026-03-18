@@ -13,6 +13,21 @@ class KeyEventTap {
     static var toggleKey: ToggleKey = .rightCommand
     private static var toggleDetector = ToggleDetector()
 
+    // Focus-steal correction: 키 버퍼 (activateServer에서 초기화)
+    struct RecordedKey {
+        let character: String
+        let keyCode: UInt16
+        let flags: CGEventFlags
+        let timestamp: CFAbsoluteTime
+    }
+    static var keyBuffer: [RecordedKey] = []
+    static var keyBufferWasKoreanMode = false
+    // Synthetic 이벤트 마커 (correctFocusSteal에서 생성한 이벤트 식별)
+    static let focusStealMarker: Int64 = 0x4F6E6767  // "Ongg"
+
+    // 현재 입력 모드 (모드 변경 시 OngeulInputController에서 갱신)
+    static var currentInputMode: InputMode = .english
+
     var isInstalled: Bool { eventTap != nil }
 
     func isAccessibilityGranted() -> Bool {
@@ -59,9 +74,44 @@ class KeyEventTap {
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
                 let flags = event.flags
 
-                // keyDown → modifier tap 판정 취소
+                // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
                     KeyEventTap.toggleDetector.cancelOnKeyDown()
+
+                    // Focus-steal correction: synthetic 이벤트는 기록하지 않고 통과
+                    if event.getIntegerValueField(.eventSourceUserData) == KeyEventTap.focusStealMarker {
+                        return Unmanaged.passUnretained(event)
+                    }
+                    var length = 0
+                    var chars = [UniChar](repeating: 0, count: 4)
+                    event.keyboardGetUnicodeString(
+                        maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
+                    if length > 0 {
+                        let str = String(utf16CodeUnits: chars, count: length)
+                        let capsLock = flags.contains(.maskAlphaShift)
+                        let shift = flags.contains(.maskShift)
+                        if let label = keyLabel(characters: str, capsLock: capsLock, shift: shift) {
+                            let now = CFAbsoluteTimeGetCurrent()
+                            // 첫 키가 200ms보다 오래되면 버퍼 리셋 (메모리 증가 방지)
+                            if let first = KeyEventTap.keyBuffer.first,
+                               now - first.timestamp > 0.2 {
+                                KeyEventTap.keyBuffer.removeAll()
+                            }
+                            if KeyEventTap.keyBuffer.isEmpty {
+                                KeyEventTap.keyBufferWasKoreanMode = (KeyEventTap.currentInputMode == .korean)
+                            }
+                            KeyEventTap.keyBuffer.append(RecordedKey(
+                                character: label,
+                                keyCode: UInt16(keyCode),
+                                flags: flags,
+                                timestamp: now
+                            ))
+                            os_log("focusSteal: recorded key='%{public}@' koreanMode=%d bufSize=%d",
+                                   log: log, type: .debug, label,
+                                   KeyEventTap.keyBufferWasKoreanMode,
+                                   KeyEventTap.keyBuffer.count)
+                        }
+                    }
                 }
 
                 // === Shift+Space 처리 (shiftSpace 모드) ===

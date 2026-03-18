@@ -383,6 +383,17 @@ class OngeulInputController: IMKInputController {
     private var loadedLayoutId: String?
     private var toggleDetector = ToggleDetector()
 
+    // 모드 변경 시 KeyEventTap.currentInputMode를 동기화하는 wrapper
+    private func setModeAndSync(_ mode: InputMode) {
+        engine.setMode(mode: mode)
+        KeyEventTap.currentInputMode = mode
+    }
+    private func toggleModeAndSync() -> ProcessResult {
+        let result = engine.toggleMode()
+        KeyEventTap.currentInputMode = engine.getMode()
+        return result
+    }
+
     // 합성 Enter 재진입 감지용 CGEvent userData 매직 넘버 (design/24 참조)
     private static let syntheticEnterMarker: Int64 = 0x4F6E6765  // "Onge"
 
@@ -527,7 +538,7 @@ class OngeulInputController: IMKInputController {
 
         // English Lock 우선 체크
         if Self.englishLockStore.isLocked(bundleId) {
-            engine.setMode(mode: .english)
+            setModeAndSync(.english)
             if isAppSwitch {
                 os_log("activateServer: appSwitch to LOCKED %{public}@",
                        log: log, type: .default, bundleId)
@@ -540,11 +551,11 @@ class OngeulInputController: IMKInputController {
         } else {
             let currentMode: InputMode
             if let savedMode = Self.perAppModeStore.savedMode(for: bundleId) {
-                engine.setMode(mode: savedMode)
+                setModeAndSync(savedMode)
                 currentMode = savedMode
             } else {
                 // 최초 진입 앱: 영문 모드로 시작
-                engine.setMode(mode: .english)
+                setModeAndSync(.english)
                 currentMode = .english
             }
             Self.perAppModeStore.saveMode(currentMode, for: bundleId)
@@ -566,6 +577,17 @@ class OngeulInputController: IMKInputController {
                        log: log, type: .default, bundleId,
                        currentMode == .korean ? "korean" : "english")
             }
+        }
+
+        // Focus-steal correction: 키 입력 시점의 모드 기준으로 판단
+        let buf = KeyEventTap.keyBuffer
+        os_log("focusSteal: activateServer end — bufSize=%d keyWasKorean=%d",
+               log: log, type: .debug, buf.count, KeyEventTap.keyBufferWasKoreanMode)
+        if KeyEventTap.keyBufferWasKoreanMode, !buf.isEmpty,
+           let client = sender as? (any IMKTextInput) {
+            correctFocusSteal(client: client)
+        } else {
+            KeyEventTap.keyBuffer = []
         }
     }
 
@@ -698,7 +720,7 @@ class OngeulInputController: IMKInputController {
         if Self.englishLockStore.isLocked(bundleId) {
             // 해제: 저장된 이전 모드 복원
             let previousMode = Self.englishLockStore.removeLock(for: bundleId) ?? .korean
-            engine.setMode(mode: previousMode)
+            setModeAndSync(previousMode)
             Self.perAppModeStore.saveMode(previousMode, for: bundleId)
             os_log("English Lock OFF: %{public}@ → restore %{public}@",
                    log: log, type: .default, bundleId,
@@ -713,7 +735,7 @@ class OngeulInputController: IMKInputController {
                 let result = engine.flush()
                 applyResult(result, to: client)
             }
-            engine.setMode(mode: .english)
+            setModeAndSync(.english)
             os_log("English Lock ON: %{public}@ (was %{public}@)",
                    log: log, type: .default, bundleId,
                    currentMode == .korean ? "korean" : "english")
@@ -726,7 +748,7 @@ class OngeulInputController: IMKInputController {
     private func performToggle(source: String, client: any IMKTextInput) {
         if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) { return }
 
-        let result = engine.toggleMode()
+        let result = toggleModeAndSync()
         applyResult(result, to: client)
         let newMode = engine.getMode()
         os_log("toggleMode (%{public}@) → %{public}@", log: log, type: .default,
@@ -812,6 +834,86 @@ class OngeulInputController: IMKInputController {
         guard rect.origin.x.isFinite && rect.origin.y.isFinite else { return false }
         if rect.size.height > 0 { return true }
         return false
+    }
+
+    // MARK: - Private: Focus-Steal Correction
+
+    /// 포커스 탈취 교정: 입력창이 없는 상태에서 앱이 키를 직접 받아 영문을 삽입한 경우,
+    /// synthetic backspace로 영문을 삭제하고 버퍼의 모든 키를 재전송하여 한글로 처리한다.
+    ///
+    /// replacementRange가 committed text에 대해 동작하지 않는 앱이 있으므로,
+    /// synthetic 이벤트로 앱의 네이티브 동작을 활용한다.
+    /// - backspace: 엔진에 composing이 없으므로 engine.backspace()→handled=false → 시스템이 삭제
+    /// - key re-post: 엔진이 한글 모드이므로 정상적인 한글 처리 경로로 진입
+    private func correctFocusSteal(client: any IMKTextInput) {
+        let buffer = KeyEventTap.keyBuffer
+        KeyEventTap.keyBuffer = []
+
+        guard let firstKey = buffer.first else { return }
+
+        let elapsed = CFAbsoluteTimeGetCurrent() - firstKey.timestamp
+        os_log("correctFocusSteal: firstKey='%{public}@' elapsed=%.3f bufSize=%d",
+               log: log, type: .debug, firstKey.character, elapsed, buffer.count)
+
+        guard elapsed < 0.2 else {
+            os_log("correctFocusSteal: skip — elapsed=%.3f > 0.2",
+                   log: log, type: .debug, elapsed)
+            return
+        }
+
+        let sel = client.selectedRange()
+        guard sel.location != NSNotFound, sel.location > 0 else { return }
+
+        // ObjC 예외 안전하게 텍스트 읽기: 첫 번째 키와 매칭
+        let range = NSRange(location: sel.location - 1, length: 1)
+        var clientText: String?
+        let success = ObjCExceptionCatcher.performSafely {
+            clientText = client.attributedSubstring(from: range)?.string
+        }
+
+        os_log("correctFocusSteal: sel=(%d,%d) clientText='%{public}@' success=%d",
+               log: log, type: .debug, sel.location, sel.length,
+               clientText ?? "(nil)", success)
+
+        guard success, clientText == firstKey.character else { return }
+
+        // 한글 모드로 전환 + per-app 저장
+        if engine.getMode() != .korean {
+            setModeAndSync(.korean)
+        }
+        if let bundleId = currentBundleId {
+            Self.perAppModeStore.saveMode(.korean, for: bundleId)
+        }
+        // 엔진 flush (이전 필드에서의 composing 잔여 상태 제거)
+        let _ = engine.flush()
+
+        // 1) synthetic backspace → 시스템이 focus-steal 문자 삭제
+        // 2) 버퍼의 모든 키를 순서대로 re-post → 한글 모드로 정상 처리
+        let src = CGEventSource(stateID: .hidSystemState)
+        let marker = KeyEventTap.focusStealMarker
+        if let down = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: true) {
+            down.setIntegerValueField(.eventSourceUserData, value: marker)
+            down.post(tap: .cghidEventTap)
+        }
+        if let up = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: false) {
+            up.setIntegerValueField(.eventSourceUserData, value: marker)
+            up.post(tap: .cghidEventTap)
+        }
+        for key in buffer {
+            if let down = CGEvent(keyboardEventSource: src, virtualKey: key.keyCode, keyDown: true) {
+                down.flags = key.flags
+                down.setIntegerValueField(.eventSourceUserData, value: marker)
+                down.post(tap: .cghidEventTap)
+            }
+            if let up = CGEvent(keyboardEventSource: src, virtualKey: key.keyCode, keyDown: false) {
+                up.flags = key.flags
+                up.setIntegerValueField(.eventSourceUserData, value: marker)
+                up.post(tap: .cghidEventTap)
+            }
+        }
+
+        os_log("correctFocusSteal: posted backspace + %d keys (first='%{public}@')",
+               log: log, type: .default, buffer.count, firstKey.character)
     }
 
     // MARK: - Private: Key Processing
@@ -910,7 +1012,7 @@ class OngeulInputController: IMKInputController {
             let result = engine.flush()
             applyResult(result, to: client)
             if Self.escapeToEnglish && engine.getMode() == .korean {
-                engine.setMode(mode: .english)
+                setModeAndSync(.english)
                 if let bundleId = currentBundleId {
                     Self.perAppModeStore.saveMode(.english, for: bundleId)
                 }
@@ -1015,7 +1117,7 @@ class OngeulInputController: IMKInputController {
             try engine.loadLayout(json: json)
             // 초기 로드일 때만 영문 모드로 설정, 재로드 시 현재 모드 유지
             if loadedLayoutId == nil {
-                engine.setMode(mode: .english)
+                setModeAndSync(.english)
             }
             loadedLayoutId = desiredLayoutId
         } catch {

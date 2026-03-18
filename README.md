@@ -5,7 +5,7 @@ macOS용 한글 입력기 — 하나의 입력 소스로 한글과 영문을 모
 **[문서](https://hiking90.github.io/ongeul/)** · **[릴리스](https://github.com/hiking90/ongeul/releases)**
 
 <p align="center">
-  <img src="ongeul-app-icon.svg" alt="Ongeul App Icon" width="128">
+  <img src="docs/src/user/images/ongeul-app-icon.png" alt="Ongeul App Icon" width="128">
 </p>
 
 ## 왜 Ongeul인가?

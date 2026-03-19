@@ -20,7 +20,7 @@
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
 
 /* Escape → English */
-"prefs.escapeToEnglish" = "ESC 키로 영문 전환 (Vim 모드)";
+"prefs.escapeToEnglish" = "ESC / Ctrl+[ 키로 영문 전환 (Vim 모드)";
 
 /* Mode Indicator */
 "prefs.showModeIndicator" = "한/영 전환 시 인디케이터 표시";

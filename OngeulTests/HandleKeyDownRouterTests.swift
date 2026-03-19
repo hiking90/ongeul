@@ -95,6 +95,24 @@ class HandleKeyDownRouterTests: XCTestCase {
         XCTAssertEqual(action, .escape)
     }
 
+    func testControlLeftBracket_escape() {
+        let action = routeKeyDown(
+            keyCode: KeyCode.leftBracket, characters: "\u{1b}",
+            modifiers: .control, engineMode: .korean,
+            toggleKey: .rightCommand, isSyntheticEnter: false
+        )
+        XCTAssertEqual(action, .escape)
+    }
+
+    func testControlLeftBracket_englishMode_passToSystem() {
+        let action = routeKeyDown(
+            keyCode: KeyCode.leftBracket, characters: "\u{1b}",
+            modifiers: .control, engineMode: .english,
+            toggleKey: .rightCommand, isSyntheticEnter: false
+        )
+        XCTAssertEqual(action, .passToSystem)
+    }
+
     func testArrowKeys() {
         for keyCode in [KeyCode.arrowLeft, KeyCode.arrowRight, KeyCode.arrowDown, KeyCode.arrowUp] {
             let action = routeKeyDown(

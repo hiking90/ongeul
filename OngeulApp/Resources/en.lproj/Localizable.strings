@@ -20,7 +20,7 @@
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
 
 /* Escape → English */
-"prefs.escapeToEnglish" = "Switch to English on ESC (Vim mode)";
+"prefs.escapeToEnglish" = "Switch to English on ESC / Ctrl+[ (Vim mode)";
 
 /* Mode Indicator */
 "prefs.showModeIndicator" = "Show mode indicator on toggle";

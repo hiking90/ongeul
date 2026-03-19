@@ -10,6 +10,7 @@ enum KeyCode {
     static let leftOption: UInt16 = 58
     static let rightShift: UInt16 = 60
     static let rightOption: UInt16 = 61
+    static let leftBracket: UInt16 = 0x21  // [ key
     static let arrowLeft: UInt16  = 123
     static let arrowRight: UInt16 = 124
     static let arrowDown: UInt16  = 125

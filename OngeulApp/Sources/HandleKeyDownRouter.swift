@@ -46,6 +46,14 @@ func routeKeyDown(
         return .passToSystem
     }
 
+    // Control+[ → Vim ESC 등가
+    if modifiers.contains(.control)
+        && !modifiers.contains(.command)
+        && !modifiers.contains(.option)
+        && keyCode == KeyCode.leftBracket {
+        return .escape
+    }
+
     // 시스템 단축키 → flush 후 통과
     if modifiers.contains(.command) || modifiers.contains(.control) {
         return .flushAndPassToSystem

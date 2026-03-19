@@ -453,6 +453,12 @@
 <blockquote>
 <p>손쉬운 사용 권한은 설치 시 자동으로 안내됩니다. 권한 설정 방법은 <a href="user/features/../installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치</a>를 참고하세요.</p>
 </blockquote>
+<h2 id="esc-키로-영문-전환"><a class="header" href="#esc-키로-영문-전환">ESC 키로 영문 전환</a></h2>
+<ul>
+<li><strong>ESC</strong> 키를 누르면 자동으로 영문 모드로 전환됩니다.</li>
+<li>Vim 사용자를 위한 편의 기능으로, Normal 모드 진입 시 별도로 한/영 전환을 하지 않아도 됩니다.</li>
+<li><a href="user/features/../preferences.html">설정</a>에서 이 기능을 켜거나 끌 수 있습니다. 기본값은 꺼짐입니다.</li>
+</ul>
 <h2 id="전환-키-변경"><a class="header" href="#전환-키-변경">전환 키 변경</a></h2>
 <p><a href="user/features/../preferences.html">설정</a>에서 <strong>전환 키</strong> 항목을 변경할 수 있습니다.</p>
 <h2 id="동작-방식"><a class="header" href="#동작-방식">동작 방식</a></h2>
@@ -472,6 +478,8 @@
 </ul>
 <h2 id="위치"><a class="header" href="#위치">위치</a></h2>
 <p>인디케이터는 현재 텍스트 커서 위치 근처에 표시됩니다. 앱이 커서 위치 정보를 제공하지 않는 경우에는 화면 중앙 하단에 표시됩니다.</p>
+<h2 id="설정"><a class="header" href="#설정">설정</a></h2>
+<p>메뉴 막대의 온글 아이콘 → <strong>설정</strong>에서 모드 인디케이터를 켜거나 끌 수 있습니다. 인디케이터가 불필요하거나 시야에 방해가 되는 경우 비활성화할 수 있습니다.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="앱별-모드-기억"><a class="header" href="#앱별-모드-기억">앱별 모드 기억</a></h1>
 <p>Ongeul은 앱마다 마지막으로 사용한 입력 모드를 기억합니다.</p>
 <h2 id="동작-방식-1"><a class="header" href="#동작-방식-1">동작 방식</a></h2>
@@ -504,7 +512,11 @@
 <li>앱별(Bundle ID 기준)로 독립적으로 관리됩니다.</li>
 </ul>
 <h2 id="사용-예시"><a class="header" href="#사용-예시">사용 예시</a></h2>
-<p>터미널이나 코드 편집기처럼 주로 영문만 사용하는 앱에서 유용합니다. 영문 잠금을 설정하면 실수로 한글 모드로 전환되는 것을 방지할 수 있습니다.</p>
+<h3 id="터미널코드-편집기"><a class="header" href="#터미널코드-편집기">터미널·코드 편집기</a></h3>
+<p>주로 영문만 사용하는 앱에서 유용합니다. 영문 잠금을 설정하면 실수로 한글 모드로 전환되는 것을 방지할 수 있습니다.</p>
+<h3 id="원격-데스크톱-remote-desktop"><a class="header" href="#원격-데스크톱-remote-desktop">원격 데스크톱 (Remote Desktop)</a></h3>
+<p>Microsoft Remote Desktop 등 원격 데스크톱 앱에서 특히 유용합니다. 원격 환경에 macOS와 동일한 한/영 전환 키가 설정되어 있는 경우, 온글의 한/영 전환이 먼저 동작하여 원격 환경의 한/영 전환이 정상적으로 작동하지 않는 문제가 발생할 수 있습니다.</p>
+<p>영문 잠금을 활성화하면 온글이 한/영 전환 키를 가로채지 않으므로, 해당 키가 원격 환경으로 그대로 전달되어 원격 환경의 한/영 전환이 정상적으로 동작합니다.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="capslock-정규화"><a class="header" href="#capslock-정규화">CapsLock 정규화</a></h1>
 <p>Ongeul은 CapsLock 상태에 관계없이 일관된 입력을 제공합니다.</p>
 <h2 id="동작-방식-2"><a class="header" href="#동작-방식-2">동작 방식</a></h2>
@@ -520,7 +532,7 @@
 <h2 id="참고-capslock-입력-소스-전환"><a class="header" href="#참고-capslock-입력-소스-전환">참고: CapsLock 입력 소스 전환</a></h2>
 <p>ABC 등 다른 입력 소스를 함께 사용하는 경우, 시스템 설정에서 <strong>"Caps Lock으로 ABC 입력 소스 전환"</strong> 옵션을 비활성화하세요. 이 옵션이 켜져 있으면 CapsLock을 누를 때 Ongeul에서 ABC로 전환되어 버립니다.</p>
 <p>Ongeul만 사용하는 경우에는 전환 대상이 없으므로 이 설정을 신경 쓸 필요가 없습니다.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="설정"><a class="header" href="#설정">설정</a></h1>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="설정-1"><a class="header" href="#설정-1">설정</a></h1>
 <p>Ongeul의 설정은 메뉴 막대에서 접근할 수 있습니다.</p>
 <h2 id="설정-열기"><a class="header" href="#설정-열기">설정 열기</a></h2>
 <ol>

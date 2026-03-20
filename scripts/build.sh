@@ -50,13 +50,16 @@ LIB_DIR="$TARGET_DIR/$TARGET/release"
 
 echo "=== Building Ongeul for $TARGET ==="
 
-# ── 1. Rust 빌드 → libongeul_automata.a ──
+# ── 1. Rust 빌드 → libongeul_automata.a + libongeul_update.a ──
 
-echo "=== [1/5] Building ongeul-automata (Rust) ==="
+echo "=== [1/5] Building Rust crates ==="
 
-cargo build --manifest-path "$RUST_CRATE/Cargo.toml" --release --target "$TARGET"
+cargo build --manifest-path "$PROJECT_ROOT/Cargo.toml" \
+    -p ongeul-automata -p ongeul-update \
+    --release --target "$TARGET"
 
 echo "    Library: $LIB_DIR/libongeul_automata.a"
+echo "    Library: $LIB_DIR/libongeul_update.a"
 
 # ── 2. UniFFI Swift 바인딩 생성 ──
 
@@ -69,6 +72,12 @@ else
     cargo run --manifest-path "$RUST_CRATE/Cargo.toml" \
         --bin uniffi-bindgen generate \
         --library "$LIB_DIR/libongeul_automata.dylib" \
+        --language swift \
+        --out-dir "$GENERATED_DIR"
+
+    cargo run --manifest-path "$PROJECT_ROOT/ongeul-update/Cargo.toml" \
+        --bin uniffi-bindgen-update generate \
+        --library "$LIB_DIR/libongeul_update.dylib" \
         --language swift \
         --out-dir "$GENERATED_DIR"
 
@@ -97,6 +106,7 @@ clang -c \
 # Swift 소스 파일 수집 (Generated + OngeulApp/Sources/*.swift)
 SWIFT_SOURCES=(
     "$GENERATED_DIR/OngeulAutomata.swift"
+    "$GENERATED_DIR/ongeul_update.swift"
 )
 while IFS= read -r -d '' f; do
     SWIFT_SOURCES+=("$f")
@@ -107,6 +117,7 @@ swiftc \
     -sdk "$SDK_PATH" \
     -import-objc-header "$BRIDGING_HEADER" \
     "$LIB_DIR/libongeul_automata.a" \
+    "$LIB_DIR/libongeul_update.a" \
     -framework Cocoa -framework InputMethodKit -framework ApplicationServices \
     -module-name Ongeul \
     "${SWIFT_SOURCES[@]}" \

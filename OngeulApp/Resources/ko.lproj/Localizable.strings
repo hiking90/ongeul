@@ -4,6 +4,7 @@
 
 /* Menu */
 "menu.preferences" = "설정...";
+"menu.checkForUpdate" = "업데이트 확인...";
 "menu.help" = "도움말";
 
 /* Preferences Dialog */
@@ -31,3 +32,14 @@
 "prefs.layout.2standard" = "두벌식 표준";
 "prefs.layout.3_390" = "세벌식 390";
 "prefs.layout.3final" = "세벌식 최종";
+
+/* Update Checker */
+"update.available.title" = "새 버전이 있습니다";
+"update.available.message" = "현재 버전: %@\n최신 버전: %@\n\nGitHub에서 다운로드하시겠습니까?";
+"update.download" = "다운로드";
+"update.later" = "나중에";
+"update.upToDate.title" = "최신 버전입니다";
+"update.upToDate.message" = "온글 %@ 은(는) 최신 버전입니다.";
+"update.error.title" = "확인 실패";
+"update.error.message" = "업데이트를 확인할 수 없습니다.\n인터넷 연결을 확인해 주세요.";
+"update.ok" = "확인";

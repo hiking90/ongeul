@@ -4,6 +4,7 @@
 
 /* Menu */
 "menu.preferences" = "Preferences...";
+"menu.checkForUpdate" = "Check for Update...";
 "menu.help" = "Help";
 
 /* Preferences Dialog */
@@ -31,3 +32,14 @@
 "prefs.layout.2standard" = "2-Set Standard";
 "prefs.layout.3_390" = "3-Set 390";
 "prefs.layout.3final" = "3-Set Final";
+
+/* Update Checker */
+"update.available.title" = "Update Available";
+"update.available.message" = "Current version: %@\nLatest version: %@\n\nWould you like to download from GitHub?";
+"update.download" = "Download";
+"update.later" = "Later";
+"update.upToDate.title" = "Up to Date";
+"update.upToDate.message" = "Ongeul %@ is the latest version.";
+"update.error.title" = "Check Failed";
+"update.error.message" = "Unable to check for updates.\nPlease check your internet connection.";
+"update.ok" = "OK";

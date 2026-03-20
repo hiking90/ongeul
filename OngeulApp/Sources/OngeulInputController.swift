@@ -379,23 +379,26 @@ private final class PreferencesPanel {
 
 @objc(OngeulInputController)
 class OngeulInputController: IMKInputController {
-    private let engine = HangulEngine()
+    #if DEBUG
+    static var coordinator: InputStateCoordinator = .init()
+    #else
+    static let coordinator = InputStateCoordinator()
+    #endif
+    private var coordinator: InputStateCoordinator { Self.coordinator }
+
     private var loadedLayoutId: String?
     private var toggleDetector = ToggleDetector()
 
-    // 모드 변경 시 KeyEventTap.currentInputMode를 동기화하는 wrapper
-    private func setModeAndSync(_ mode: InputMode) {
-        engine.setMode(mode: mode)
-        KeyEventTap.currentInputMode = mode
-    }
-    private func toggleModeAndSync() -> ProcessResult {
-        let result = engine.toggleMode()
-        KeyEventTap.currentInputMode = engine.getMode()
-        return result
-    }
+    /// 합성 이벤트 마커 (CGEvent userData)
+    private enum SyntheticEvent: Int64 {
+        case enter = 0x4F6E_0001         // 기존 syntheticEnterMarker(0x4F6E6765)에서 변경
+        case autoSwitch = 0x4F6E_0002    // Phase 3에서 사용
 
-    // 합성 Enter 재진입 감지용 CGEvent userData 매직 넘버 (design/24 참조)
-    private static let syntheticEnterMarker: Int64 = 0x4F6E6765  // "Onge"
+        static func from(_ event: NSEvent) -> SyntheticEvent? {
+            guard let cgEvent = event.cgEvent else { return nil }
+            return SyntheticEvent(rawValue: cgEvent.getIntegerValueField(.eventSourceUserData))
+        }
+    }
 
     // 현재 조합 중인 텍스트 (composedString 콜백용)
     private var currentComposingText: String?
@@ -404,6 +407,7 @@ class OngeulInputController: IMKInputController {
     private var focusStealWorkItem: DispatchWorkItem?
     private var focusStealBuffering = false
     private var focusStealExpectingBackspace = 0  // 남은 backspace 수
+    private var focusStealReplayPending = false   // async 리플레이 대기 중
     private var focusStealKeyBuffer: [String] = []
 
     #if DEBUG
@@ -502,13 +506,9 @@ class OngeulInputController: IMKInputController {
         set { UserDefaults.standard.set(newValue, forKey: showModeIndicatorKey) }
     }
 
-    // MARK: - Per-App Mode Store
-
-    private static let perAppModeStore = PerAppModeStore()
-    private static let englishLockStore = EnglishLockStore()
-
     private static var hasPromptedAccessibility = false
-    private static var activeAppBundleId: String?   // 현재 활성 앱
+    /// 프로세스 시작 후 첫 활성화 여부
+    private static var isFirstActivation = true
     private var currentBundleId: String?
 
     // MARK: - Lifecycle
@@ -522,6 +522,7 @@ class OngeulInputController: IMKInputController {
         focusStealWorkItem = nil
         focusStealBuffering = false
         focusStealExpectingBackspace = 0
+        focusStealReplayPending = false
         focusStealKeyBuffer = []
 
         if !AXIsProcessTrusted() {
@@ -536,6 +537,19 @@ class OngeulInputController: IMKInputController {
         }
         loadLayoutIfNeeded()
 
+        // 업데이트 확인 (guard 앞에 배치하여 early return에 영향받지 않도록)
+        if Self.isFirstActivation {
+            Self.isFirstActivation = false
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                UpdateChecker.shared.checkForUpdate(silent: true)
+            }
+        } else {
+            Task { @MainActor in
+                UpdateChecker.shared.checkIfNeeded()
+            }
+        }
+
         guard let bundleId = (sender as? (any IMKTextInput))?.bundleIdentifier() else { return }
         currentBundleId = bundleId
 
@@ -544,57 +558,19 @@ class OngeulInputController: IMKInputController {
             Self.chromiumAppCache[bundleId] = Self.isChromiumBased(bundleId: bundleId)
         }
 
-        let isAppSwitch = (bundleId != Self.activeAppBundleId)
-        if isAppSwitch {
-            LockOverlay.shared.hide()
-        }
-
-        // English Lock 우선 체크
-        if Self.englishLockStore.isLocked(bundleId) {
-            setModeAndSync(.english)
-            if isAppSwitch {
-                os_log("activateServer: appSwitch to LOCKED %{public}@",
-                       log: log, type: .default, bundleId)
-                LockOverlay.shared.show(locked: true)
-                Self.activeAppBundleId = bundleId
-            } else {
-                os_log("activateServer: fieldSwitch in LOCKED %{public}@",
-                       log: log, type: .default, bundleId)
-            }
-        } else {
-            let currentMode: InputMode
-            if let savedMode = Self.perAppModeStore.savedMode(for: bundleId) {
-                setModeAndSync(savedMode)
-                currentMode = savedMode
-            } else {
-                // 최초 진입 앱: 영문 모드로 시작
-                setModeAndSync(.english)
-                currentMode = .english
-            }
-            Self.perAppModeStore.saveMode(currentMode, for: bundleId)
-
-            if isAppSwitch {
-                let prevMode = Self.activeAppBundleId.flatMap { Self.perAppModeStore.savedMode(for: $0) }
-                os_log("activateServer: appSwitch to %{public}@ mode=%{public}@ (prev=%{public}@)",
-                       log: log, type: .default, bundleId,
-                       currentMode == .korean ? "korean" : "english",
-                       prevMode.map { $0 == .korean ? "korean" : "english" } ?? "none")
-
-                if let prevMode, currentMode != prevMode,
-                   let client = sender as? (any IMKTextInput) {
-                    showModeIndicator(client: client)
-                }
-                Self.activeAppBundleId = bundleId
-            } else {
-                os_log("activateServer: fieldSwitch in %{public}@ mode=%{public}@",
-                       log: log, type: .default, bundleId,
-                       currentMode == .korean ? "korean" : "english")
-            }
+        let effect = coordinator.activateApp(bundleId: bundleId)
+        if let client = sender as? (any IMKTextInput) {
+            applyEffect(effect, to: client)
         }
 
         // Focus-steal correction: 키 입력 시점에 한글 모드였고, English Lock이 아닌 경우만
+        // handleKeyDown/deactivateServer에서 keyBuffer를 지우지 않으므로,
+        // 정상 타이핑 중 누적된 오래된 키를 제거하여 false positive를 방지한다.
+        let now = CFAbsoluteTimeGetCurrent()
+        KeyEventTap.keyBuffer.removeAll { now - $0.timestamp > 0.2 }
+
         if KeyEventTap.keyBufferWasKoreanMode, !KeyEventTap.keyBuffer.isEmpty,
-           !Self.englishLockStore.isLocked(bundleId) {
+           !coordinator.isLocked(bundleId) {
             correctFocusSteal()
         } else {
             KeyEventTap.keyBuffer = []
@@ -607,7 +583,7 @@ class OngeulInputController: IMKInputController {
 
     override func commitComposition(_ sender: Any!) {
         guard let client = sender as? (any IMKTextInput) else { return }
-        let result = engine.flush()
+        let result = coordinator.flush()
         applyResult(result, to: client)
     }
 
@@ -616,24 +592,18 @@ class OngeulInputController: IMKInputController {
         focusStealWorkItem = nil
         focusStealBuffering = false
         focusStealExpectingBackspace = 0
+        focusStealReplayPending = false
         focusStealKeyBuffer = []
+
+        // keyBuffer는 activateServer에서만 정리 (focus-steal 증거 보존)
 
         if KeyEventTap.activeController === self {
             KeyEventTap.activeController = nil
         }
-        if let bundleId = currentBundleId {
-            let mode = engine.getMode()
-            Self.perAppModeStore.saveMode(mode, for: bundleId)
-            os_log("deactivateServer: save mode=%{public}@ for bundleId=%{public}@",
-                   log: log, type: .default,
-                   mode == .korean ? "korean" : "english", bundleId)
-        }
+        let flushResult = coordinator.deactivate(for: currentBundleId)
         if let client = sender as? (any IMKTextInput) {
-            let result = engine.flush()
-            // Chromium-based apps auto-commit marked text on focus loss via
-            // their renderer process. Calling insertText would duplicate it.
-            if result.committed != nil && !clientAutoCommitsMarkedText {
-                applyResult(result, to: client)
+            if flushResult.committed != nil && !clientAutoCommitsMarkedText {
+                applyResult(flushResult, to: client)
             }
         }
         super.deactivateServer(sender)
@@ -652,6 +622,15 @@ class OngeulInputController: IMKInputController {
         prefsItem.target = self
         menu.addItem(prefsItem)
 
+        let updateItem = NSMenuItem(
+            title: NSLocalizedString("menu.checkForUpdate", comment: ""),
+            action: #selector(checkForUpdate(_:)),
+            keyEquivalent: "")
+        updateItem.target = self
+        menu.addItem(updateItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         let helpItem = NSMenuItem(
             title: NSLocalizedString("menu.help", comment: ""),
             action: #selector(openHelp(_:)),
@@ -660,6 +639,12 @@ class OngeulInputController: IMKInputController {
         menu.addItem(helpItem)
 
         return menu
+    }
+
+    @objc private func checkForUpdate(_ sender: Any?) {
+        Task { @MainActor in
+            UpdateChecker.shared.checkForUpdate(silent: false)
+        }
     }
 
     @objc private func openHelp(_ sender: Any?) {
@@ -717,83 +702,49 @@ class OngeulInputController: IMKInputController {
         case .none:
             return false
         case .toggle:
-            if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) {
-                return false  // 잠금 상태 → 시스템에 통과
-            }
-            performToggle(source: "flagsChanged", client: client)
+            guard let effect = coordinator.toggleMode(for: currentBundleId)
+            else { return false }
+            applyEffect(effect, to: client)
             return true
         case .englishLockToggle:
-            handleEnglishLockToggle(client: client)
+            guard let bundleId = currentBundleId else { return false }
+            let effect = coordinator.toggleLock(for: bundleId)
+            applyEffect(effect, to: client)
             return true
         }
     }
 
-    // MARK: - Private: English Lock Toggle
-
-    private func handleEnglishLockToggle(client: any IMKTextInput) {
-        guard let bundleId = currentBundleId else { return }
-
-        if Self.englishLockStore.isLocked(bundleId) {
-            // 해제: 저장된 이전 모드 복원
-            let previousMode = Self.englishLockStore.removeLock(for: bundleId) ?? .korean
-            setModeAndSync(previousMode)
-            Self.perAppModeStore.saveMode(previousMode, for: bundleId)
-            os_log("English Lock OFF: %{public}@ → restore %{public}@",
-                   log: log, type: .default, bundleId,
-                   previousMode == .korean ? "korean" : "english")
-            LockOverlay.shared.show(locked: false)
-        } else {
-            // 잠금: 현재 모드 저장 → 영어 강제
-            let currentMode = engine.getMode()
-            Self.englishLockStore.addLock(for: bundleId, previousMode: currentMode)
-            // 한글 조합 중이면 flush로 확정
-            if currentMode == .korean {
-                let result = engine.flush()
-                applyResult(result, to: client)
-            }
-            setModeAndSync(.english)
-            os_log("English Lock ON: %{public}@ (was %{public}@)",
-                   log: log, type: .default, bundleId,
-                   currentMode == .korean ? "korean" : "english")
-            LockOverlay.shared.show(locked: true)
-        }
-    }
-
-    // MARK: - Private: Toggle (common)
-
-    private func performToggle(source: String, client: any IMKTextInput) {
-        if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) { return }
-
-        let result = toggleModeAndSync()
-        applyResult(result, to: client)
-        let newMode = engine.getMode()
-        os_log("toggleMode (%{public}@) → %{public}@", log: log, type: .default,
-               source, newMode == .korean ? "korean" : "english")
-        if let bundleId = currentBundleId {
-            Self.perAppModeStore.saveMode(newMode, for: bundleId)
-        }
-        showModeIndicator(client: client)
-    }
+    // MARK: - Private: Toggle / Lock / Vim Escape (KeyEventTap entry points)
 
     func performToggleFromTap() {
-        guard let client: any IMKTextInput = self.client() else { return }
-        performToggle(source: "CGEventTap", client: client)
+        guard let client: any IMKTextInput = self.client(),
+              let effect = coordinator.toggleMode(for: currentBundleId)
+        else { return }
+        applyEffect(effect, to: client)
     }
 
     func performVimEscapeFromTap() {
         guard let client: any IMKTextInput = self.client() else { return }
-        flushAndVimEscape(client: client)
+        applyResult(coordinator.flush(), to: client)
+        if let effect = coordinator.escapeToEnglish(
+            for: currentBundleId, enabled: Self.escapeToEnglish
+        ) {
+            applyEffect(effect, to: client)
+        }
     }
 
     func performEnglishLockToggleFromTap() {
-        guard let client: any IMKTextInput = self.client() else { return }
-        handleEnglishLockToggle(client: client)
+        guard let client: any IMKTextInput = self.client(),
+              let bundleId = currentBundleId
+        else { return }
+        let effect = coordinator.toggleLock(for: bundleId)
+        applyEffect(effect, to: client)
     }
 
     /// KeyEventTap에서 호출: 현재 앱이 English Lock 상태인지 반환
     func isCurrentAppLocked() -> Bool {
         guard let bundleId = currentBundleId else { return false }
-        return Self.englishLockStore.isLocked(bundleId)
+        return coordinator.isLocked(bundleId)
     }
 
     // MARK: - Private: Mode Indicator
@@ -811,7 +762,7 @@ class OngeulInputController: IMKInputController {
             rect = NSRect(x: screen.midX, y: screen.minY + 80, width: 0, height: 16)
         }
 
-        ModeIndicator.shared.show(mode: engine.getMode(), cursorRect: rect)
+        ModeIndicator.shared.show(mode: coordinator.mode, cursorRect: rect)
     }
 
     private func cursorRect(from client: any IMKTextInput) -> NSRect {
@@ -871,6 +822,7 @@ class OngeulInputController: IMKInputController {
         focusStealWorkItem = nil
         focusStealBuffering = false
         focusStealExpectingBackspace = 0
+        focusStealReplayPending = false
         focusStealKeyBuffer = []
 
         let buffer = KeyEventTap.keyBuffer
@@ -884,32 +836,57 @@ class OngeulInputController: IMKInputController {
             return
         }
 
-        // 한글 모드 전환 + 버퍼링 시작
-        if engine.getMode() != .korean {
-            setModeAndSync(.korean)
+        // 한글 모드 강제 (activateApp이 복원한 모드와 무관)
+        if coordinator.mode != .korean {
+            if let client = self.client() {
+                let flushResult = coordinator.forceKoreanForReplay(for: currentBundleId)
+                applyResult(flushResult, to: client)
+            } else {
+                _ = coordinator.forceKoreanForReplay(for: currentBundleId)
+            }
         }
-        if let bundleId = currentBundleId {
-            Self.perAppModeStore.saveMode(.korean, for: bundleId)
-        }
-        let _ = engine.flush()
 
         focusStealBuffering = true
         focusStealKeyBuffer = buffer.map { $0.character }
         let preKeyCount = buffer.count
 
-        os_log("focusSteal: buffering %d keys", log: log, type: .debug, preKeyCount)
+        os_log("focusSteal: buffering %d keys, elapsed=%.3f", log: log, type: .debug,
+               preKeyCount, elapsed)
 
-        // 10ms 후 backspace 전송 (activateServer 전에 앱이 삽입한 문자 수만큼)
+        // 10ms 후 backspace 전송
+        // 대기 중 추가로 타이핑된 키를 keyBuffer에서 확인하여 backspace 수를 보정한다.
+        // - handleKeyDown을 거친 키: focusStealKeyBuffer에 추가됨 (앱에 미삽입, return true)
+        // - handleKeyDown을 거치지 않은 키: 앱에 직접 삽입됨 → 추가 backspace 필요
         focusStealWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.focusStealWorkItem = nil
             self.focusStealBuffering = false
-            KeyEventTap.keyBuffer = []  // 버퍼링 중 CGEventTap에 쌓인 stale 키 제거
-            self.focusStealExpectingBackspace = preKeyCount
+
+            // CGEventTap에 기록된 후발 키 확인
+            let lateKeys = KeyEventTap.keyBuffer
+            KeyEventTap.keyBuffer = []
+
+            // handleKeyDown 버퍼링 가드에서 소비된 키 수
+            let imeConsumed = self.focusStealKeyBuffer.count - preKeyCount
+            // 앱에 직접 입력된 키 수 (IME를 거치지 않은 키)
+            let appInserted = max(0, lateKeys.count - imeConsumed)
+
+            if appInserted > 0 {
+                // 앱에 입력된 키는 시간순으로 lateKeys 앞부분에 위치
+                // (IME 활성화 전 → 앱 직접 입력, IME 활성화 후 → handleKeyDown 소비)
+                let appKeys = lateKeys.prefix(appInserted).map { $0.character }
+                self.focusStealKeyBuffer.insert(contentsOf: appKeys, at: preKeyCount)
+            }
+
+            let totalBackspaces = preKeyCount + appInserted
+            self.focusStealExpectingBackspace = totalBackspaces
+
+            os_log("focusSteal: sending %d backspaces (pre=%d late=%d)",
+                   log: log, type: .debug, totalBackspaces, preKeyCount, appInserted)
 
             let src = CGEventSource(stateID: .hidSystemState)
-            for _ in 0..<preKeyCount {
+            for _ in 0..<totalBackspaces {
                 if let down = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: true) {
                     down.post(tap: .cghidEventTap)
                 }
@@ -930,13 +907,17 @@ class OngeulInputController: IMKInputController {
         if event.keyCode == KeyCode.backspace, focusStealExpectingBackspace > 0 {
             focusStealExpectingBackspace -= 1
             if focusStealExpectingBackspace == 0 {
-                let keys = focusStealKeyBuffer
-                focusStealKeyBuffer = []
+                // async 리플레이 예약. 버퍼 캡처를 async 시점까지 지연하여,
+                // backspace 소비 후 ~ async 실행 전에 도착하는 키도 포함시킨다.
+                focusStealReplayPending = true
                 DispatchQueue.main.async { [weak self] in
-                    guard let self, !keys.isEmpty else { return }
-                    guard let client: any IMKTextInput = self.client() else { return }
+                    guard let self else { return }
+                    self.focusStealReplayPending = false
+                    let keys = self.focusStealKeyBuffer
+                    self.focusStealKeyBuffer = []
+                    guard !keys.isEmpty, let client: any IMKTextInput = self.client() else { return }
                     for key in keys {
-                        let result = self.engine.processKey(key: key)
+                        let result = self.coordinator.processKey(key: key)
                         self.applyResult(result, to: client)
                     }
                 }
@@ -945,143 +926,111 @@ class OngeulInputController: IMKInputController {
         }
 
         // Focus-steal 버퍼링: 엔진 처리 없이 키만 저장
-        if focusStealBuffering {
+        // 세 가지 타이밍을 모두 커버한다:
+        //   1. focusStealBuffering: 타이머 대기 중 (correctFocusSteal 후 10ms 이내)
+        //   2. focusStealExpectingBackspace > 0: synthetic backspace 소비 대기 중
+        //   3. focusStealReplayPending: backspace 모두 소비 후 async 리플레이 대기 중
+        if focusStealBuffering || focusStealExpectingBackspace > 0 || focusStealReplayPending {
             if let keyLabel = keyLabelFromEvent(event) {
                 focusStealKeyBuffer.append(keyLabel)
             }
             return true
         }
 
-        // IME가 정상적으로 키를 처리 중이므로 CGEventTap 버퍼 초기화
-        // (활성 텍스트 필드에서 처리된 키가 focus-steal로 오인되는 것을 방지)
-        KeyEventTap.keyBuffer = []
+        // keyBuffer는 activateServer에서만 정리한다.
+        // handleKeyDown/deactivateServer가 activateServer보다 먼저 실행되어
+        // focus-steal 증거를 파괴하는 것을 방지.
 
-        let modifiers = event.modifierFlags
+        // 합성 이벤트 → 시스템에 통과 (routeKeyDown 진입 전, cancelOnKeyDown 전에 가드)
+        if let synthetic = SyntheticEvent.from(event) {
+            switch synthetic {
+            case .enter, .autoSwitch: return false
+            }
+        }
 
-        // 키 입력 → modifier tap 판정 취소 + 4키 사이클 취소
         toggleDetector.cancelOnKeyDown()
 
-        // Shift+Space → 한/영 전환 (shiftSpace 모드일 때)
-        if Self.toggleKey == .shiftSpace
-            && event.keyCode == KeyCode.space
-            && modifiers.contains(.shift)
-            && !modifiers.contains(.option)
-            && !modifiers.contains(.command)
-            && !modifiers.contains(.control) {
-            if let bundleId = currentBundleId, Self.englishLockStore.isLocked(bundleId) {
-                return false  // 잠금 상태 → Shift+Space를 시스템에 통과
-            }
-            performToggle(source: "IMK", client: client)
-            return true
-        }
-
-        // 영문 모드: 전환 키 외 모든 키를 시스템에 위임 (ABC와 동일한 동작)
-        if engine.getMode() == .english {
-            return false
-        }
-
-        // 시스템 단축키 → flush 후 통과
-        if modifiers.contains(.command) || modifiers.contains(.control) {
-            let result = engine.flush()
-            applyResult(result, to: client)
-            return false
-        }
-
-        // Backspace
-        if event.keyCode == KeyCode.backspace {
-            let result = engine.backspace()
-            applyResult(result, to: client)
-            return result.handled
-        }
-
-        // Enter — 토큰 필드 조합 글자 중복 방지 (design/24-token-field-enter-duplicate.md)
-        //
-        // 문제: NSTokenField 등에서 조합 중 Enter를 누르면 insertText("동")과 Enter가
-        //       같은 이벤트 사이클에서 처리되어, 토큰 [홍길동] 생성 후 "동"이 중복 입력됨.
-        //
-        // 해결: 접근성 권한이 있으면 insertText로 조합을 확정한 뒤, 원본 Enter를 소비하고
-        //       합성 Enter를 다음 런루프에서 .cghidEventTap으로 재전달한다.
-        //       CGEvent의 eventSourceUserData 필드에 매직 넘버를 삽입하여 재진입을 감지하고,
-        //       합성 Enter는 엔진 처리를 건너뛰고 바로 시스템에 전달된다.
-        //       접근성 권한이 없으면 기존 방식(insertText + return false)으로 폴백한다.
-        if event.keyCode == KeyCode.enter {
-            if let cgEvent = event.cgEvent,
-               cgEvent.getIntegerValueField(.eventSourceUserData) == Self.syntheticEnterMarker {
-                os_log("Enter: synthetic (userData), passing to system", log: log, type: .debug)
-                return false
-            }
-
-            let result = engine.flush()
-            if result.committed != nil {
-                applyResult(result, to: client)
-                if AXIsProcessTrusted() {
-                    let originalFlags = event.cgEvent?.flags ?? []
-                    DispatchQueue.main.async {
-                        let src = CGEventSource(stateID: .hidSystemState)
-                        if let down = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.enter, keyDown: true) {
-                            down.flags = originalFlags
-                            down.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEnterMarker)
-                            down.post(tap: .cghidEventTap)
-                        }
-                        if let up = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.enter, keyDown: false) {
-                            up.flags = originalFlags
-                            up.setIntegerValueField(.eventSourceUserData, value: Self.syntheticEnterMarker)
-                            up.post(tap: .cghidEventTap)
-                        }
-                    }
-                    os_log("Enter: flushed, posting synthetic Enter via cghidEventTap", log: log, type: .debug)
-                    return true
-                }
-                os_log("Enter: flushed, no accessibility — fallback to return false", log: log, type: .debug)
-            }
-            return false
-        }
-
-        // Space → flush 후 시스템 위임
-        if event.keyCode == KeyCode.space {
-            let result = engine.flush()
-            applyResult(result, to: client)
-            return false
-        }
-
-        // Escape → 조합 확정 (+ 옵션: 영문 전환)
-        if event.keyCode == KeyCode.escape {
-            flushAndVimEscape(client: client)
-            return false
-        }
-
-        // 방향키 → flush 후 통과
-        let arrowKeys: [UInt16] = [KeyCode.arrowLeft, KeyCode.arrowRight, KeyCode.arrowDown, KeyCode.arrowUp]
-        if arrowKeys.contains(event.keyCode) {
-            let result = engine.flush()
-            applyResult(result, to: client)
-            return false
-        }
-
-        // 일반 키 → Rust 엔진에 위임
-        guard let keyLabel = keyLabelFromEvent(event) else {
-            let result = engine.flush()
-            applyResult(result, to: client)
-            return false
-        }
-
-        let result = engine.processKey(key: keyLabel)
-        applyResult(result, to: client)
-        return result.handled
+        let action = routeKeyDown(
+            keyCode: event.keyCode,
+            characters: event.characters,
+            modifiers: event.modifierFlags,
+            engineMode: coordinator.mode,
+            toggleKey: Self.toggleKey
+        )
+        return executeAction(action, event: event, client: client)
     }
 
-    // MARK: - Private: Vim Escape Helper
+    private func executeAction(
+        _ action: KeyDownAction,
+        event: NSEvent,
+        client: any IMKTextInput
+    ) -> Bool {
+        switch action {
+        case .shiftSpaceToggle:
+            guard let effect = coordinator.toggleMode(for: currentBundleId)
+            else { return false }
+            applyEffect(effect, to: client)
+            return true
 
-    /// ESC / Control+[ 공통: flush → 옵션에 따라 영문 전환
-    private func flushAndVimEscape(client: any IMKTextInput) {
-        let result = engine.flush()
-        applyResult(result, to: client)
-        if Self.escapeToEnglish && engine.getMode() == .korean {
-            setModeAndSync(.english)
-            if let bundleId = currentBundleId {
-                Self.perAppModeStore.saveMode(.english, for: bundleId)
+        case .passToSystem:
+            return false
+
+        case .flushAndPassToSystem:
+            applyResult(coordinator.flush(), to: client)
+            return false
+
+        case .backspace:
+            let result = coordinator.backspace()
+            applyResult(result, to: client)
+            return result.handled
+
+        case .enter:
+            let hadComposing = currentComposingText != nil
+            let result = coordinator.flush()
+            applyResult(result, to: client)
+            if hadComposing, AXIsProcessTrusted() {
+                postSyntheticKey(event: event, marker: .enter)
+                return true
             }
-            showModeIndicator(client: client)
+            return false
+
+        case .space:
+            applyResult(coordinator.flush(), to: client)
+            return false
+
+        case .escape:
+            applyResult(coordinator.flush(), to: client)
+            if let effect = coordinator.escapeToEnglish(
+                for: currentBundleId, enabled: Self.escapeToEnglish
+            ) {
+                applyEffect(effect, to: client)
+            }
+            return false
+
+        case .processKey(let label):
+            let result = coordinator.processKey(key: label)
+            applyResult(result, to: client)
+            return result.handled
+
+        case .flushUnknownKey:
+            applyResult(coordinator.flush(), to: client)
+            return false
+        }
+    }
+
+    /// 키를 합성하여 재전송 (Enter 합성 및 자동전환 후 boundary key 재전송 공용)
+    private func postSyntheticKey(event: NSEvent, marker: SyntheticEvent) {
+        let keyCode = event.keyCode
+        let originalFlags = event.cgEvent?.flags ?? []
+        DispatchQueue.main.async {
+            let src = CGEventSource(stateID: .hidSystemState)
+            for keyDown in [true, false] {
+                if let ev = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: keyDown) {
+                    ev.flags = originalFlags
+                    ev.setIntegerValueField(.eventSourceUserData, value: marker.rawValue)
+                    ev.post(tap: .cghidEventTap)
+                }
+            }
         }
     }
 
@@ -1127,19 +1076,34 @@ class OngeulInputController: IMKInputController {
         }
     }
 
+    private func applyEffect(_ effect: StateEffect, to client: any IMKTextInput) {
+        if let result = effect.processResult {
+            applyResult(result, to: client)
+        }
+        if effect.showIndicator {
+            os_log("mode → %{public}@", log: log, type: .default,
+                   coordinator.mode == .korean ? "korean" : "english")
+            showModeIndicator(client: client)
+        }
+        switch effect.lockOverlay {
+        case .show(let locked):
+            os_log("lock overlay: %{public}@", log: log, type: .default,
+                   locked ? "locked" : "unlocked")
+            LockOverlay.shared.show(locked: locked)
+        case .hide:
+            LockOverlay.shared.hide()
+        case nil:
+            break
+        }
+    }
+
     // MARK: - Private: Layout Loading
 
     private func loadLayoutIfNeeded() {
         let desiredLayoutId = Self.savedLayoutId
         guard loadedLayoutId != desiredLayoutId else { return }
 
-        // 재로드 시 현재 조합 flush
-        if loadedLayoutId != nil {
-            if let client = self.client() {
-                let result = engine.flush()
-                applyResult(result, to: client)
-            }
-        }
+        let isInitialLoad = (loadedLayoutId == nil)
 
         let url: URL?
         #if DEBUG
@@ -1158,10 +1122,9 @@ class OngeulInputController: IMKInputController {
         }
 
         do {
-            try engine.loadLayout(json: json)
-            // 초기 로드일 때만 영문 모드로 설정, 재로드 시 현재 모드 유지
-            if loadedLayoutId == nil {
-                setModeAndSync(.english)
+            if let flushResult = try coordinator.loadLayout(json: json, isInitialLoad: isInitialLoad),
+               let client = self.client() {
+                applyResult(flushResult, to: client)
             }
             loadedLayoutId = desiredLayoutId
         } catch {

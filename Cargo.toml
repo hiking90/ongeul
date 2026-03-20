@@ -1,4 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["ongeul-automata"]
+members = ["ongeul-automata", "ongeul-update"]
 exclude = ["fuzz"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+json5 = "0.4"
+uniffi = { version = "0.31", features = ["cli"] }

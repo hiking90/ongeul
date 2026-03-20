@@ -11,7 +11,7 @@ enum KeyDownAction: Equatable {
     /// Backspace: 엔진에 위임
     case backspace
     /// Enter: flush 후 합성 Enter 처리
-    case enter(isSynthetic: Bool)
+    case enter
     /// Space: flush 후 시스템에 위임
     case space
     /// Escape: 조합 폐기 (+ 옵션: 영문 전환)
@@ -28,8 +28,7 @@ func routeKeyDown(
     characters: String?,
     modifiers: NSEvent.ModifierFlags,
     engineMode: InputMode,
-    toggleKey: ToggleKey,
-    isSyntheticEnter: Bool
+    toggleKey: ToggleKey
 ) -> KeyDownAction {
     // Shift+Space → 한/영 전환 (shiftSpace 모드일 때)
     if toggleKey == .shiftSpace
@@ -64,9 +63,9 @@ func routeKeyDown(
         return .backspace
     }
 
-    // Enter
-    if keyCode == KeyCode.enter {
-        return .enter(isSynthetic: isSyntheticEnter)
+    // Enter (일반 + numpad)
+    if keyCode == KeyCode.enter || keyCode == KeyCode.numpadEnter {
+        return .enter
     }
 
     // Space → flush 후 시스템 위임

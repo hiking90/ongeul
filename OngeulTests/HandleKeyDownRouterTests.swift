@@ -7,7 +7,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.space, characters: " ",
             modifiers: .shift, engineMode: .korean,
-            toggleKey: .shiftSpace, isSyntheticEnter: false
+            toggleKey: .shiftSpace
         )
         XCTAssertEqual(action, .shiftSpaceToggle)
     }
@@ -17,7 +17,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.space, characters: " ",
             modifiers: .shift, engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         // Shift는 command/control이 아니므로 → space
         XCTAssertEqual(action, .space)
@@ -27,7 +27,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: 0x05, characters: "g",
             modifiers: [], engineMode: .english,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .passToSystem)
     }
@@ -36,7 +36,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: 0x00, characters: "a",
             modifiers: .command, engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .flushAndPassToSystem)
     }
@@ -45,7 +45,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: 0x00, characters: "a",
             modifiers: .control, engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .flushAndPassToSystem)
     }
@@ -54,7 +54,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.backspace, characters: nil,
             modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .backspace)
     }
@@ -63,25 +63,16 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.enter, characters: "\r",
             modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
-        XCTAssertEqual(action, .enter(isSynthetic: false))
-    }
-
-    func testSyntheticEnter() {
-        let action = routeKeyDown(
-            keyCode: KeyCode.enter, characters: "\r",
-            modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: true
-        )
-        XCTAssertEqual(action, .enter(isSynthetic: true))
+        XCTAssertEqual(action, .enter)
     }
 
     func testSpace() {
         let action = routeKeyDown(
             keyCode: KeyCode.space, characters: " ",
             modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .space)
     }
@@ -90,7 +81,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.escape, characters: "\u{1b}",
             modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .escape)
     }
@@ -99,7 +90,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.leftBracket, characters: "\u{1b}",
             modifiers: .control, engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .escape)
     }
@@ -108,7 +99,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: KeyCode.leftBracket, characters: "\u{1b}",
             modifiers: .control, engineMode: .english,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .passToSystem)
     }
@@ -118,7 +109,7 @@ class HandleKeyDownRouterTests: XCTestCase {
             let action = routeKeyDown(
                 keyCode: keyCode, characters: nil,
                 modifiers: [], engineMode: .korean,
-                toggleKey: .rightCommand, isSyntheticEnter: false
+                toggleKey: .rightCommand
             )
             XCTAssertEqual(action, .flushAndPassToSystem, "Arrow key \(keyCode) should flush and pass")
         }
@@ -128,7 +119,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: 0x05, characters: "g",
             modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .processKey(label: "g"))
     }
@@ -138,7 +129,7 @@ class HandleKeyDownRouterTests: XCTestCase {
         let action = routeKeyDown(
             keyCode: 0x72, characters: nil,
             modifiers: [], engineMode: .korean,
-            toggleKey: .rightCommand, isSyntheticEnter: false
+            toggleKey: .rightCommand
         )
         XCTAssertEqual(action, .flushUnknownKey)
     }

@@ -15,6 +15,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
@@ -23,6 +25,14 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           ./scripts/package.sh "$VERSION"
 
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        id: changelog
+        with:
+          args: --latest --strip header
+        env:
+          OUTPUT: CHANGES.md
+
       - name: Create Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -30,8 +40,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           PKG_FILE="build/Ongeul-${VERSION}.pkg"
           SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
-          NOTES=$(gh api repos/$GITHUB_REPOSITORY/releases/generate-notes \
-            -f tag_name="$GITHUB_REF_NAME" --jq '.body')
+          NOTES=$(cat CHANGES.md)
           DOCS_VERSION="${VERSION%%-*}"
           DOCS_URL="https://hiking90.github.io/ongeul/${DOCS_VERSION}/user/installation.html"
           FOOTER=$(printf '\n\n---\n📖 [설치 가이드](%s)\n**SHA-256:** `%s`\nVerify: `shasum -a 256 Ongeul-%s.pkg`' "$DOCS_URL" "$SHA256" "$VERSION")

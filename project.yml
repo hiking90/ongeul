@@ -23,6 +23,8 @@ targets:
     dependencies:
       - framework: target/aarch64-apple-darwin/release/libongeul_automata.a
         embed: false
+      - framework: target/aarch64-apple-darwin/release/libongeul_update.a
+        embed: false
       - sdk: InputMethodKit.framework
       - sdk: Cocoa.framework
       - sdk: ApplicationServices.framework
@@ -51,6 +53,8 @@ targets:
           - main.swift   # NSApplication.shared.run()이 테스트를 차단하므로 제외
     dependencies:
       - framework: target/aarch64-apple-darwin/release/libongeul_automata.a
+        embed: false
+      - framework: target/aarch64-apple-darwin/release/libongeul_update.a
         embed: false
       - sdk: InputMethodKit.framework
       - sdk: Cocoa.framework

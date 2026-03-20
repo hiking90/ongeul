@@ -26,6 +26,8 @@
 /* Mode Indicator */
 "prefs.showModeIndicator" = "Show mode indicator on toggle";
 
+/* Input Source Lock */
+"prefs.inputSourceLock" = "Lock input source (prevent switching to other input methods)";
 
 /* Layout */
 "prefs.layout.label" = "Korean Layout:";

@@ -26,6 +26,8 @@
 /* Mode Indicator */
 "prefs.showModeIndicator" = "한/영 전환 시 인디케이터 표시";
 
+/* Input Source Lock */
+"prefs.inputSourceLock" = "입력기 고정 (다른 입력기로 전환 방지)";
 
 /* Layout */
 "prefs.layout.label" = "한글 자판:";

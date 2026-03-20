@@ -171,6 +171,7 @@ private final class PreferencesPanel {
     private let layoutPopup: NSPopUpButton
     private let escapeCheckbox: NSButton
     private let indicatorCheckbox: NSButton
+    private let inputSourceLockCheckbox: NSButton
     private let toggleKeyTitles: [(ToggleKey, String)]
 
     private init() {
@@ -183,7 +184,7 @@ private final class PreferencesPanel {
         ]
 
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 260),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 290),
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
             defer: true
@@ -226,6 +227,12 @@ private final class PreferencesPanel {
         // -- 한/영 인디케이터 표시 --
         indicatorCheckbox = NSButton(
             checkboxWithTitle: NSLocalizedString("prefs.showModeIndicator", comment: ""),
+            target: nil, action: nil
+        )
+
+        // -- 입력기 고정 --
+        inputSourceLockCheckbox = NSButton(
+            checkboxWithTitle: NSLocalizedString("prefs.inputSourceLock", comment: ""),
             target: nil, action: nil
         )
 
@@ -299,7 +306,7 @@ private final class PreferencesPanel {
         container.addArrangedSubview(headerGroup)
 
         // 그리드 + 체크박스를 하나의 설정 그룹으로 묶어 정렬
-        let checkboxGroup = NSStackView(views: [escapeCheckbox, indicatorCheckbox])
+        let checkboxGroup = NSStackView(views: [escapeCheckbox, indicatorCheckbox, inputSourceLockCheckbox])
         checkboxGroup.orientation = .vertical
         checkboxGroup.alignment = .leading
         checkboxGroup.spacing = 8
@@ -336,6 +343,7 @@ private final class PreferencesPanel {
 
         escapeCheckbox.state = OngeulInputController.escapeToEnglish ? .on : .off
         indicatorCheckbox.state = OngeulInputController.showModeIndicator ? .on : .off
+        inputSourceLockCheckbox.state = OngeulInputController.inputSourceLock ? .on : .off
 
         panel.center()
         panel.orderFrontRegardless()
@@ -353,6 +361,7 @@ private final class PreferencesPanel {
         OngeulInputController.savedLayoutId = newLayout
         OngeulInputController.escapeToEnglish = escapeCheckbox.state == .on
         OngeulInputController.showModeIndicator = indicatorCheckbox.state == .on
+        OngeulInputController.inputSourceLock = inputSourceLockCheckbox.state == .on
 
         os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
                log: log, type: .default,
@@ -469,6 +478,7 @@ class OngeulInputController: IMKInputController {
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
     private static let showModeIndicatorKey = "showModeIndicator"
+    private static let inputSourceLockKey = "inputSourceLock"
 
     fileprivate static var toggleKey: ToggleKey {
         get {
@@ -509,7 +519,20 @@ class OngeulInputController: IMKInputController {
         set { UserDefaults.standard.set(newValue, forKey: showModeIndicatorKey) }
     }
 
+    fileprivate static var inputSourceLock: Bool {
+        get { UserDefaults.standard.bool(forKey: inputSourceLockKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: inputSourceLockKey)
+            if newValue {
+                InputSourceLock.shared.start()
+            } else {
+                InputSourceLock.shared.stop()
+            }
+        }
+    }
+
     private static var hasPromptedAccessibility = false
+    private static var hasStartedInputSourceLock = false
     /// 프로세스 시작 후 첫 활성화 여부
 
     private var currentBundleId: String?
@@ -539,6 +562,14 @@ class OngeulInputController: IMKInputController {
             KeyEventTap.toggleKey = Self.toggleKey
             KeyEventTap.shared.install()
         }
+
+        if !Self.hasStartedInputSourceLock {
+            Self.hasStartedInputSourceLock = true
+            if Self.inputSourceLock {
+                InputSourceLock.shared.start()
+            }
+        }
+
         loadLayoutIfNeeded()
 
         // 업데이트 확인 (guard 앞에 배치하여 early return에 영향받지 않도록)

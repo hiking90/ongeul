@@ -410,6 +410,9 @@ class OngeulInputController: IMKInputController {
     private var focusStealReplayPending = false   // async 리플레이 대기 중
     private var focusStealKeyBuffer: [String] = []
 
+    // Cursor position cache — 일시적 좌표 실패 시 마지막 성공 위치 사용
+    private var lastCursorRect: NSRect = .zero
+
     #if DEBUG
     /// 테스트에서 Bundle.main 대신 사용할 레이아웃 디렉토리 URL
     var testLayoutsURL: URL?
@@ -508,7 +511,7 @@ class OngeulInputController: IMKInputController {
 
     private static var hasPromptedAccessibility = false
     /// 프로세스 시작 후 첫 활성화 여부
-    private static var isFirstActivation = true
+
     private var currentBundleId: String?
 
     // MARK: - Lifecycle
@@ -524,6 +527,7 @@ class OngeulInputController: IMKInputController {
         focusStealExpectingBackspace = 0
         focusStealReplayPending = false
         focusStealKeyBuffer = []
+        lastCursorRect = .zero
 
         if !AXIsProcessTrusted() {
             if !Self.hasPromptedAccessibility {
@@ -538,16 +542,8 @@ class OngeulInputController: IMKInputController {
         loadLayoutIfNeeded()
 
         // 업데이트 확인 (guard 앞에 배치하여 early return에 영향받지 않도록)
-        if Self.isFirstActivation {
-            Self.isFirstActivation = false
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(3))
-                UpdateChecker.shared.checkForUpdate(silent: true)
-            }
-        } else {
-            Task { @MainActor in
-                UpdateChecker.shared.checkIfNeeded()
-            }
+        Task { @MainActor in
+            UpdateChecker.shared.checkIfNeeded()
         }
 
         guard let bundleId = (sender as? (any IMKTextInput))?.bundleIdentifier() else { return }
@@ -772,33 +768,61 @@ class OngeulInputController: IMKInputController {
         os_log("cursorRect: selectedRange=(%d, %d) index=%d",
                log: log, type: .debug, selRange.location, selRange.length, index)
 
+        // Step 1: 정확한 커서 위치
         let success = ObjCExceptionCatcher.performSafely {
             client.attributes(forCharacterIndex: index, lineHeightRectangle: &lineHeightRect)
         }
-
         if success, isValidRect(lineHeightRect) {
-            os_log("cursorRect: rect=(%.0f, %.0f, %.0f, %.0f)",
-                   log: log, type: .debug,
+            os_log("cursorRect: index=%d rect=(%.0f, %.0f, %.0f, %.0f)",
+                   log: log, type: .debug, index,
                    lineHeightRect.origin.x, lineHeightRect.origin.y,
                    lineHeightRect.size.width, lineHeightRect.size.height)
+            lastCursorRect = lineHeightRect
             return lineHeightRect
         }
 
-        // index 0으로 재시도 (OpenVanilla 방식)
-        if index != 0 {
+        // Step 2: end-of-text 보정 — index-1로 쿼리 후 x 오프셋 (fcitx5 방식)
+        if index > 0 {
+            let prevIndex = index - 1
             let retrySuccess = ObjCExceptionCatcher.performSafely {
-                client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineHeightRect)
+                client.attributes(forCharacterIndex: prevIndex, lineHeightRectangle: &lineHeightRect)
             }
             if retrySuccess, isValidRect(lineHeightRect) {
-                os_log("cursorRect: fallback index=0 rect=(%.0f, %.0f, %.0f, %.0f)",
-                       log: log, type: .debug,
+                lineHeightRect.origin.x += 10
+                os_log("cursorRect: end-of-text index-1=%d rect=(%.0f, %.0f, %.0f, %.0f)",
+                       log: log, type: .debug, prevIndex,
                        lineHeightRect.origin.x, lineHeightRect.origin.y,
                        lineHeightRect.size.width, lineHeightRect.size.height)
+                lastCursorRect = lineHeightRect
                 return lineHeightRect
             }
         }
 
-        os_log("cursorRect: failed, returning .zero", log: log, type: .debug)
+        // Step 3: index 0 폴백 (OpenVanilla 방식)
+        if index > 1 {
+            let fallbackSuccess = ObjCExceptionCatcher.performSafely {
+                client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineHeightRect)
+            }
+            if fallbackSuccess, isValidRect(lineHeightRect) {
+                os_log("cursorRect: fallback index=0 rect=(%.0f, %.0f, %.0f, %.0f)",
+                       log: log, type: .debug,
+                       lineHeightRect.origin.x, lineHeightRect.origin.y,
+                       lineHeightRect.size.width, lineHeightRect.size.height)
+                lastCursorRect = lineHeightRect
+                return lineHeightRect
+            }
+        }
+
+        // Step 4: 캐시된 마지막 성공 좌표 반환 (fcitx5 캐싱 방식)
+        if isValidRect(lastCursorRect) {
+            os_log("cursorRect: using cached rect=(%.0f, %.0f, %.0f, %.0f)",
+                   log: log, type: .debug,
+                   lastCursorRect.origin.x, lastCursorRect.origin.y,
+                   lastCursorRect.size.width, lastCursorRect.size.height)
+            return lastCursorRect
+        }
+
+        os_log("cursorRect: all attempts failed, returning .zero", log: log, type: .debug)
         return .zero
     }
 

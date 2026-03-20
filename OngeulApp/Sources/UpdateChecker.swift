@@ -13,21 +13,16 @@ final class UpdateChecker {
     /// 자동 확인 최소 간격 (24시간)
     private static let minimumCheckInterval: TimeInterval = 24 * 60 * 60
 
-    private static let lastCheckDateKey = "lastUpdateCheckDate"
     private static let releaseURL = URL(
         string: "https://api.github.com/repos/hiking90/ongeul/releases/latest"
     )!
 
     private var isChecking = false
+    private var lastCheckDate: Date?
 
     /// 현재 앱 버전 (CFBundleShortVersionString)
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
-    }
-
-    private var lastCheckDate: Date? {
-        get { UserDefaults.standard.object(forKey: Self.lastCheckDateKey) as? Date }
-        set { UserDefaults.standard.set(newValue, forKey: Self.lastCheckDateKey) }
     }
 
     // MARK: - Public API

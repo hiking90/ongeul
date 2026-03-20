@@ -75,7 +75,7 @@ final class UpdateChecker {
         }
     }
 
-    /// 자동 확인: 최소 간격이 지났을 때만 실행
+    /// 자동 확인: 최소 간격이 지났을 때만 실행. 최초 확인은 1분 후 실행.
     func checkIfNeeded() {
         if let lastCheck = lastCheckDate,
            Date().timeIntervalSince(lastCheck) < Self.minimumCheckInterval {
@@ -84,7 +84,17 @@ final class UpdateChecker {
                    Date().timeIntervalSince(lastCheck))
             return
         }
-        checkForUpdate(silent: true)
+        if lastCheckDate == nil {
+            // 최초 실행: 시스템 설정 창 등과 겹치지 않도록 1분 후 확인
+            // 즉시 날짜를 설정하여 재호출 시 중복 스케줄 방지
+            lastCheckDate = Date()
+            Task {
+                try? await Task.sleep(for: .seconds(60))
+                checkForUpdate(silent: true)
+            }
+        } else {
+            checkForUpdate(silent: true)
+        }
     }
 
     // MARK: - Network (macOS native stack)

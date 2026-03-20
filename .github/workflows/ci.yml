@@ -22,8 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Build Rust library
-        run: cargo build --release --target aarch64-apple-darwin -p ongeul-automata
+      - name: Build Rust libraries
+        run: cargo build --release --target aarch64-apple-darwin -p ongeul-automata -p ongeul-update
 
       - name: Generate UniFFI Swift bindings
         run: |
@@ -31,6 +31,11 @@ jobs:
           cargo run --manifest-path ongeul-automata/Cargo.toml \
             --bin uniffi-bindgen generate \
             --library target/aarch64-apple-darwin/release/libongeul_automata.dylib \
+            --language swift \
+            --out-dir OngeulApp/Generated
+          cargo run --manifest-path ongeul-update/Cargo.toml \
+            --bin uniffi-bindgen-update generate \
+            --library target/aarch64-apple-darwin/release/libongeul_update.dylib \
             --language swift \
             --out-dir OngeulApp/Generated
 

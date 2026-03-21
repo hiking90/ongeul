@@ -19,6 +19,8 @@
 "prefs.toggleKey.leftShift" = "왼쪽 Shift (단독)";
 "prefs.toggleKey.rightShift" = "오른쪽 Shift (단독)";
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
+"prefs.toggleKey.capsLock" = "CapsLock";
+"prefs.capsLockDelay" = "시스템 설정 > 키보드에서 CapsLock 지연을 비활성화하세요.";
 
 /* Escape → English */
 "prefs.escapeToEnglish" = "ESC / Ctrl+[ 키로 영문 전환 (Vim 모드)";

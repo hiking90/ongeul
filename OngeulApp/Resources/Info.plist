@@ -91,9 +91,6 @@
     <key>TISIconIsTemplate</key>
     <true/>
 
-    <key>TICapsLockLanguageSwitchCapable</key>
-    <true/>
-
     <key>TISIconLabels</key>
     <dict>
         <key>Primary</key>

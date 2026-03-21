@@ -19,6 +19,8 @@
 "prefs.toggleKey.leftShift" = "Left Shift (tap)";
 "prefs.toggleKey.rightShift" = "Right Shift (tap)";
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
+"prefs.toggleKey.capsLock" = "CapsLock";
+"prefs.capsLockDelay" = "Disable CapsLock delay in System Settings > Keyboard.";
 
 /* Escape → English */
 "prefs.escapeToEnglish" = "Switch to English on ESC / Ctrl+[ (Vim mode)";

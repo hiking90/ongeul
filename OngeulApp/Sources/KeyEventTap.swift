@@ -155,6 +155,33 @@ class KeyEventTap {
                     return nil
                 }
 
+                // === flagsChanged: CapsLock 기반 한영 SET ===
+                // CapsLock은 하드웨어 레벨 토글이므로, flagsChanged 시점에 LED 상태가 이미 변경되어 있다.
+                // toggle이 아닌 SET 방식: LED ON → 한글, LED OFF → 영문.
+                if type == .flagsChanged && keyCode == Int64(KeyCode.capsLock)
+                    && KeyEventTap.toggleKey == .capsLock {
+                    let capsLockOn = flags.contains(.maskAlphaShift)
+                    os_log("capsLock flagsChanged: capsLockOn=%{public}d", log: log, type: .debug, capsLockOn)
+                    if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
+                        if let controller = KeyEventTap.activeController {
+                            if controller.isCurrentAppLocked() {
+                                os_log("capsLock: skipped (app locked)", log: log, type: .debug)
+                            } else {
+                                // 동기 호출: 다음 keyDown이 올바른 모드로 처리되도록
+                                // DispatchQueue.main.async를 사용하면 다음 keyDown이
+                                // 모드 전환 전에 도착하여 영문 대문자가 입력될 수 있다.
+                                controller.performCapsLockModeSet(korean: capsLockOn)
+                                os_log("capsLock: mode set to %{public}@",
+                                       log: log, type: .debug,
+                                       capsLockOn ? "korean" : "english")
+                            }
+                        } else {
+                            os_log("capsLock: skipped (no activeController)", log: log, type: .debug)
+                        }
+                    }
+                    return Unmanaged.passUnretained(event)  // 이벤트 통과 — 앱에 정상 전달
+                }
+
                 // === flagsChanged: modifier 기반 전환 키 처리 ===
                 // modifier flagsChanged는 소비하지 않고 통과시킨다.
                 // 소비하면 앱이 modifier를 눌린 상태로 오인하는 치명적 버그 발생.

@@ -341,9 +341,7 @@ pub fn split_double_jongseong(t: u32) -> Option<(u32, char)> {
     DOUBLE_JONGSEONG_SPLIT
         .iter()
         .find(|(idx, _)| *idx == t)
-        .and_then(|(_, (first, second))| {
-            char::from_u32(*second).map(|ch| (*first, ch))
-        })
+        .and_then(|(_, (first, second))| char::from_u32(*second).map(|ch| (*first, ch)))
 }
 
 /// 겹종성인지 판별
@@ -355,13 +353,13 @@ pub fn is_double_jongseong(t: u32) -> bool {
 
 /// 겹모음을 (첫째 중성 인덱스, 둘째 중성 인덱스)로 분리.
 static DOUBLE_JUNGSEONG_SPLIT: &[(u32, (u32, u32))] = &[
-    (9, (8, 0)),   // ㅘ(9) → ㅗ(8) + ㅏ(0)
-    (10, (8, 1)),  // ㅙ(10) → ㅗ(8) + ㅐ(1)
-    (11, (8, 20)), // ㅚ(11) → ㅗ(8) + ㅣ(20)
-    (14, (13, 4)), // ㅝ(14) → ㅜ(13) + ㅓ(4)
-    (15, (13, 5)), // ㅞ(15) → ㅜ(13) + ㅔ(5)
-    (16, (13, 20)),// ㅟ(16) → ㅜ(13) + ㅣ(20)
-    (19, (18, 20)),// ㅢ(19) → ㅡ(18) + ㅣ(20)
+    (9, (8, 0)),    // ㅘ(9) → ㅗ(8) + ㅏ(0)
+    (10, (8, 1)),   // ㅙ(10) → ㅗ(8) + ㅐ(1)
+    (11, (8, 20)),  // ㅚ(11) → ㅗ(8) + ㅣ(20)
+    (14, (13, 4)),  // ㅝ(14) → ㅜ(13) + ㅓ(4)
+    (15, (13, 5)),  // ㅞ(15) → ㅜ(13) + ㅔ(5)
+    (16, (13, 20)), // ㅟ(16) → ㅜ(13) + ㅣ(20)
+    (19, (18, 20)), // ㅢ(19) → ㅡ(18) + ㅣ(20)
 ];
 
 /// 겹모음 분리: 중성 인덱스 → Some((첫째 중성 인덱스, 둘째 중성 인덱스))
@@ -399,8 +397,11 @@ pub fn is_jongseong(ch: char) -> bool {
 
 /// 한글 자모인지 판별 (위치 자모 초/중/종성 + 호환 자모 자음/모음)
 pub fn is_korean_jamo(ch: char) -> bool {
-    is_choseong(ch) || is_jungseong(ch) || is_jongseong(ch)
-    || is_compat_consonant(ch) || is_compat_vowel(ch)
+    is_choseong(ch)
+        || is_jungseong(ch)
+        || is_jongseong(ch)
+        || is_compat_consonant(ch)
+        || is_compat_vowel(ch)
 }
 
 /// 위치 초성 → 초성 인덱스
@@ -613,7 +614,10 @@ mod tests {
         // 각 인덱스의 경계: 최솟값
         assert_eq!(compose_syllable(0, 0, 0), Some('가'));
         // 각 인덱스의 경계: 최댓값
-        assert_eq!(compose_syllable(L_COUNT - 1, V_COUNT - 1, T_COUNT - 1), Some('힣'));
+        assert_eq!(
+            compose_syllable(L_COUNT - 1, V_COUNT - 1, T_COUNT - 1),
+            Some('힣')
+        );
         // 종성 없음 (t=0)
         assert_eq!(compose_syllable(0, 0, 0), Some('가'));
         // 종성 최대: 가 + 종성 27 = 갛 (U+AC1B)
@@ -630,7 +634,10 @@ mod tests {
     #[test]
     fn test_decompose_syllable_boundary() {
         // 범위 직전 문자 (가 앞)
-        assert_eq!(decompose_syllable(char::from_u32(S_BASE - 1).unwrap()), None);
+        assert_eq!(
+            decompose_syllable(char::from_u32(S_BASE - 1).unwrap()),
+            None
+        );
         // 범위 직후 문자 (힣 뒤)
         assert_eq!(
             decompose_syllable(char::from_u32(S_BASE + S_COUNT).unwrap()),

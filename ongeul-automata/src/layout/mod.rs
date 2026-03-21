@@ -173,9 +173,11 @@ mod tests {
             keymap: {},
             combinations: [{ first: "bad", second: "0x3131", result: "0x3132" }],
         }"#;
-        assert!(KeyboardLayout::from_json(json)
-            .unwrap_err()
-            .contains("Invalid hex"));
+        assert!(
+            KeyboardLayout::from_json(json)
+                .unwrap_err()
+                .contains("Invalid hex")
+        );
 
         // second가 잘못된 hex
         let json = r#"{
@@ -183,9 +185,11 @@ mod tests {
             keymap: {},
             combinations: [{ first: "0x3131", second: "bad", result: "0x3132" }],
         }"#;
-        assert!(KeyboardLayout::from_json(json)
-            .unwrap_err()
-            .contains("Invalid hex"));
+        assert!(
+            KeyboardLayout::from_json(json)
+                .unwrap_err()
+                .contains("Invalid hex")
+        );
 
         // result가 잘못된 hex
         let json = r#"{
@@ -193,9 +197,11 @@ mod tests {
             keymap: {},
             combinations: [{ first: "0x3131", second: "0x3132", result: "bad" }],
         }"#;
-        assert!(KeyboardLayout::from_json(json)
-            .unwrap_err()
-            .contains("Invalid hex"));
+        assert!(
+            KeyboardLayout::from_json(json)
+                .unwrap_err()
+                .contains("Invalid hex")
+        );
     }
 
     #[test]

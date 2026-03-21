@@ -7,9 +7,7 @@ pub fn is_newer_version(latest: &str, current: &str) -> bool {
     let parse = |v: &str| -> Vec<u32> {
         // pre-release suffix 제거
         let base = v.split('-').next().unwrap_or(v);
-        base.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
+        base.split('.').filter_map(|s| s.parse().ok()).collect()
     };
 
     let latest_parts = parse(latest);

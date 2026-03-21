@@ -124,7 +124,9 @@ impl Automata for JasoAutomata {
                         return AutomataResult::handled(committed, self.buffer.to_string());
                     }
                     // 초성만 있음 → 쌍자음 조합 시도
-                    let (Some(current_ch), Some(new_ch)) = (Self::l_char(current_l), Self::l_char(l_idx)) else {
+                    let (Some(current_ch), Some(new_ch)) =
+                        (Self::l_char(current_l), Self::l_char(l_idx))
+                    else {
                         // 변환 실패 → 쌍자음 조합 불가로 간주
                         let committed = self.commit_current();
                         self.buffer.choseong = Some(l_idx);
@@ -165,7 +167,9 @@ impl Automata for JasoAutomata {
 
                 if let Some(current_v) = self.buffer.jungseong {
                     // 이미 중성 있음 → 겹모음 시도 (위치 자모로 조합)
-                    let (Some(current_ch), Some(new_ch)) = (Self::v_char(current_v), Self::v_char(v_idx)) else {
+                    let (Some(current_ch), Some(new_ch)) =
+                        (Self::v_char(current_v), Self::v_char(v_idx))
+                    else {
                         // 변환 실패 → 겹모음 조합 불가로 간주
                         let committed = self.commit_current();
                         self.buffer.jungseong = Some(v_idx);
@@ -224,7 +228,9 @@ impl Automata for JasoAutomata {
 
                 if let Some(current_t) = self.buffer.jongseong {
                     // 이미 종성 있음 → 겹종성 시도 (위치 자모로 조합)
-                    let (Some(current_ch), Some(new_ch)) = (Self::t_char(current_t), Self::t_char(t_idx)) else {
+                    let (Some(current_ch), Some(new_ch)) =
+                        (Self::t_char(current_t), Self::t_char(t_idx))
+                    else {
                         // 변환 실패 → 겹종성 조합 불가로 간주
                         let mut committed = self.commit_current().unwrap_or_default();
                         if let Some(ch) = unicode::jongseong_to_compat(t_idx) {

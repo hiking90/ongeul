@@ -3,5 +3,5 @@ uniffi::setup_scaffolding!();
 mod release;
 mod version;
 
-pub use release::{parse_release_response, UpdateInfo};
+pub use release::{UpdateInfo, parse_release_response};
 pub use version::is_newer_version;

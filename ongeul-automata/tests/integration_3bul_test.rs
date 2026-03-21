@@ -361,16 +361,16 @@ fn test_final_special_unicode_symbols() {
     // 특수 유니코드: & → \u{201C} ("), * → \u{201D} ("), ~ → ※, " → ·
     let engine = create_engine_final();
     let (committed, _) = process_keys(&engine, &["&"]);
-    assert_eq!(committed, "\u{201C}");  // 왼쪽 큰따옴표
+    assert_eq!(committed, "\u{201C}"); // 왼쪽 큰따옴표
 
     let (committed, _) = process_keys(&engine, &["*"]);
-    assert_eq!(committed, "\u{201D}");  // 오른쪽 큰따옴표
+    assert_eq!(committed, "\u{201D}"); // 오른쪽 큰따옴표
 
     let (committed, _) = process_keys(&engine, &["~"]);
     assert_eq!(committed, "※");
 
     let (committed, _) = process_keys(&engine, &["\""]);
-    assert_eq!(committed, "\u{00B7}");  // 가운뎃점 ·
+    assert_eq!(committed, "\u{00B7}"); // 가운뎃점 ·
 }
 
 #[test]

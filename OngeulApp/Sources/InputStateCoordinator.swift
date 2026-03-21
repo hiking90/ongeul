@@ -137,18 +137,31 @@ final class InputStateCoordinator {
     /// English Lock 토글
     func toggleLock(for bundleId: String) -> StateEffect {
         if lockStore.isLocked(bundleId) {
-            // 해제: 저장된 이전 모드 복원 + detector 리셋
-            let previousMode = lockStore.removeLock(for: bundleId) ?? .korean
-            setMode(previousMode)
             engine.reset()  // 잠금 중 쌓인 detector 키 시퀀스 무효화
-            perAppStore.saveMode(previousMode, for: bundleId)
+            if KeyEventTap.toggleKey == .capsLock && KeyEventTap.shared.isInstalled {
+                // CapsLock 모드: 하드웨어 상태가 source of truth.
+                // 잠금 중 사용자가 CapsLock을 토글했을 수 있으므로
+                // previousMode 대신 현재 하드웨어 상태에 따라 모드 결정.
+                _ = lockStore.removeLock(for: bundleId)
+                let mode: InputMode = CapsLockSync.isHardwareOn() ? .korean : .english
+                setMode(mode, syncCapsLock: false)  // 이미 하드웨어와 일치
+                perAppStore.saveMode(mode, for: bundleId)
+            } else {
+                // 해제: 저장된 이전 모드 복원
+                let previousMode = lockStore.removeLock(for: bundleId) ?? .korean
+                setMode(previousMode)
+                perAppStore.saveMode(previousMode, for: bundleId)
+            }
             return StateEffect(lockOverlay: .show(locked: false))
         } else {
             // 잠금: 현재 모드 저장 -> 영어 강제
             let currentMode = engine.getMode()
             lockStore.addLock(for: bundleId, previousMode: currentMode)
             let flushResult = (currentMode == .korean) ? engine.flush() : nil
-            setMode(.english)
+            // CapsLock 모드: LED를 건드리지 않음.
+            // 잠금 중 CapsLock은 원래 기능(대문자)으로 동작하며,
+            // 해제 시 하드웨어 상태에 따라 모드를 결정한다.
+            setMode(.english, syncCapsLock: KeyEventTap.toggleKey != .capsLock)
             return StateEffect(
                 processResult: flushResult,
                 lockOverlay: .show(locked: true)

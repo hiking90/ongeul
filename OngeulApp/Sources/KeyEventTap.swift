@@ -74,11 +74,19 @@ class KeyEventTap {
                 if type == .keyDown {
                     KeyEventTap.toggleDetector.cancelOnKeyDown()
 
+                    // Modifier 단축키(cmd, ctrl, option)는 텍스트 입력이 아니므로
+                    // focus-steal 버퍼에 기록하지 않는다.
+                    let hasModifier = flags.contains(.maskCommand)
+                        || flags.contains(.maskControl)
+                        || flags.contains(.maskAlternate)
+
                     var length = 0
                     var chars = [UniChar](repeating: 0, count: 4)
                     event.keyboardGetUnicodeString(
                         maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
-                    if length > 0 {
+                    if hasModifier {
+                        KeyEventTap.keyBuffer.removeAll()
+                    } else if length > 0 {
                         let str = String(utf16CodeUnits: chars, count: length)
                         let capsLock = flags.contains(.maskAlphaShift)
                         let shift = flags.contains(.maskShift)

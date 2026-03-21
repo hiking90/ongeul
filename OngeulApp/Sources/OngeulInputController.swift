@@ -184,7 +184,7 @@ private final class PreferencesPanel {
         ]
 
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 290),
+            contentRect: .zero,
             styleMask: [.titled, .closable, .nonactivatingPanel],
             backing: .buffered,
             defer: true
@@ -213,10 +213,12 @@ private final class PreferencesPanel {
             [toggleLabel, togglePopup],
             [layoutLabel, layoutPopup],
         ])
-        settingsGrid.rowSpacing = 8
+        settingsGrid.rowSpacing = 12
         settingsGrid.columnSpacing = 8
         settingsGrid.column(at: 0).xPlacement = .trailing
         settingsGrid.column(at: 1).xPlacement = .leading
+        settingsGrid.setContentHuggingPriority(.required, for: .horizontal)
+        settingsGrid.setContentHuggingPriority(.required, for: .vertical)
 
         // -- ESC → 영문 전환 --
         escapeCheckbox = NSButton(
@@ -323,6 +325,16 @@ private final class PreferencesPanel {
         container.addArrangedSubview(buttonRow)
 
         panel.contentView = container
+
+        // 콘텐츠에 맞게 패널 크기 자동 조절
+        // 세로 NSStackView: fittingSize.height에는 상하 edgeInsets 포함, 좌우는 미포함
+        container.layoutSubtreeIfNeeded()
+        let fitting = container.fittingSize
+        let insets = container.edgeInsets
+        panel.setContentSize(NSSize(
+            width: fitting.width + insets.left + insets.right,
+            height: fitting.height
+        ))
 
         // target을 init 완료 후 설정 (self 참조)
         projectLink.target = self

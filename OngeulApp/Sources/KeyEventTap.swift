@@ -72,6 +72,12 @@ class KeyEventTap {
 
                 // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
+                    // CapsLock 방어: 어떤 이유로든 CapsLock이 켜져 있으면 즉시 OFF
+                    if KeyEventTap.toggleKey == .capsLock
+                        && flags.contains(.maskAlphaShift) {
+                        CapsLockSync.forceOff()
+                    }
+
                     KeyEventTap.toggleDetector.cancelOnKeyDown()
 
                     // Modifier 단축키(cmd, ctrl, option)는 텍스트 입력이 아니므로
@@ -155,28 +161,22 @@ class KeyEventTap {
                     return nil
                 }
 
-                // === flagsChanged: CapsLock 기반 한영 SET ===
-                // CapsLock은 하드웨어 레벨 토글이므로, flagsChanged 시점에 LED 상태가 이미 변경되어 있다.
-                // toggle이 아닌 SET 방식: LED ON → 한글, LED OFF → 영문.
+                // === flagsChanged: CapsLock 기반 한영 TOGGLE ===
+                // CapsLock은 하드웨어 토글이므로 ToggleDetector를 사용하지 않고
+                // flagsChanged에서 직접 감지하되, 다른 전환 키와 동일한 TOGGLE로 처리한다.
+                // LED는 항상 OFF로 강제하여 CapsLock이 켜지지 않도록 한다.
                 if type == .flagsChanged && keyCode == Int64(KeyCode.capsLock)
                     && KeyEventTap.toggleKey == .capsLock {
                     let capsLockOn = flags.contains(.maskAlphaShift)
                     os_log("capsLock flagsChanged: capsLockOn=%{public}d", log: log, type: .debug, capsLockOn)
                     if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
-                        if let controller = KeyEventTap.activeController {
-                            if controller.isCurrentAppLocked() {
-                                os_log("capsLock: skipped (app locked)", log: log, type: .debug)
-                            } else {
-                                // 동기 호출: 다음 keyDown이 올바른 모드로 처리되도록
-                                // DispatchQueue.main.async를 사용하면 다음 keyDown이
-                                // 모드 전환 전에 도착하여 영문 대문자가 입력될 수 있다.
-                                controller.performCapsLockModeSet(korean: capsLockOn)
-                                os_log("capsLock: mode set to %{public}@",
-                                       log: log, type: .debug,
-                                       capsLockOn ? "korean" : "english")
-                            }
-                        } else {
-                            os_log("capsLock: skipped (no activeController)", log: log, type: .debug)
+                        CapsLockSync.forceOff()  // LED OFF 강제 (재진입은 shouldHandle이 필터링)
+                        if let controller = KeyEventTap.activeController,
+                           !controller.isCurrentAppLocked() {
+                            // 동기 호출: CapsLock은 key press 시점에 발생하므로
+                            // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
+                            controller.performToggleFromTap()
+                            os_log("capsLock: toggled", log: log, type: .debug)
                         }
                     }
                     return Unmanaged.passUnretained(event)  // 이벤트 통과 — 앱에 정상 전달

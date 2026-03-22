@@ -1,5 +1,4 @@
 import IOKit
-import ApplicationServices
 import os.log
 
 private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", category: "capsLockSync")
@@ -21,17 +20,17 @@ enum CapsLockSync {
     /// expectedState가 남아 다음 사용자 CapsLock 입력을 한 번 무시하는 것을 방지한다.
     private static let expectedStateTimeout: CFAbsoluteTime = 0.1
 
-    /// IOHIDSetModifierLockState로 CapsLock LED 설정
-    static func setState(_ enabled: Bool) {
-        os_log("setState: enabled=%{public}d", log: log, type: .debug, enabled)
-        expectedState = enabled
+    /// CapsLock LED를 항상 OFF로 강제. expectedState 설정으로 재진입 방지.
+    static func forceOff() {
+        os_log("forceOff", log: log, type: .debug)
+        expectedState = false
         expectedStateTimestamp = CFAbsoluteTimeGetCurrent()
         let service = IOServiceGetMatchingService(
             kIOMainPortDefault,
             IOServiceMatching("IOHIDSystem")
         )
         if service != IO_OBJECT_NULL {
-            _ = IOHIDSetModifierLockState(service, kIOHIDCapsLockState, enabled)
+            _ = IOHIDSetModifierLockState(service, kIOHIDCapsLockState, false)
             IOObjectRelease(service)
         }
     }
@@ -59,15 +58,5 @@ enum CapsLockSync {
         expectedState = nil
         os_log("shouldHandle: capsLockOn=%{public}d expected=%{public}d → true (mismatch)", log: log, type: .debug, capsLockOn, expected)
         return true  // 사용자 입력 → 처리
-    }
-
-    /// 현재 하드웨어 CapsLock 상태 읽기 (Public API)
-    static func isHardwareOn() -> Bool {
-        CGEventSource.flagsState(.combinedSessionState).contains(.maskAlphaShift)
-    }
-
-    /// 설정 변경 시 LED OFF + 상태 초기화
-    static func reset() {
-        setState(false)
     }
 }

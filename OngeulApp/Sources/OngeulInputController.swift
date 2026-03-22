@@ -372,11 +372,9 @@ private final class PreferencesPanel {
         let newToggleKey = toggleKeyTitles[togglePopup.indexOfSelectedItem].0
         OngeulInputController.toggleKey = newToggleKey
 
-        // CapsLock 전환 키 변경 시 LED 동기화
-        if previousToggleKey == .capsLock && newToggleKey != .capsLock {
-            CapsLockSync.reset()  // LED OFF + 상태 초기화
-        } else if previousToggleKey != .capsLock && newToggleKey == .capsLock {
-            CapsLockSync.setState(OngeulInputController.coordinator.mode == .korean)  // 현재 모드에 맞게 LED 초기 동기화
+        // CapsLock 전환 키 변경 시 LED OFF 강제
+        if previousToggleKey == .capsLock || newToggleKey == .capsLock {
+            CapsLockSync.forceOff()
         }
 
         let newLayout: String
@@ -617,6 +615,12 @@ class OngeulInputController: IMKInputController {
             applyEffect(effect, to: client)
         }
 
+        // CapsLock이 toggle key일 때 방어적 LED OFF
+        // (다른 앱에서 CapsLock이 켜진 상태로 전환된 경우 대비)
+        if Self.toggleKey == .capsLock && KeyEventTap.shared.isInstalled {
+            CapsLockSync.forceOff()
+        }
+
         // Focus-steal correction: 키 입력 시점에 한글 모드였고, English Lock이 아닌 경우만
         // handleKeyDown/deactivateServer에서 keyBuffer를 지우지 않으므로,
         // 정상 타이핑 중 누적된 오래된 키를 제거하여 false positive를 방지한다.
@@ -750,9 +754,9 @@ class OngeulInputController: IMKInputController {
         // CapsLock 전환 (CGEventTap 미설치 폴백)
         // LED 동기화(IOHIDSetModifierLockState)는 생략 — 재진입 필터링이 CGEventTap에 의존하므로
         if Self.toggleKey == .capsLock && event.keyCode == KeyCode.capsLock {
-            let capsLockOn = event.modifierFlags.contains(.capsLock)
             guard !isCurrentAppLocked() else { return false }
-            let effect = coordinator.setCapsLockMode(korean: capsLockOn, for: currentBundleId)
+            guard let effect = coordinator.toggleMode(for: currentBundleId)
+            else { return false }
             applyEffect(effect, to: client)
             return false  // flagsChanged는 소비하지 않음
         }
@@ -797,19 +801,6 @@ class OngeulInputController: IMKInputController {
         }
     }
 
-    func performCapsLockModeSet(korean: Bool) {
-        // client가 nil이어도 모드는 반드시 전환해야 한다.
-        // (앱 전환 직후 등 client가 일시적으로 nil인 경우에도 모드 불일치 방지)
-        let effect = coordinator.setCapsLockMode(korean: korean, for: currentBundleId)
-        if let client: any IMKTextInput = self.client() {
-            applyEffect(effect, to: client)
-        } else {
-            os_log("performCapsLockModeSet: client is nil (mode still set to %{public}@)",
-                   log: log, type: .default,
-                   korean ? "korean" : "english")
-        }
-    }
-
     func performEnglishLockToggleFromTap() {
         guard let client: any IMKTextInput = self.client(),
               let bundleId = currentBundleId
@@ -828,8 +819,6 @@ class OngeulInputController: IMKInputController {
 
     private func showModeIndicator(client: any IMKTextInput) {
         guard Self.showModeIndicator else { return }
-        // CapsLock LED가 모드를 표시하므로 인디케이터 불필요
-        if Self.toggleKey == .capsLock { return }
         var rect = cursorRect(from: client)
 
         // cursorRect가 .zero를 반환했거나, 화면 밖 좌표인 경우 → 화면 하단 중앙

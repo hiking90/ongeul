@@ -28,6 +28,12 @@ Shift+Space를 전환 키로 사용하려면 **손쉬운 사용(Accessibility)**
 
 > 손쉬운 사용 권한은 설치 시 자동으로 안내됩니다. 권한 설정 방법은 [설치](../installation.md#손쉬운-사용accessibility-권한)를 참고하세요.
 
+## CapsLock
+
+- **CapsLock** 키를 누를 때마다 한/영이 전환됩니다.
+- CapsLock LED는 항상 꺼진 상태로 유지되며, 대문자 잠금 기능은 비활성화됩니다.
+- CapsLock을 전환 키로 사용하려면 시스템 설정에서 CapsLock 지연을 비활성화해야 합니다. 자세한 내용은 [CapsLock](capslock.md#사전-설정)을 참고하세요.
+
 ## ESC 키로 영문 전환
 
 - **ESC** 키를 누르면 자동으로 영문 모드로 전환됩니다.

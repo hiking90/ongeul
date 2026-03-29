@@ -595,6 +595,11 @@ class OngeulInputController: IMKInputController {
             }
         }
 
+        // 놓친 notification 보조 확인 — Ongeul이 아닌 keyboard layout이면 복귀
+        if Self.inputSourceLock {
+            InputSourceLock.shared.verifyAndRecover(source: "activateServer")
+        }
+
         loadLayoutIfNeeded()
 
         // 업데이트 확인 (guard 앞에 배치하여 early return에 영향받지 않도록)

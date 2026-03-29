@@ -1,3 +1,4 @@
+import Cocoa
 import Carbon
 import os.log
 
@@ -12,6 +13,8 @@ final class InputSourceLock: NSObject {
     private var cachedInputSource: TISInputSource?
     private var lastSwitchTime: CFAbsoluteTime = 0
     private let minimumInterval: CFAbsoluteTime = 0.3  // 300ms 디바운스
+    private var activityToken: NSObjectProtocol?
+    private var wakeTimer: Timer?
 
     private override init() {
         super.init()
@@ -28,12 +31,33 @@ final class InputSourceLock: NSObject {
             cachedInputSource = sources.first
         }
 
+        // App Nap 방지 — notification 전달 지연 차단
+        activityToken = ProcessInfo.processInfo.beginActivity(
+            options: .userInitiatedAllowingIdleSystemSleep,
+            reason: "InputSourceLock: monitoring"
+        )
+
         DistributedNotificationCenter.default().addObserver(
             self,
             selector: #selector(inputSourceChanged),
             name: .init("com.apple.Carbon.TISNotifySelectedKeyboardInputSourceChanged"),
             object: nil
         )
+        // Sleep/Wake, 화면 잠금 해제 감시
+        let wsnc = NSWorkspace.shared.notificationCenter
+        wsnc.addObserver(
+            self,
+            selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+        wsnc.addObserver(
+            self,
+            selector: #selector(screenDidUnlock),
+            name: NSWorkspace.screensDidWakeNotification,
+            object: nil
+        )
+
         os_log("InputSourceLock: started", log: log, type: .default)
     }
 
@@ -43,6 +67,16 @@ final class InputSourceLock: NSObject {
         isObserving = false
         cachedInputSource = nil
 
+        wakeTimer?.invalidate()
+        wakeTimer = nil
+
+        if let token = activityToken {
+            ProcessInfo.processInfo.endActivity(token)
+            activityToken = nil
+        }
+
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+
         DistributedNotificationCenter.default().removeObserver(
             self,
             name: .init("com.apple.Carbon.TISNotifySelectedKeyboardInputSourceChanged"),
@@ -51,14 +85,33 @@ final class InputSourceLock: NSObject {
         os_log("InputSourceLock: stopped", log: log, type: .default)
     }
 
-    @objc private func inputSourceChanged() {
+    /// TISInputSource 캐시를 다시 조회하여 갱신한다.
+    /// 캐시가 무효화된 경우(IME 업데이트 등) 복구에 사용.
+    private func refreshCache() -> TISInputSource? {
+        let filter = [kTISPropertyInputSourceID: Self.ongeulInputSourceId] as CFDictionary
+        if let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource],
+           let source = sources.first {
+            cachedInputSource = source
+            os_log("InputSourceLock: cache refreshed", log: log, type: .default)
+            return source
+        }
+        cachedInputSource = nil
+        return nil
+    }
+
+    /// 현재 입력 소스를 확인하고, Ongeul이 아닌 keyboard layout이면 복귀한다.
+    /// notification, wake, unlock, activateServer 등 다양한 경로에서 호출.
+    func verifyAndRecover(source: String = "notification") {
+        guard isObserving else { return }
+
         // 디바운스: 짧은 시간 내 반복 전환 방지
         let now = CFAbsoluteTimeGetCurrent()
         guard now - lastSwitchTime > minimumInterval else { return }
 
         // 보안 입력 활성 시 (암호 필드 등) → 복귀하지 않음
         if IsSecureEventInputEnabled() {
-            os_log("InputSourceLock: skip — secure input active", log: log, type: .debug)
+            os_log("InputSourceLock: skip — secure input active (via %{public}@)",
+                   log: log, type: .debug, source)
             return
         }
 
@@ -78,20 +131,57 @@ final class InputSourceLock: NSObject {
             to: CFString.self
         ) as String
         if sourceType != kTISTypeKeyboardLayout as String {
-            os_log("InputSourceLock: skip — non-keyboard-layout: %{public}@",
-                   log: log, type: .debug, currentId)
+            os_log("InputSourceLock: skip — non-keyboard-layout: %{public}@ (via %{public}@)",
+                   log: log, type: .debug, currentId, source)
             return
         }
 
-        // 캐싱된 Ongeul 입력 소스로 복귀
-        guard let ongeul = cachedInputSource else {
-            os_log("InputSourceLock: Ongeul input source not cached", log: log, type: .error)
+        // 캐싱된 Ongeul 입력 소스로 복귀 (캐시 없으면 갱신 시도)
+        guard let ongeul = cachedInputSource ?? refreshCache() else {
+            os_log("InputSourceLock: Ongeul input source not found (via %{public}@)",
+                   log: log, type: .error, source)
             return
         }
 
         lastSwitchTime = now
         let err = TISSelectInputSource(ongeul)
-        os_log("InputSourceLock: switched back from %{public}@ (err=%d)",
-               log: log, type: .default, currentId, err)
+        if err != noErr {
+            // 캐시된 TISInputSource가 무효화된 경우 — 갱신 후 1회 재시도
+            os_log("InputSourceLock: TISSelectInputSource failed (err=%d), refreshing cache (via %{public}@)",
+                   log: log, type: .error, err, source)
+            if let fresh = refreshCache() {
+                let retryErr = TISSelectInputSource(fresh)
+                os_log("InputSourceLock: retry result (err=%d) (via %{public}@)",
+                       log: log, type: .default, retryErr, source)
+            }
+        } else {
+            os_log("InputSourceLock: switched back from %{public}@ (via %{public}@)",
+                   log: log, type: .default, currentId, source)
+        }
+    }
+
+    @objc private func inputSourceChanged() {
+        verifyAndRecover(source: "notification")
+    }
+
+    @objc private func systemDidWake() {
+        os_log("InputSourceLock: system woke", log: log, type: .default)
+        scheduleWakeRecover(delay: 1.0, source: "wake")
+    }
+
+    @objc private func screenDidUnlock() {
+        os_log("InputSourceLock: screen unlocked", log: log, type: .default)
+        scheduleWakeRecover(delay: 0.5, source: "unlock")
+    }
+
+    /// wake/unlock 공용 — 이전 타이머를 취소하고 새로 예약하여 중복 방지
+    private func scheduleWakeRecover(delay: TimeInterval, source: String) {
+        wakeTimer?.invalidate()
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            self?.wakeTimer = nil
+            self?.verifyAndRecover(source: source)
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        wakeTimer = timer
     }
 }

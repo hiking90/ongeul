@@ -1,8 +1,19 @@
 import Cocoa
 import InputMethodKit
+import Carbon
 import os.log
 
 private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", category: "input")
+
+// MARK: - Input Mode IDs
+private enum InputModeID {
+    static let korean  = "io.github.hiking90.inputmethod.Ongeul"
+    static let english = "io.github.hiking90.inputmethod.Ongeul.English"
+
+    static func from(_ mode: InputMode) -> String {
+        mode == .korean ? korean : english
+    }
+}
 
 // MARK: - Mode Indicator (커서 근처 한/영 표시)
 
@@ -536,9 +547,6 @@ class OngeulInputController: IMKInputController {
 
     fileprivate static var showModeIndicator: Bool {
         get {
-            if UserDefaults.standard.object(forKey: showModeIndicatorKey) == nil {
-                return true
-            }
             return UserDefaults.standard.bool(forKey: showModeIndicatorKey)
         }
         set { UserDefaults.standard.set(newValue, forKey: showModeIndicatorKey) }
@@ -558,7 +566,7 @@ class OngeulInputController: IMKInputController {
 
     private static var hasPromptedAccessibility = false
     private static var hasStartedInputSourceLock = false
-    /// 프로세스 시작 후 첫 활성화 여부
+    private static var hasEnsuredEnglishMode = false
 
     private var currentBundleId: String?
 
@@ -618,6 +626,15 @@ class OngeulInputController: IMKInputController {
         let effect = coordinator.activateApp(bundleId: bundleId)
         if let client = sender as? (any IMKTextInput) {
             applyEffect(effect, to: client)
+        }
+
+        // English 모드 자동 활성화 방어 (최초 1회)
+        ensureEnglishModeEnabled()
+
+        // 아이콘 동기화 — applyEffect의 showIndicator와 무관하게 항상 수행
+        if let client = sender as? (any IMKTextInput) {
+            let modeId = InputModeID.from(coordinator.mode)
+            client.selectMode(modeId)
         }
 
         // CapsLock이 toggle key일 때 방어적 LED OFF
@@ -812,6 +829,10 @@ class OngeulInputController: IMKInputController {
         else { return }
         let effect = coordinator.toggleLock(for: bundleId)
         applyEffect(effect, to: client)
+
+        // Lock 토글은 showIndicator=false이므로 아이콘 별도 동기화
+        let modeId = InputModeID.from(coordinator.mode)
+        client.selectMode(modeId)
     }
 
     /// KeyEventTap에서 호출: 현재 앱이 English Lock 상태인지 반환
@@ -820,20 +841,67 @@ class OngeulInputController: IMKInputController {
         return coordinator.isLocked(bundleId)
     }
 
+    // MARK: - Input Mode Management
+
+    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        // kTSMDocumentInputModePropertyTag = 'imim' = 0x696D696D
+        guard tag == 0x696D696D,
+              let modeId = value as? String
+        else {
+            super.setValue(value, forTag: tag, client: sender)
+            return
+        }
+
+        let targetMode: InputMode = (modeId == InputModeID.english) ? .english : .korean
+
+        // re-entrancy 방지: 이미 동일 모드면 무시
+        guard coordinator.mode != targetMode else { return }
+
+        // English Lock 상태면 외부 변경 거부 → 강제로 English 아이콘 복원
+        if let bundleId = currentBundleId, coordinator.isLocked(bundleId) {
+            (sender as? (any IMKTextInput))?.selectMode(InputModeID.english)
+            return
+        }
+
+        // 내부 상태 동기화 + 조합 중 문자 flush
+        if let result = coordinator.setModeFromExternal(targetMode, for: currentBundleId),
+           let client = sender as? (any IMKTextInput) {
+            applyResult(result, to: client)
+        }
+    }
+
+    private func ensureEnglishModeEnabled() {
+        guard !Self.hasEnsuredEnglishMode else { return }
+        Self.hasEnsuredEnglishMode = true
+
+        let filter = [
+            kTISPropertyInputSourceID: InputModeID.english
+        ] as CFDictionary
+        guard let sources = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource],
+              let source = sources.first
+        else { return }
+
+        let isEnabled = unsafeBitCast(
+            TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled),
+            to: CFBoolean.self
+        ) as! Bool
+
+        if !isEnabled {
+            let err = TISEnableInputSource(source)
+            os_log("English mode was disabled, enabled it (err=%d)", log: log, type: .default, err)
+        }
+    }
+
     // MARK: - Private: Mode Indicator
 
     private func showModeIndicator(client: any IMKTextInput) {
         guard Self.showModeIndicator else { return }
-        var rect = cursorRect(from: client)
+        let rect = cursorRect(from: client)
 
-        // cursorRect가 .zero를 반환했거나, 화면 밖 좌표인 경우 → 화면 하단 중앙
+        // cursorRect가 .zero를 반환했거나, 화면 밖 좌표인 경우 → indicator 생략
         let point = NSPoint(x: rect.origin.x, y: rect.origin.y)
         let isOnScreen = NSScreen.screens.contains { $0.frame.contains(point) }
-        if rect == .zero || !isOnScreen {
-            let screen = NSScreen.main?.visibleFrame
-                ?? NSScreen.screens.first?.visibleFrame ?? .zero
-            rect = NSRect(x: screen.midX, y: screen.minY + 80, width: 0, height: 16)
-        }
+        if rect == .zero || !isOnScreen { return }
 
         ModeIndicator.shared.show(mode: coordinator.mode, cursorRect: rect)
     }
@@ -945,6 +1013,11 @@ class OngeulInputController: IMKInputController {
             } else {
                 _ = coordinator.forceKoreanForReplay(for: currentBundleId)
             }
+        }
+
+        // 아이콘 동기화 — 한글 모드로 강제 전환되었으므로
+        if let client = self.client() {
+            client.selectMode(InputModeID.korean)
         }
 
         focusStealBuffering = true
@@ -1185,6 +1258,10 @@ class OngeulInputController: IMKInputController {
             os_log("mode → %{public}@", log: log, type: .default,
                    coordinator.mode == .korean ? "korean" : "english")
             showModeIndicator(client: client)
+
+            // 메뉴바 아이콘 동기화
+            let modeId = InputModeID.from(coordinator.mode)
+            client.selectMode(modeId)
         }
         switch effect.lockOverlay {
         case .show(let locked):

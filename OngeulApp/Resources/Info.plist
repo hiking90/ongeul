@@ -72,6 +72,29 @@
                 <key>tsInputModeDefaultStateKey</key>
                 <true/>
             </dict>
+
+            <!-- English 모드 -->
+            <key>io.github.hiking90.inputmethod.Ongeul.English</key>
+            <dict>
+                <key>TISIntendedLanguage</key>
+                <string>en</string>
+                <key>TISInputSourceID</key>
+                <string>io.github.hiking90.inputmethod.Ongeul.English</string>
+                <key>tsInputModeMenuIconFileKey</key>
+                <string>icon_en.tiff</string>
+                <key>tsInputModeAlternateMenuIconFileKey</key>
+                <string>icon_en.tiff</string>
+                <key>tsInputModePaletteIconFileKey</key>
+                <string>icon_en.tiff</string>
+                <key>tsInputModeIsVisibleKey</key>
+                <true/>
+                <key>tsInputModeScriptKey</key>
+                <string>smUnicodeScript</string>
+                <key>TISIconIsTemplate</key>
+                <true/>
+                <key>tsInputModeDefaultStateKey</key>
+                <true/>
+            </dict>
         </dict>
         <key>tsVisibleInputModeOrderedArrayKey</key>
         <array>

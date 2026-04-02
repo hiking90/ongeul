@@ -7,7 +7,11 @@ private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", cate
 final class InputSourceLock: NSObject {
     static let shared = InputSourceLock()
 
-    private static let ongeulInputSourceId = "io.github.hiking90.inputmethod.Ongeul"
+    private static let ongeulKoreanId = "io.github.hiking90.inputmethod.Ongeul"
+    private static let ongeulInputSourceIds: Set<String> = [
+        ongeulKoreanId,
+        "io.github.hiking90.inputmethod.Ongeul.English",
+    ]
 
     private var isObserving = false
     private var cachedInputSource: TISInputSource?
@@ -26,7 +30,7 @@ final class InputSourceLock: NSObject {
         isObserving = true
 
         // Ongeul TISInputSource를 캐싱하여 매 notification마다 검색하지 않음
-        let filter = [kTISPropertyInputSourceID: Self.ongeulInputSourceId] as CFDictionary
+        let filter = [kTISPropertyInputSourceID: Self.ongeulKoreanId] as CFDictionary
         if let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource] {
             cachedInputSource = sources.first
         }
@@ -88,7 +92,7 @@ final class InputSourceLock: NSObject {
     /// TISInputSource 캐시를 다시 조회하여 갱신한다.
     /// 캐시가 무효화된 경우(IME 업데이트 등) 복구에 사용.
     private func refreshCache() -> TISInputSource? {
-        let filter = [kTISPropertyInputSourceID: Self.ongeulInputSourceId] as CFDictionary
+        let filter = [kTISPropertyInputSourceID: Self.ongeulKoreanId] as CFDictionary
         if let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource],
            let source = sources.first {
             cachedInputSource = source
@@ -123,7 +127,7 @@ final class InputSourceLock: NSObject {
         ) as String
 
         // 이미 Ongeul이면 무시 (자기 자신의 TISSelectInputSource 호출에 의한 재진입 방지)
-        if currentId == Self.ongeulInputSourceId { return }
+        if Self.ongeulInputSourceIds.contains(currentId) { return }
 
         // ABC 등 keyboard layout만 차단, 다른 IME(일본어, 중국어 등)는 허용
         let sourceType = unsafeBitCast(

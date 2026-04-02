@@ -39,6 +39,7 @@ enum IconStyle {
 let icons: [(text: String, name: String, style: IconStyle)] = [
     ("온", "icon_ko",      .textOnly),
     ("온", "icon_menubar", .textOnly),
+    ("영", "icon_en",      .textOnly),
 ]
 
 // MARK: - 렌더링

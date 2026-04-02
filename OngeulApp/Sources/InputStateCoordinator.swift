@@ -124,6 +124,16 @@ final class InputStateCoordinator {
         }
     }
 
+    /// 시스템 발 모드 변경 (setValue:forTag:client: 경유).
+    /// UI/아이콘은 이미 시스템이 변경했으므로 내부 상태만 동기화.
+    /// flush 결과를 반환하여 호출자가 client에 적용할 수 있도록 한다.
+    func setModeFromExternal(_ mode: InputMode, for bundleId: String?) -> ProcessResult? {
+        let flushResult = (self.mode == .korean) ? engine.flush() : nil
+        setMode(mode)
+        if let bundleId { perAppStore.saveMode(mode, for: bundleId) }
+        return flushResult
+    }
+
     /// ESC -> 영문 전환. 설정 비활성화 또는 이미 영문이면 nil.
     func escapeToEnglish(for bundleId: String?, enabled: Bool) -> StateEffect? {
         guard enabled, engine.getMode() == .korean else { return nil }

@@ -17,12 +17,22 @@ final class UpdateChecker {
         string: "https://api.github.com/repos/hiking90/ongeul/releases/latest"
     )!
 
+    /// pre-release 사용 시 전체 릴리스 목록 API
+    private static let releasesURL = URL(
+        string: "https://api.github.com/repos/hiking90/ongeul/releases"
+    )!
+
     private var isChecking = false
     private var lastCheckDate: Date?
 
     /// 현재 앱 버전 (CFBundleShortVersionString)
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    /// 현재 버전이 pre-release인��� 여부 (예: "0.3.0-rc1")
+    private var isCurrentPrerelease: Bool {
+        currentVersion.contains("-")
     }
 
     // MARK: - Public API
@@ -41,31 +51,52 @@ final class UpdateChecker {
 
                 self.lastCheckDate = Date()
 
-                // JSON 파싱 + 버전 비교는 Rust에 위임
-                guard let info = parseReleaseResponse(
-                    json: json,
-                    currentVersion: currentVersion
-                ) else {
-                    // 파싱 실패
-                    os_log("Failed to parse release response",
-                           log: Self.log, type: .error)
-                    if !silent { showError() }
-                    return
-                }
-
-                if info.isUpdateAvailable {
-                    os_log("Update available: %{public}@ → %{public}@",
-                           log: Self.log, type: .default,
-                           self.currentVersion, info.latestVersion)
-                    showUpdateAvailable(
-                        current: currentVersion,
-                        latest: info.latestVersion,
-                        downloadURL: URL(string: info.downloadUrl)
-                    )
+                if isCurrentPrerelease {
+                    // pre-release: 전체 릴리스 목록에서 업데이트 찾기
+                    // None = 업데이트 없음 (에러가 아님)
+                    if let info = parseReleasesResponse(
+                        json: json,
+                        currentVersion: currentVersion
+                    ), info.isUpdateAvailable {
+                        os_log("Update available: %{public}@ → %{public}@",
+                               log: Self.log, type: .default,
+                               self.currentVersion, info.latestVersion)
+                        showUpdateAvailable(
+                            current: currentVersion,
+                            latest: info.latestVersion,
+                            downloadURL: URL(string: info.downloadUrl)
+                        )
+                    } else {
+                        os_log("Up to date: %{public}@",
+                               log: Self.log, type: .info, self.currentVersion)
+                        if !silent { showUpToDate() }
+                    }
                 } else {
-                    os_log("Up to date: %{public}@",
-                           log: Self.log, type: .info, self.currentVersion)
-                    if !silent { showUpToDate() }
+                    // 정식 버전: /releases/latest 단일 응답
+                    guard let info = parseReleaseResponse(
+                        json: json,
+                        currentVersion: currentVersion
+                    ) else {
+                        os_log("Failed to parse release response",
+                               log: Self.log, type: .error)
+                        if !silent { showError() }
+                        return
+                    }
+
+                    if info.isUpdateAvailable {
+                        os_log("Update available: %{public}@ → %{public}@",
+                               log: Self.log, type: .default,
+                               self.currentVersion, info.latestVersion)
+                        showUpdateAvailable(
+                            current: currentVersion,
+                            latest: info.latestVersion,
+                            downloadURL: URL(string: info.downloadUrl)
+                        )
+                    } else {
+                        os_log("Up to date: %{public}@",
+                               log: Self.log, type: .info, self.currentVersion)
+                        if !silent { showUpToDate() }
+                    }
                 }
             } catch {
                 os_log("Update check failed: %{public}@",
@@ -100,7 +131,8 @@ final class UpdateChecker {
     // MARK: - Network (macOS native stack)
 
     private func fetchReleaseJSON() async throws -> String {
-        var request = URLRequest(url: Self.releaseURL)
+        let url = isCurrentPrerelease ? Self.releasesURL : Self.releaseURL
+        var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
         request.timeoutInterval = 10

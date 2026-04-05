@@ -154,10 +154,10 @@ private final class LockOverlay {
         panel.orderFrontRegardless()
 
         hideTimer?.invalidate()
-        let timer = Timer(timeInterval: 2.0, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.6, repeats: false) { [weak self] _ in
             guard let self else { return }
             NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = 0.5
+                ctx.duration = 0.3
                 self.panel.animator().alphaValue = 0
             })
         }

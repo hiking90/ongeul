@@ -774,8 +774,10 @@ class OngeulInputController: IMKInputController {
         if KeyEventTap.shared.isInstalled { return false }
 
         // CapsLock 전환 (CGEventTap 미설치 폴백)
-        // LED 동기화(IOHIDSetModifierLockState)는 생략 — 재진입 필터링이 CGEventTap에 의존하므로
         if Self.toggleKey == .capsLock && event.keyCode == KeyCode.capsLock {
+            // capsLockOn=true (press)만 처리. release/echo는 무시.
+            guard event.modifierFlags.contains(.capsLock) else { return false }
+            CapsLockSync.forceOff()  // LED OFF 유지 (locked 상태와 무관)
             guard !isCurrentAppLocked() else { return false }
             guard let effect = coordinator.toggleMode(for: currentBundleId)
             else { return false }

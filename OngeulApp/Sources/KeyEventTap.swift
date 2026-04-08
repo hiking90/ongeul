@@ -169,8 +169,10 @@ class KeyEventTap {
                     && KeyEventTap.toggleKey == .capsLock {
                     let capsLockOn = flags.contains(.maskAlphaShift)
                     os_log("capsLock flagsChanged: capsLockOn=%{public}d", log: log, type: .debug, capsLockOn)
-                    if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
-                        CapsLockSync.forceOff()  // LED OFF 강제 (재진입은 shouldHandle이 필터링)
+                    // capsLockOn=true (OFF→ON press)만 처리. forceOff()가 하드웨어를 항상 OFF로
+                    // 유지하므로 모든 실제 press는 capsLockOn=true. false는 echo 또는 release.
+                    if capsLockOn {
+                        CapsLockSync.forceOff()
                         if let controller = KeyEventTap.activeController,
                            !controller.isCurrentAppLocked() {
                             // 동기 호출: CapsLock은 key press 시점에 발생하므로

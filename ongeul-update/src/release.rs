@@ -63,6 +63,8 @@ pub fn parse_releases_response(json: &str, current_version: &str) -> Option<Upda
     let current_base = current_version.split('-').next().unwrap_or(current_version);
     let current_is_pre = current_version.contains('-');
 
+    let mut found_current = false;
+
     for release in &releases {
         if release.draft {
             continue;
@@ -73,6 +75,7 @@ pub fn parse_releases_response(json: &str, current_version: &str) -> Option<Upda
             .unwrap_or(&release.tag_name);
 
         if version == current_version {
+            found_current = true;
             continue;
         }
 
@@ -85,9 +88,11 @@ pub fn parse_releases_response(json: &str, current_version: &str) -> Option<Upda
             });
         }
 
-        // 같은 base의 pre-release 간: 리스트 앞에 있으므로 날짜순 최신
+        // 같은 base의 pre-release 간: 현재 버전보다 리스트 앞에 있으면 날짜순 최신
+        // found_current가 true이면 현재 버전 이후(= 더 오래된) 항목이므로 제외
         let version_base = version.split('-').next().unwrap_or(version);
-        if version_base == current_base && version.contains('-') && current_is_pre {
+        if !found_current && version_base == current_base && version.contains('-') && current_is_pre
+        {
             return Some(UpdateInfo {
                 latest_version: version.to_string(),
                 download_url: release.html_url.clone(),

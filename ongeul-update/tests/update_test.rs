@@ -1,4 +1,4 @@
-use ongeul_update::parse_release_response;
+use ongeul_update::{parse_release_response, parse_releases_response};
 
 #[test]
 fn parse_valid_release() {
@@ -83,5 +83,46 @@ fn parse_realistic_github_response() {
         info.download_url,
         "https://github.com/hiking90/ongeul/releases/tag/v0.3.0"
     );
+    assert!(info.is_update_available);
+}
+
+/// 0.3.0-rc3 설치 시 0.3.0-rc2를 최신으로 판단하면 안 된다.
+#[test]
+fn prerelease_should_not_downgrade_to_older_rc() {
+    let json = r#"[
+        {"tag_name": "v0.3.0-rc3", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc3"},
+        {"tag_name": "v0.3.0-rc2", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc2"},
+        {"tag_name": "v0.3.0-rc1", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc1"}
+    ]"#;
+    let result = parse_releases_response(json, "0.3.0-rc3");
+    assert!(
+        result.is_none(),
+        "0.3.0-rc3 is latest; no update should be found"
+    );
+}
+
+/// 0.3.0-rc1 설치 시 0.3.0-rc3가 최신으로 판단되어야 한다.
+#[test]
+fn prerelease_should_upgrade_to_newer_rc() {
+    let json = r#"[
+        {"tag_name": "v0.3.0-rc3", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc3"},
+        {"tag_name": "v0.3.0-rc2", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc2"},
+        {"tag_name": "v0.3.0-rc1", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc1"}
+    ]"#;
+    let info = parse_releases_response(json, "0.3.0-rc1").unwrap();
+    assert_eq!(info.latest_version, "0.3.0-rc3");
+    assert!(info.is_update_available);
+}
+
+/// 0.3.0-rc2 설치 시 0.3.0 정식 출시가 업데이트 대상이어야 한다.
+#[test]
+fn prerelease_should_upgrade_to_official() {
+    let json = r#"[
+        {"tag_name": "v0.3.0", "prerelease": false, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0"},
+        {"tag_name": "v0.3.0-rc2", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc2"},
+        {"tag_name": "v0.3.0-rc1", "prerelease": true, "draft": false, "html_url": "https://github.com/hiking90/ongeul/releases/tag/v0.3.0-rc1"}
+    ]"#;
+    let info = parse_releases_response(json, "0.3.0-rc2").unwrap();
+    assert_eq!(info.latest_version, "0.3.0");
     assert!(info.is_update_available);
 }

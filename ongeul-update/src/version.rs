@@ -2,9 +2,7 @@ use std::cmp::Ordering;
 
 /// base version (숫자 부분)만 비교. Greater/Less/Equal 반환.
 fn compare_base(a: &str, b: &str) -> Ordering {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split('.').filter_map(|s| s.parse().ok()).collect()
-    };
+    let parse = |v: &str| -> Vec<u32> { v.split('.').filter_map(|s| s.parse().ok()).collect() };
     let a_parts = parse(a);
     let b_parts = parse(b);
     let max_len = a_parts.len().max(b_parts.len());

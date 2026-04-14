@@ -9,7 +9,6 @@
 - [기능](user/features/index.md)
   - [키보드 레이아웃](user/features/layouts.md)
   - [한/영 전환](user/features/mode-switching.md)
-  - [모드 인디케이터](user/features/indicator.md)
   - [앱별 모드 기억](user/features/per-app-mode.md)
   - [영문 잠금](user/features/english-lock.md)
   - [CapsLock](user/features/capslock.md)

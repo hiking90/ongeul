@@ -79,14 +79,14 @@ final class InputStateCoordinator {
         setMode(mode)
         perAppStore.saveMode(mode, for: bundleId)
 
-        // 앱 전환 시 이전 앱과 모드가 다르면 인디케이터 표시
+        // 앱 전환 시 이전 앱과 모드가 다르면 아이콘 동기화
         let prevMode = isAppSwitch
             ? activeAppBundleId.flatMap { perAppStore.savedMode(for: $0) }
             : nil
         let modeChanged = prevMode != nil && prevMode != mode
 
         return StateEffect(
-            showIndicator: modeChanged,
+            modeChanged: modeChanged,
             lockOverlay: isAppSwitch ? .hide : nil
         )
     }
@@ -99,7 +99,7 @@ final class InputStateCoordinator {
         let newMode = engine.getMode()
         if let bundleId { perAppStore.saveMode(newMode, for: bundleId) }
 
-        return StateEffect(processResult: result, showIndicator: true)
+        return StateEffect(processResult: result, modeChanged: true)
     }
 
     /// English Lock 토글
@@ -139,7 +139,7 @@ final class InputStateCoordinator {
         guard enabled, engine.getMode() == .korean else { return nil }
         setMode(.english)
         if let bundleId { perAppStore.saveMode(.english, for: bundleId) }
-        return StateEffect(showIndicator: true)
+        return StateEffect(modeChanged: true)
     }
 
     /// Focus-steal correction: 한글 모드 강제 + flush + perAppStore 저장.

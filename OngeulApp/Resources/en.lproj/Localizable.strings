@@ -25,9 +25,6 @@
 /* Escape → English */
 "prefs.escapeToEnglish" = "Switch to English on ESC / Ctrl+[ (Vim mode)";
 
-/* Mode Indicator */
-"prefs.showModeIndicator" = "Show mode indicator on toggle";
-
 /* Input Source Lock */
 "prefs.inputSourceLock" = "Lock input source (prevent switching to other input methods)";
 

@@ -3,8 +3,8 @@
 struct StateEffect {
     /// 클라이언트에 적용할 엔진 결과 (committed/composing)
     var processResult: ProcessResult? = nil
-    /// 모드 인디케이터 표시 여부
-    var showIndicator: Bool = false
+    /// 모드 변경 여부 (메뉴바 아이콘 동기화용)
+    var modeChanged: Bool = false
     /// Lock 오버레이 동작
     var lockOverlay: LockOverlayAction? = nil
 

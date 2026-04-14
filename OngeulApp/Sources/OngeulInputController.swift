@@ -15,93 +15,6 @@ private enum InputModeID {
     }
 }
 
-// MARK: - Mode Indicator (커서 근처 한/영 표시)
-
-private final class ModeIndicator {
-    static let shared = ModeIndicator()
-
-    private let panel: NSPanel
-    private let label: NSTextField
-    private var hideTimer: Timer?
-
-    private init() {
-        let size = NSSize(width: 24, height: 20)
-        panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        // IME 프로세스에서 다른 앱 위에 표시되려면 충분히 높은 윈도우 레벨 필요
-        panel.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.backgroundColor = .clear
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
-        panel.isReleasedWhenClosed = false
-
-        let bg = NSView(frame: NSRect(origin: .zero, size: size))
-        bg.wantsLayer = true
-        bg.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
-        bg.layer?.cornerRadius = 5
-        bg.layer?.masksToBounds = true
-
-        label = NSTextField(labelWithString: "")
-        label.font = NSFont.systemFont(ofSize: 11, weight: .bold)
-        label.alignment = .center
-        label.textColor = .white
-        // 수직 가운데 정렬: 폰트 높이를 고려하여 y 오프셋 조정
-        let labelHeight: CGFloat = 14
-        label.frame = NSRect(
-            x: 0,
-            y: (size.height - labelHeight) / 2,
-            width: size.width,
-            height: labelHeight
-        )
-
-        bg.addSubview(label)
-        panel.contentView = bg
-    }
-
-    func show(mode: InputMode, cursorRect: NSRect) {
-        label.stringValue = mode == .korean ? "한" : "A"
-
-        // 커서 아래쪽에 표시하되, 화면 밖이면 위쪽에 표시
-        let gap: CGFloat = 4
-        let belowY = cursorRect.origin.y - panel.frame.height - gap
-        let aboveY = cursorRect.origin.y + cursorRect.size.height + gap
-
-        let screen = NSScreen.main?.frame ?? .zero
-        let y = belowY >= screen.minY ? belowY : aboveY
-
-        // 커서 중앙 아래(또는 위)에 배치
-        let x = max(screen.minX, cursorRect.origin.x - panel.frame.width / 2)
-
-        let origin = NSPoint(x: x, y: y)
-        panel.setFrameOrigin(origin)
-        panel.alphaValue = 1
-        panel.orderFrontRegardless()
-
-        os_log("ModeIndicator: mode=%{public}@ origin=(%.0f, %.0f) cursorRect=(%.0f, %.0f, %.0f, %.0f)",
-               log: log, type: .default,
-               mode == .korean ? "ko" : "en",
-               origin.x, origin.y,
-               cursorRect.origin.x, cursorRect.origin.y,
-               cursorRect.size.width, cursorRect.size.height)
-
-        hideTimer?.invalidate()
-        let timer = Timer(timeInterval: 1.6, repeats: false) { [weak self] _ in
-            guard let self else { return }
-            NSAnimationContext.runAnimationGroup({ ctx in
-                ctx.duration = 0.2
-                self.panel.animator().alphaValue = 0
-            })
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        hideTimer = timer
-    }
-}
-
 // MARK: - Lock Overlay (화면 중앙 잠금 표시)
 
 private final class LockOverlay {
@@ -181,7 +94,6 @@ private final class PreferencesPanel {
     private let togglePopup: NSPopUpButton
     private let layoutPopup: NSPopUpButton
     private let escapeCheckbox: NSButton
-    private let indicatorCheckbox: NSButton
     private let inputSourceLockCheckbox: NSButton
     private let toggleKeyTitles: [(ToggleKey, String)]
 
@@ -240,12 +152,6 @@ private final class PreferencesPanel {
         // -- ESC → 영문 전환 --
         escapeCheckbox = NSButton(
             checkboxWithTitle: NSLocalizedString("prefs.escapeToEnglish", comment: ""),
-            target: nil, action: nil
-        )
-
-        // -- 한/영 인디케이터 표시 --
-        indicatorCheckbox = NSButton(
-            checkboxWithTitle: NSLocalizedString("prefs.showModeIndicator", comment: ""),
             target: nil, action: nil
         )
 
@@ -325,7 +231,7 @@ private final class PreferencesPanel {
         container.addArrangedSubview(headerGroup)
 
         // 그리드 + 체크박스를 하나의 설정 그룹으로 묶어 정렬
-        let checkboxGroup = NSStackView(views: [escapeCheckbox, indicatorCheckbox, inputSourceLockCheckbox])
+        let checkboxGroup = NSStackView(views: [escapeCheckbox, inputSourceLockCheckbox])
         checkboxGroup.orientation = .vertical
         checkboxGroup.alignment = .leading
         checkboxGroup.spacing = 8
@@ -371,7 +277,6 @@ private final class PreferencesPanel {
         }
 
         escapeCheckbox.state = OngeulInputController.escapeToEnglish ? .on : .off
-        indicatorCheckbox.state = OngeulInputController.showModeIndicator ? .on : .off
         inputSourceLockCheckbox.state = OngeulInputController.inputSourceLock ? .on : .off
 
         panel.center()
@@ -396,7 +301,6 @@ private final class PreferencesPanel {
         }
         OngeulInputController.savedLayoutId = newLayout
         OngeulInputController.escapeToEnglish = escapeCheckbox.state == .on
-        OngeulInputController.showModeIndicator = indicatorCheckbox.state == .on
         OngeulInputController.inputSourceLock = inputSourceLockCheckbox.state == .on
 
         os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
@@ -455,9 +359,6 @@ class OngeulInputController: IMKInputController {
     private var focusStealReplayPending = false   // async 리플레이 대기 중
     private var focusStealKeyBuffer: [String] = []
 
-    // Cursor position cache — 일시적 좌표 실패 시 마지막 성공 위치 사용
-    private var lastCursorRect: NSRect = .zero
-
     #if DEBUG
     /// 테스트에서 Bundle.main 대신 사용할 레이아웃 디렉토리 URL
     var testLayoutsURL: URL?
@@ -513,7 +414,6 @@ class OngeulInputController: IMKInputController {
     private static let toggleKeyKey = "toggleKey"
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
-    private static let showModeIndicatorKey = "showModeIndicator"
     private static let inputSourceLockKey = "inputSourceLock"
 
     fileprivate static var toggleKey: ToggleKey {
@@ -543,13 +443,6 @@ class OngeulInputController: IMKInputController {
             return UserDefaults.standard.bool(forKey: escapeToEnglishKey)
         }
         set { UserDefaults.standard.set(newValue, forKey: escapeToEnglishKey) }
-    }
-
-    fileprivate static var showModeIndicator: Bool {
-        get {
-            return UserDefaults.standard.bool(forKey: showModeIndicatorKey)
-        }
-        set { UserDefaults.standard.set(newValue, forKey: showModeIndicatorKey) }
     }
 
     fileprivate static var inputSourceLock: Bool {
@@ -583,7 +476,6 @@ class OngeulInputController: IMKInputController {
         focusStealExpectingBackspace = 0
         focusStealReplayPending = false
         focusStealKeyBuffer = []
-        lastCursorRect = .zero
 
         if !AXIsProcessTrusted() {
             if !Self.hasPromptedAccessibility {
@@ -631,7 +523,7 @@ class OngeulInputController: IMKInputController {
         // English 모드 자동 활성화 방어 (최초 1회)
         ensureEnglishModeEnabled()
 
-        // 아이콘 동기화 — applyEffect의 showIndicator와 무관하게 항상 수행
+        // 아이콘 동기화 — applyEffect의 modeChanged와 무관하게 항상 수행
         if let client = sender as? (any IMKTextInput) {
             let modeId = InputModeID.from(coordinator.mode)
             client.selectMode(modeId)
@@ -832,7 +724,7 @@ class OngeulInputController: IMKInputController {
         let effect = coordinator.toggleLock(for: bundleId)
         applyEffect(effect, to: client)
 
-        // Lock 토글은 showIndicator=false이므로 아이콘 별도 동기화
+        // Lock 토글은 modeChanged=false이므로 아이콘 별도 동기화
         let modeId = InputModeID.from(coordinator.mode)
         client.selectMode(modeId)
     }
@@ -892,91 +784,6 @@ class OngeulInputController: IMKInputController {
             let err = TISEnableInputSource(source)
             os_log("English mode was disabled, enabled it (err=%d)", log: log, type: .default, err)
         }
-    }
-
-    // MARK: - Private: Mode Indicator
-
-    private func showModeIndicator(client: any IMKTextInput) {
-        guard Self.showModeIndicator else { return }
-        let rect = cursorRect(from: client)
-
-        // cursorRect가 .zero를 반환했거나, 화면 밖 좌표인 경우 → indicator 생략
-        let point = NSPoint(x: rect.origin.x, y: rect.origin.y)
-        let isOnScreen = NSScreen.screens.contains { $0.frame.contains(point) }
-        if rect == .zero || !isOnScreen { return }
-
-        ModeIndicator.shared.show(mode: coordinator.mode, cursorRect: rect)
-    }
-
-    private func cursorRect(from client: any IMKTextInput) -> NSRect {
-        var lineHeightRect = NSRect.zero
-        let selRange = client.selectedRange()
-        let index = selRange.location != NSNotFound ? selRange.location : 0
-        os_log("cursorRect: selectedRange=(%d, %d) index=%d",
-               log: log, type: .debug, selRange.location, selRange.length, index)
-
-        // Step 1: 정확한 커서 위치
-        let success = ObjCExceptionCatcher.performSafely {
-            client.attributes(forCharacterIndex: index, lineHeightRectangle: &lineHeightRect)
-        }
-        if success, isValidRect(lineHeightRect) {
-            os_log("cursorRect: index=%d rect=(%.0f, %.0f, %.0f, %.0f)",
-                   log: log, type: .debug, index,
-                   lineHeightRect.origin.x, lineHeightRect.origin.y,
-                   lineHeightRect.size.width, lineHeightRect.size.height)
-            lastCursorRect = lineHeightRect
-            return lineHeightRect
-        }
-
-        // Step 2: end-of-text 보정 — index-1로 쿼리 후 x 오프셋 (fcitx5 방식)
-        if index > 0 {
-            let prevIndex = index - 1
-            let retrySuccess = ObjCExceptionCatcher.performSafely {
-                client.attributes(forCharacterIndex: prevIndex, lineHeightRectangle: &lineHeightRect)
-            }
-            if retrySuccess, isValidRect(lineHeightRect) {
-                lineHeightRect.origin.x += 10
-                os_log("cursorRect: end-of-text index-1=%d rect=(%.0f, %.0f, %.0f, %.0f)",
-                       log: log, type: .debug, prevIndex,
-                       lineHeightRect.origin.x, lineHeightRect.origin.y,
-                       lineHeightRect.size.width, lineHeightRect.size.height)
-                lastCursorRect = lineHeightRect
-                return lineHeightRect
-            }
-        }
-
-        // Step 3: index 0 폴백 (OpenVanilla 방식)
-        if index > 1 {
-            let fallbackSuccess = ObjCExceptionCatcher.performSafely {
-                client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineHeightRect)
-            }
-            if fallbackSuccess, isValidRect(lineHeightRect) {
-                os_log("cursorRect: fallback index=0 rect=(%.0f, %.0f, %.0f, %.0f)",
-                       log: log, type: .debug,
-                       lineHeightRect.origin.x, lineHeightRect.origin.y,
-                       lineHeightRect.size.width, lineHeightRect.size.height)
-                lastCursorRect = lineHeightRect
-                return lineHeightRect
-            }
-        }
-
-        // Step 4: 캐시된 마지막 성공 좌표 반환 (fcitx5 캐싱 방식)
-        if isValidRect(lastCursorRect) {
-            os_log("cursorRect: using cached rect=(%.0f, %.0f, %.0f, %.0f)",
-                   log: log, type: .debug,
-                   lastCursorRect.origin.x, lastCursorRect.origin.y,
-                   lastCursorRect.size.width, lastCursorRect.size.height)
-            return lastCursorRect
-        }
-
-        os_log("cursorRect: all attempts failed, returning .zero", log: log, type: .debug)
-        return .zero
-    }
-
-    private func isValidRect(_ rect: NSRect) -> Bool {
-        guard rect.origin.x.isFinite && rect.origin.y.isFinite else { return false }
-        if rect.size.height > 0 { return true }
-        return false
     }
 
     // MARK: - Private: Focus-Steal Correction
@@ -1256,10 +1063,9 @@ class OngeulInputController: IMKInputController {
         if let result = effect.processResult {
             applyResult(result, to: client)
         }
-        if effect.showIndicator {
+        if effect.modeChanged {
             os_log("mode → %{public}@", log: log, type: .default,
                    coordinator.mode == .korean ? "korean" : "english")
-            showModeIndicator(client: client)
 
             // 메뉴바 아이콘 동기화
             let modeId = InputModeID.from(coordinator.mode)

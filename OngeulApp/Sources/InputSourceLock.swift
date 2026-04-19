@@ -8,12 +8,15 @@ final class InputSourceLock: NSObject {
     static let shared = InputSourceLock()
 
     private static let ongeulKoreanId = "io.github.hiking90.inputmethod.Ongeul"
+    private static let ongeulEnglishId = "io.github.hiking90.inputmethod.Ongeul.English"
     private static let ongeulInputSourceIds: Set<String> = [
         ongeulKoreanId,
-        "io.github.hiking90.inputmethod.Ongeul.English",
+        ongeulEnglishId,
     ]
 
     private var isObserving = false
+    /// 복귀 대상 입력 소스. 사용자가 한쪽만 enable해도 동작하도록 동적으로 선택.
+    /// 우선순위: Korean > English. 캐시가 무효화되면 `refreshCache()`로 재조회.
     private var cachedInputSource: TISInputSource?
     private var lastSwitchTime: CFAbsoluteTime = 0
     private let minimumInterval: CFAbsoluteTime = 0.3  // 300ms 디바운스
@@ -30,10 +33,7 @@ final class InputSourceLock: NSObject {
         isObserving = true
 
         // Ongeul TISInputSource를 캐싱하여 매 notification마다 검색하지 않음
-        let filter = [kTISPropertyInputSourceID: Self.ongeulKoreanId] as CFDictionary
-        if let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource] {
-            cachedInputSource = sources.first
-        }
+        _ = refreshCache()
 
         // App Nap 방지 — notification 전달 지연 차단
         activityToken = ProcessInfo.processInfo.beginActivity(
@@ -89,18 +89,42 @@ final class InputSourceLock: NSObject {
         os_log("InputSourceLock: stopped", log: log, type: .default)
     }
 
-    /// TISInputSource 캐시를 다시 조회하여 갱신한다.
-    /// 캐시가 무효화된 경우(IME 업데이트 등) 복구에 사용.
+    /// Ongeul 입력 소스 캐시를 갱신.
+    /// 사용자가 한쪽만 enable해도 복귀가 가능하도록, 번들 ID로 enabled 소스를 조회하여
+    /// Korean 우선, 없으면 English를 선택한다. 둘 다 disabled면 캐시를 비우고 nil 반환.
     private func refreshCache() -> TISInputSource? {
-        let filter = [kTISPropertyInputSourceID: Self.ongeulKoreanId] as CFDictionary
-        if let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource],
-           let source = sources.first {
-            cachedInputSource = source
-            os_log("InputSourceLock: cache refreshed", log: log, type: .default)
-            return source
+        guard let bundleId = Bundle.main.bundleIdentifier else {
+            cachedInputSource = nil
+            return nil
         }
-        cachedInputSource = nil
-        return nil
+        let filter = [kTISPropertyBundleID: bundleId] as CFDictionary
+        guard let sources = TISCreateInputSourceList(filter, false)?.takeRetainedValue() as? [TISInputSource],
+              !sources.isEmpty
+        else {
+            cachedInputSource = nil
+            os_log("InputSourceLock: no enabled Ongeul input source", log: log, type: .default)
+            return nil
+        }
+
+        // Korean을 우선 탐색, 없으면 첫 번째 enabled 소스 (English 또는 다른 모드)
+        let korean = sources.first { src in
+            let id = unsafeBitCast(
+                TISGetInputSourceProperty(src, kTISPropertyInputSourceID),
+                to: CFString.self
+            ) as String
+            return id == Self.ongeulKoreanId
+        }
+
+        let chosen = korean ?? sources.first
+        cachedInputSource = chosen
+        if let chosen {
+            let id = unsafeBitCast(
+                TISGetInputSourceProperty(chosen, kTISPropertyInputSourceID),
+                to: CFString.self
+            ) as String
+            os_log("InputSourceLock: cache refreshed → %{public}@", log: log, type: .default, id)
+        }
+        return chosen
     }
 
     /// 현재 입력 소스를 확인하고, Ongeul이 아닌 keyboard layout이면 복귀한다.

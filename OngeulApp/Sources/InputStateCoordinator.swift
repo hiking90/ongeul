@@ -56,8 +56,11 @@ final class InputStateCoordinator {
 
     // MARK: - State transitions
 
-    /// 앱 활성화: 모드 복원, Lock 체크, 앱 전환 감지를 일괄 처리
-    func activateApp(bundleId: String) -> StateEffect {
+    /// 앱 활성화: 모드 복원, Lock 체크, 앱 전환 감지를 일괄 처리.
+    /// `systemMode`: 현재 macOS TIS가 가리키는 Ongeul 모드 (있다면). 메뉴바에서 사용자가
+    /// 직접 전환한 경우 TIS와 엔진 모드가 다르므로, 이때는 TIS를 우선하여 per-app 기본값이
+    /// 사용자 선택을 덮어쓰지 않도록 한다.
+    func activateApp(bundleId: String, systemMode: InputMode? = nil) -> StateEffect {
         let isAppSwitch = (bundleId != activeAppBundleId)
         defer { activeAppBundleId = bundleId }
 
@@ -74,8 +77,21 @@ final class InputStateCoordinator {
             )
         }
 
-        // 일반 모드 복원
-        let mode = perAppStore.savedMode(for: bundleId) ?? .english
+        // 모드 결정 우선순위:
+        // 1. systemMode가 현재 엔진 모드와 다르면 → 사용자가 메뉴바에서 직접 전환. TIS 우선.
+        // 2. per-app 저장 모드 → 앱별 기억 복원.
+        // 3. systemMode (fallback) → 최초 활성화 시 TIS 따름.
+        // 4. .english (최종 기본값).
+        let mode: InputMode
+        if let systemMode, systemMode != engine.getMode() {
+            mode = systemMode
+        } else if let stored = perAppStore.savedMode(for: bundleId) {
+            mode = stored
+        } else if let systemMode {
+            mode = systemMode
+        } else {
+            mode = .english
+        }
         setMode(mode)
         perAppStore.saveMode(mode, for: bundleId)
 

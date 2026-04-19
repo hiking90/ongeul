@@ -65,12 +65,15 @@
                 <true/>
                 <key>tsInputModeScriptKey</key>
                 <string>smKorean</string>
-                <key>tsInputModePrimaryInScriptKey</key>
-                <true/>
+                <!-- tsInputModePrimaryInScriptKey 는 의도적으로 제거됨.
+                     true 설정 시 macOS가 "Korean 스크립트의 primary IME"로 간주하여
+                     사용자가 삭제해도 logout/login 시 최초 1회 자동 재활성화하는 부작용이 있음.
+                     Ongeul은 설치 시 postinstall에서 --enable-input-sources로 명시적 등록하므로
+                     primary 플래그 없이도 UX에 영향 없음. -->
                 <key>TISIconIsTemplate</key>
                 <true/>
                 <key>tsInputModeDefaultStateKey</key>
-                <true/>
+                <false/>
             </dict>
 
             <!-- English 모드 -->
@@ -93,13 +96,14 @@
                 <key>TISIconIsTemplate</key>
                 <true/>
                 <key>tsInputModeDefaultStateKey</key>
-                <true/>
+                <false/>
             </dict>
         </dict>
-        <key>tsVisibleInputModeOrderedArrayKey</key>
-        <array>
-            <string>io.github.hiking90.inputmethod.Ongeul</string>
-        </array>
+        <!-- tsVisibleInputModeOrderedArrayKey 는 의도적으로 제거됨.
+             이전엔 Korean만 단독 리스트되어 있어 macOS가 "이 IME의 대표 Korean 모드"로
+             인식, 사용자가 제거해도 logout/login 시 재활성화하는 부작용이 관찰됨.
+             각 모드의 tsInputModeIsVisibleKey=true 가 "+" 추가 다이얼로그 노출을 담당하므로
+             이 배열은 기능 손실 없이 제거 가능. -->
     </dict>
 
     <key>tsInputMethodCharacterRepertoireKey</key>

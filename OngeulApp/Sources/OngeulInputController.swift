@@ -13,6 +13,12 @@ private enum InputModeID {
     static func from(_ mode: InputMode) -> String {
         mode == .korean ? korean : english
     }
+
+    static func toMode(_ id: String) -> InputMode? {
+        if id == korean { return .korean }
+        if id == english { return .english }
+        return nil
+    }
 }
 
 // MARK: - Lock Overlay (화면 중앙 잠금 표시)
@@ -459,7 +465,17 @@ class OngeulInputController: IMKInputController {
 
     private static var hasPromptedAccessibility = false
     private static var hasStartedInputSourceLock = false
-    private static var hasEnsuredEnglishMode = false
+
+    /// 현재 macOS TIS가 가리키는 Ongeul 모드를 반환. TIS가 Ongeul이 아니거나 조회 실패 시 nil.
+    /// activateApp이 "사용자가 메뉴바에서 직접 전환"을 감지하는 힌트로 사용한다.
+    private static func currentSystemInputMode() -> InputMode? {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return nil }
+        let id = unsafeBitCast(
+            TISGetInputSourceProperty(source, kTISPropertyInputSourceID),
+            to: CFString.self
+        ) as String
+        return InputModeID.toMode(id)
+    }
 
     private var currentBundleId: String?
 
@@ -515,13 +531,13 @@ class OngeulInputController: IMKInputController {
             Self.chromiumAppCache[bundleId] = Self.isChromiumBased(bundleId: bundleId)
         }
 
-        let effect = coordinator.activateApp(bundleId: bundleId)
+        let effect = coordinator.activateApp(
+            bundleId: bundleId,
+            systemMode: Self.currentSystemInputMode()
+        )
         if let client = sender as? (any IMKTextInput) {
             applyEffect(effect, to: client)
         }
-
-        // English 모드 자동 활성화 방어 (최초 1회)
-        ensureEnglishModeEnabled()
 
         // 아이콘 동기화 — applyEffect의 modeChanged와 무관하게 항상 수행
         if let client = sender as? (any IMKTextInput) {
@@ -761,28 +777,6 @@ class OngeulInputController: IMKInputController {
         if let result = coordinator.setModeFromExternal(targetMode, for: currentBundleId),
            let client = sender as? (any IMKTextInput) {
             applyResult(result, to: client)
-        }
-    }
-
-    private func ensureEnglishModeEnabled() {
-        guard !Self.hasEnsuredEnglishMode else { return }
-        Self.hasEnsuredEnglishMode = true
-
-        let filter = [
-            kTISPropertyInputSourceID: InputModeID.english
-        ] as CFDictionary
-        guard let sources = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource],
-              let source = sources.first
-        else { return }
-
-        let isEnabled = unsafeBitCast(
-            TISGetInputSourceProperty(source, kTISPropertyInputSourceIsEnabled),
-            to: CFBoolean.self
-        ) as! Bool
-
-        if !isEnabled {
-            let err = TISEnableInputSource(source)
-            os_log("English mode was disabled, enabled it (err=%d)", log: log, type: .default, err)
         }
     }
 

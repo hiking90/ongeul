@@ -452,7 +452,12 @@ class OngeulInputController: IMKInputController {
     }
 
     fileprivate static var inputSourceLock: Bool {
-        get { UserDefaults.standard.bool(forKey: inputSourceLockKey) }
+        get {
+            if UserDefaults.standard.object(forKey: inputSourceLockKey) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: inputSourceLockKey)
+        }
         set {
             UserDefaults.standard.set(newValue, forKey: inputSourceLockKey)
             if newValue {

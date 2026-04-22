@@ -65,11 +65,12 @@
                 <true/>
                 <key>tsInputModeScriptKey</key>
                 <string>smKorean</string>
-                <!-- tsInputModePrimaryInScriptKey 는 의도적으로 제거됨.
-                     true 설정 시 macOS가 "Korean 스크립트의 primary IME"로 간주하여
-                     사용자가 삭제해도 logout/login 시 최초 1회 자동 재활성화하는 부작용이 있음.
-                     Ongeul은 설치 시 postinstall에서 --enable-input-sources로 명시적 등록하므로
-                     primary 플래그 없이도 UX에 영향 없음. -->
+                <!-- Korean script의 primary IME로 지정.
+                     primary 없이는 macOS가 이력 없는 앱으로 전환 시 ABC로 fallback 하는 부작용이
+                     관찰됨. tsInputModeDefaultStateKey=false 와 함께 두면, 사용자가 제거해도
+                     재활성화되지 않으면서도 "선택된 상태" 유지가 잘 된다(가정 — 검증 필요). -->
+                <key>tsInputModePrimaryInScriptKey</key>
+                <true/>
                 <key>TISIconIsTemplate</key>
                 <true/>
                 <key>tsInputModeDefaultStateKey</key>

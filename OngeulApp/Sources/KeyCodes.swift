@@ -16,4 +16,11 @@ enum KeyCode {
     static let arrowRight: UInt16 = 124
     static let arrowDown: UInt16  = 125
     static let arrowUp: UInt16    = 126
+
+    /// 키패드(텐키) 키코드 집합. Enter(0x4C)는 제외 — 일반 Enter와 통합 처리.
+    /// kVK_ANSI_Keypad* (Decimal, Multiply, Plus, Clear, Divide, Minus, Equals, 0-9)
+    static let numpadKeys: Set<UInt16> = [
+        0x41, 0x43, 0x45, 0x47, 0x4B, 0x4E, 0x51,
+        0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5B, 0x5C,
+    ]
 }

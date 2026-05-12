@@ -115,6 +115,62 @@ class HandleKeyDownRouterTests: XCTestCase {
         }
     }
 
+    func testNumpadDigits_flushAndPass() {
+        // 3벌식에서 numpad 숫자가 한글로 변환되지 않도록 시스템에 위임되어야 한다.
+        // kVK_ANSI_Keypad0..9 키코드 + .numericPad 플래그
+        let numpadDigits: [(UInt16, String)] = [
+            (0x52, "0"), (0x53, "1"), (0x54, "2"), (0x55, "3"), (0x56, "4"),
+            (0x57, "5"), (0x58, "6"), (0x59, "7"), (0x5B, "8"), (0x5C, "9"),
+        ]
+        for (keyCode, char) in numpadDigits {
+            let action = routeKeyDown(
+                keyCode: keyCode, characters: char,
+                modifiers: .numericPad, engineMode: .korean,
+                toggleKey: .rightCommand
+            )
+            XCTAssertEqual(action, .flushAndPassToSystem,
+                "Numpad key \(keyCode) (\(char)) should flush and pass")
+        }
+    }
+
+    func testNumpadOperators_flushAndPass() {
+        // kVK_ANSI_Keypad{Decimal, Multiply, Plus, Clear, Divide, Minus, Equals}
+        let numpadOps: [(UInt16, String)] = [
+            (0x41, "."), (0x43, "*"), (0x45, "+"), (0x47, ""),
+            (0x4B, "/"), (0x4E, "-"), (0x51, "="),
+        ]
+        for (keyCode, char) in numpadOps {
+            let action = routeKeyDown(
+                keyCode: keyCode, characters: char,
+                modifiers: .numericPad, engineMode: .korean,
+                toggleKey: .rightCommand
+            )
+            XCTAssertEqual(action, .flushAndPassToSystem,
+                "Numpad operator \(keyCode) should flush and pass")
+        }
+    }
+
+    func testNumpadEnter_stillEnter() {
+        // 키패드 Enter는 기존대로 .enter로 라우팅되어야 한다.
+        let action = routeKeyDown(
+            keyCode: KeyCode.numpadEnter, characters: "\u{03}",
+            modifiers: .numericPad, engineMode: .korean,
+            toggleKey: .rightCommand
+        )
+        XCTAssertEqual(action, .enter)
+    }
+
+    func testMainRowDigit_stillProcessed() {
+        // 일반 숫자행의 "1"은 .numericPad 플래그가 없으므로 엔진으로 전달되어야 한다.
+        // (3벌식에서 한글로 변환되는 정상 경로)
+        let action = routeKeyDown(
+            keyCode: 0x12, characters: "1",
+            modifiers: [], engineMode: .korean,
+            toggleKey: .rightCommand
+        )
+        XCTAssertEqual(action, .processKey(label: "1"))
+    }
+
     func testNormalKey() {
         let action = routeKeyDown(
             keyCode: 0x05, characters: "g",

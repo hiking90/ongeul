@@ -87,6 +87,13 @@ func routeKeyDown(
         return .flushAndPassToSystem
     }
 
+    // 키패드(텐키) → flush 후 통과. 3벌식에서 숫자가 한글로 매핑되는 것을 막는다.
+    // .numericPad 플래그는 화살표 키에도 세트되므로 위에서 화살표를 먼저 걸러낸 뒤 검사.
+    // 안전을 위해 플래그와 키코드 범위를 함께 검사한다.
+    if modifiers.contains(.numericPad) && KeyCode.numpadKeys.contains(keyCode) {
+        return .flushAndPassToSystem
+    }
+
     // 일반 키 → 엔진에 위임
     if let chars = characters,
        let label = keyLabel(

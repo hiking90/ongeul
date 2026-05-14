@@ -358,13 +358,17 @@ class OngeulInputController: IMKInputController {
     // 현재 조합 중인 텍스트 (composedString 콜백용)
     private var currentComposingText: String?
 
-    // Focus-steal correction
-    private var focusStealWorkItem: DispatchWorkItem?
-    private var focusStealReplayWorkItem: DispatchWorkItem?
-    private var focusStealBuffering = false
-    private var focusStealExpectingBackspace = 0  // 남은 backspace 수
-    private var focusStealReplayPending = false   // async 리플레이 대기 중
-    private var focusStealKeyBuffer: [String] = []
+    // Focus-steal correction (FocusStealCorrector로 추출).
+    // 인스턴스는 lazy 초기화 — coordinator/KeyEventTap 의존성이 모두 준비된 후 사용.
+    private lazy var focusSteal: FocusStealCorrector = {
+        let c = FocusStealCorrector(
+            evidence: CGEventTapKeyEvidence(),
+            scheduler: MainQueueScheduler(),
+            mode: Self.coordinator
+        )
+        c.delegate = self
+        return c
+    }()
 
     #if DEBUG
     /// 테스트에서 Bundle.main 대신 사용할 레이아웃 디렉토리 URL
@@ -502,14 +506,7 @@ class OngeulInputController: IMKInputController {
         KeyEventTap.activeController = self
 
         // 이전 focus-steal 세션 초기화 (deactivateServer 없이 재호출되는 경우 대비)
-        focusStealWorkItem?.cancel()
-        focusStealWorkItem = nil
-        focusStealReplayWorkItem?.cancel()
-        focusStealReplayWorkItem = nil
-        focusStealBuffering = false
-        focusStealExpectingBackspace = 0
-        focusStealReplayPending = false
-        focusStealKeyBuffer = []
+        focusSteal.cancel()
 
         if !AXIsProcessTrusted() {
             if !Self.hasPromptedAccessibility {
@@ -578,7 +575,7 @@ class OngeulInputController: IMKInputController {
 
         if KeyEventTap.keyBufferWasKoreanMode, !KeyEventTap.keyBuffer.isEmpty,
            !coordinator.isLocked(bundleId) {
-            correctFocusSteal()
+            focusSteal.startCorrection()
         } else {
             KeyEventTap.keyBuffer = []
         }
@@ -595,14 +592,7 @@ class OngeulInputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
-        focusStealWorkItem?.cancel()
-        focusStealWorkItem = nil
-        focusStealReplayWorkItem?.cancel()
-        focusStealReplayWorkItem = nil
-        focusStealBuffering = false
-        focusStealExpectingBackspace = 0
-        focusStealReplayPending = false
-        focusStealKeyBuffer = []
+        focusSteal.cancel()
 
         // keyBuffer는 activateServer에서만 정리 (focus-steal 증거 보존)
 
@@ -806,149 +796,17 @@ class OngeulInputController: IMKInputController {
         }
     }
 
-    // MARK: - Private: Focus-Steal Correction
-
-    /// 포커스 탈취 교정:
-    /// 입력창이 없는 상태에서 앱이 키를 가로채 영문을 삽입한 경우를 교정한다.
-    /// 1. activateServer에서 버퍼 키 감지 → 10ms 타이머 시작, 키 버퍼링 모드 진입
-    /// 2. 10ms 동안 handleKeyDown의 키를 focusStealKeyBuffer에 저장 (엔진 처리 안 함)
-    /// 3. 10ms 후 synthetic backspace 전송 → 시스템이 영문자 삭제
-    /// 4. handleKeyDown에서 backspace 수신 → 버퍼 키를 엔진에 전달하여 한글 조합
-    private func correctFocusSteal() {
-        // 이전 focus-steal 세션의 잔여 상태 초기화 (재진입 방지)
-        focusStealWorkItem?.cancel()
-        focusStealWorkItem = nil
-        focusStealBuffering = false
-        focusStealExpectingBackspace = 0
-        focusStealReplayPending = false
-        focusStealKeyBuffer = []
-
-        let buffer = KeyEventTap.keyBuffer
-        KeyEventTap.keyBuffer = []
-
-        guard let firstKey = buffer.first else { return }
-
-        let elapsed = CFAbsoluteTimeGetCurrent() - firstKey.timestamp
-        guard elapsed < 0.5 else {
-            os_log("focusSteal: skip — elapsed=%.3f > 0.5", log: log, type: .debug, elapsed)
-            return
-        }
-
-        // 한글 모드 강제 (activateApp이 복원한 모드와 무관)
-        if coordinator.mode != .korean {
-            if let client = self.client() {
-                let flushResult = coordinator.forceKoreanForReplay()
-                applyResult(flushResult, to: client)
-            } else {
-                _ = coordinator.forceKoreanForReplay()
-            }
-        }
-
-        // 아이콘 동기화 — 한글 모드로 강제 전환되었으므로
-        if let client = self.client() {
-            client.selectMode(InputModeID.korean)
-        }
-
-        focusStealBuffering = true
-        focusStealKeyBuffer = buffer.map { $0.character }
-        let preKeyCount = buffer.count
-
-        os_log("focusSteal: buffering %d keys, elapsed=%.3f", log: log, type: .debug,
-               preKeyCount, elapsed)
-
-        // 10ms 후 backspace 전송
-        // 대기 중 추가로 타이핑된 키를 keyBuffer에서 확인하여 backspace 수를 보정한다.
-        // - handleKeyDown을 거친 키: focusStealKeyBuffer에 추가됨 (앱에 미삽입, return true)
-        // - handleKeyDown을 거치지 않은 키: 앱에 직접 삽입됨 → 추가 backspace 필요
-        focusStealWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.focusStealWorkItem = nil
-            self.focusStealBuffering = false
-
-            // CGEventTap에 기록된 후발 키 확인
-            let lateKeys = KeyEventTap.keyBuffer
-            KeyEventTap.keyBuffer = []
-
-            // handleKeyDown 버퍼링 가드에서 소비된 키 수
-            let imeConsumed = self.focusStealKeyBuffer.count - preKeyCount
-            // 앱에 직접 입력된 키 수 (IME를 거치지 않은 키)
-            let appInserted = max(0, lateKeys.count - imeConsumed)
-
-            if appInserted > 0 {
-                // 앱에 입력된 키는 시간순으로 lateKeys 앞부분에 위치
-                // (IME 활성화 전 → 앱 직접 입력, IME 활성화 후 → handleKeyDown 소비)
-                let appKeys = lateKeys.prefix(appInserted).map { $0.character }
-                self.focusStealKeyBuffer.insert(contentsOf: appKeys, at: preKeyCount)
-            }
-
-            let totalBackspaces = preKeyCount + appInserted
-            self.focusStealExpectingBackspace = totalBackspaces
-
-            os_log("focusSteal: sending %d backspaces (pre=%d late=%d)",
-                   log: log, type: .debug, totalBackspaces, preKeyCount, appInserted)
-
-            let src = CGEventSource(stateID: .hidSystemState)
-            for _ in 0..<totalBackspaces {
-                if let down = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: true) {
-                    down.post(tap: .cghidEventTap)
-                }
-                if let up = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: false) {
-                    up.post(tap: .cghidEventTap)
-                }
-            }
-        }
-        focusStealWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01, execute: workItem)
-    }
-
     // MARK: - Private: Key Processing
 
     private func handleKeyDown(_ event: NSEvent, client: any IMKTextInput) -> Bool {
-        // Focus-steal synthetic backspace: 시스템에 위임하여 영문자 삭제 후
-        // 마지막 backspace에서 버퍼의 모든 키를 엔진에 전달
-        if event.keyCode == KeyCode.backspace, focusStealExpectingBackspace > 0 {
-            focusStealExpectingBackspace -= 1
-            if focusStealExpectingBackspace == 0 {
-                // async 리플레이 예약. 버퍼 캡처를 async 시점까지 지연하여,
-                // backspace 소비 후 ~ async 실행 전에 도착하는 키도 포함시킨다.
-                // 예약 사이에 deactivateServer가 발생하면 work item을 cancel하여
-                // 다른 앱의 client로 키가 흘러가는 것을 방지한다.
-                focusStealReplayPending = true
-                let targetBundleId = currentBundleId
-                focusStealReplayWorkItem?.cancel()
-                let workItem = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    self.focusStealReplayWorkItem = nil
-                    self.focusStealReplayPending = false
-                    let keys = self.focusStealKeyBuffer
-                    self.focusStealKeyBuffer = []
-                    // 활성 앱이 바뀌었으면 리플레이 포기 (잘못된 client에 키가 가는 것 방지)
-                    guard !keys.isEmpty,
-                          self.currentBundleId == targetBundleId,
-                          let client: any IMKTextInput = self.client()
-                    else { return }
-                    for key in keys {
-                        let result = self.coordinator.processKey(key: key)
-                        self.applyResult(result, to: client)
-                    }
-                }
-                focusStealReplayWorkItem = workItem
-                DispatchQueue.main.async(execute: workItem)
-            }
-            return false
-        }
-
-        // Focus-steal 버퍼링: 엔진 처리 없이 키만 저장
-        // 세 가지 타이밍을 모두 커버한다:
-        //   1. focusStealBuffering: 타이머 대기 중 (correctFocusSteal 후 10ms 이내)
-        //   2. focusStealExpectingBackspace > 0: synthetic backspace 소비 대기 중
-        //   3. focusStealReplayPending: backspace 모두 소비 후 async 리플레이 대기 중
-        if focusStealBuffering || focusStealExpectingBackspace > 0 || focusStealReplayPending {
-            if let keyLabel = keyLabelFromEvent(event) {
-                focusStealKeyBuffer.append(keyLabel)
-            }
-            return true
+        // Focus-steal corrector에 먼저 위임. 가드 순서 보존:
+        //   1. synthetic backspace 카운트다운 → return false (시스템 통과)
+        //   2. buffering/expectingBackspace/replayPending 가드 → return true (소비)
+        //   3. corrector 무관 → 정상 처리 진행
+        switch focusSteal.handle(keyCode: event.keyCode, keyLabel: keyLabelFromEvent(event)) {
+        case .syntheticBackspaceConsumed: return false
+        case .consumed: return true
+        case .passThrough: break
         }
 
         // keyBuffer는 activateServer에서만 정리한다.
@@ -1148,4 +1006,33 @@ class OngeulInputController: IMKInputController {
             os_log("Failed to parse layout: %{public}@", log: log, type: .error, String(describing: error))
         }
     }
+}
+
+// MARK: - FocusStealDelegate
+
+extension OngeulInputController: FocusStealDelegate {
+    func focusStealApplyResult(_ result: ProcessResult) {
+        guard let client: any IMKTextInput = self.client() else { return }
+        applyResult(result, to: client)
+    }
+
+    func focusStealPostSyntheticBackspaces(count: Int) {
+        let src = CGEventSource(stateID: .hidSystemState)
+        for _ in 0..<count {
+            if let down = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: true) {
+                down.post(tap: .cghidEventTap)
+            }
+            if let up = CGEvent(keyboardEventSource: src, virtualKey: KeyCode.backspace, keyDown: false) {
+                up.post(tap: .cghidEventTap)
+            }
+        }
+    }
+
+    func focusStealSyncIconKorean() {
+        self.client()?.selectMode(InputModeID.korean)
+    }
+
+    var focusStealCurrentBundleId: String? { currentBundleId }
+
+    var focusStealHasAttachedClient: Bool { self.client() != nil }
 }

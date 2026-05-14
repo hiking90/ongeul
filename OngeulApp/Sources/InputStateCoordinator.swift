@@ -4,7 +4,7 @@ private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", cate
 
 /// 상태 전이 로직 전담. Engine, PerAppModeStore, EnglishLockStore를 소유.
 /// UI 의존성 없음. KeyEventTap.currentInputMode 동기화는 CGEvent 레벨의 상태 동기화이므로 여기서 담당.
-final class InputStateCoordinator {
+final class InputStateCoordinator: FocusStealModeController {
     private let engine = HangulEngine()
     private let perAppStore = PerAppModeStore()
     private let lockStore = EnglishLockStore()
@@ -13,6 +13,9 @@ final class InputStateCoordinator {
     // MARK: - Read-only
 
     var mode: InputMode { engine.getMode() }
+
+    /// FocusStealModeController 채택. `mode`의 alias.
+    var currentMode: InputMode { engine.getMode() }
 
     func isLocked(_ bundleId: String?) -> Bool {
         guard let bundleId else { return false }

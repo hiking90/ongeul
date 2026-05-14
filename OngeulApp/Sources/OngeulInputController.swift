@@ -837,10 +837,10 @@ class OngeulInputController: IMKInputController {
         // 한글 모드 강제 (activateApp이 복원한 모드와 무관)
         if coordinator.mode != .korean {
             if let client = self.client() {
-                let flushResult = coordinator.forceKoreanForReplay(for: currentBundleId)
+                let flushResult = coordinator.forceKoreanForReplay()
                 applyResult(flushResult, to: client)
             } else {
-                _ = coordinator.forceKoreanForReplay(for: currentBundleId)
+                _ = coordinator.forceKoreanForReplay()
             }
         }
 

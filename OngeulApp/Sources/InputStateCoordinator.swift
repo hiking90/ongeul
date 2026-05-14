@@ -158,13 +158,16 @@ final class InputStateCoordinator {
         return StateEffect(modeChanged: true)
     }
 
-    /// Focus-steal correction: 한글 모드 강제 + flush + perAppStore 저장.
+    /// Focus-steal correction: 한글 모드 강제 + flush.
     /// activateApp이 복원한 모드와 무관하게 한글 모드를 강제한다.
     /// correctFocusSteal에서만 호출되며, 버퍼된 키를 한글로 리플레이하기 위한 전제 조건.
-    func forceKoreanForReplay(for bundleId: String?) -> ProcessResult {
+    ///
+    /// perAppStore는 의도적으로 갱신하지 않는다: focus-steal은 *일시적* 보정이며,
+    /// 사용자의 명시적 의도(토글/메뉴바/외부 변경/비활성화 시 저장)와 구분되어야 한다.
+    /// 사용자가 그 앱을 한글 기본으로 쓰고자 한다면 다른 경로(토글 등)에서 학습된다.
+    func forceKoreanForReplay() -> ProcessResult {
         let flushResult = engine.flush()
         setMode(.korean)
-        if let bundleId { perAppStore.saveMode(.korean, for: bundleId) }
         return flushResult
     }
 

@@ -360,6 +360,7 @@ class OngeulInputController: IMKInputController {
 
     // Focus-steal correction
     private var focusStealWorkItem: DispatchWorkItem?
+    private var focusStealReplayWorkItem: DispatchWorkItem?
     private var focusStealBuffering = false
     private var focusStealExpectingBackspace = 0  // 남은 backspace 수
     private var focusStealReplayPending = false   // async 리플레이 대기 중
@@ -484,6 +485,16 @@ class OngeulInputController: IMKInputController {
 
     private var currentBundleId: String?
 
+    /// currentBundleId의 English Lock 상태 캐시.
+    /// KeyEventTap 콜백에서 매 키 이벤트마다 isCurrentAppLocked()가 호출되어
+    /// UserDefaults dictionary lookup이 누적되는 것을 방지한다.
+    /// activateApp 결과 적용 후, 그리고 toggleLock 후 갱신한다.
+    private var cachedLockedForCurrentApp: Bool = false
+
+    private func refreshLockCache() {
+        cachedLockedForCurrentApp = currentBundleId.map { coordinator.isLocked($0) } ?? false
+    }
+
     // MARK: - Lifecycle
 
     override func activateServer(_ sender: Any!) {
@@ -493,6 +504,8 @@ class OngeulInputController: IMKInputController {
         // 이전 focus-steal 세션 초기화 (deactivateServer 없이 재호출되는 경우 대비)
         focusStealWorkItem?.cancel()
         focusStealWorkItem = nil
+        focusStealReplayWorkItem?.cancel()
+        focusStealReplayWorkItem = nil
         focusStealBuffering = false
         focusStealExpectingBackspace = 0
         focusStealReplayPending = false
@@ -540,6 +553,7 @@ class OngeulInputController: IMKInputController {
             bundleId: bundleId,
             systemMode: Self.currentSystemInputMode()
         )
+        refreshLockCache()
         if let client = sender as? (any IMKTextInput) {
             applyEffect(effect, to: client)
         }
@@ -583,6 +597,8 @@ class OngeulInputController: IMKInputController {
     override func deactivateServer(_ sender: Any!) {
         focusStealWorkItem?.cancel()
         focusStealWorkItem = nil
+        focusStealReplayWorkItem?.cancel()
+        focusStealReplayWorkItem = nil
         focusStealBuffering = false
         focusStealExpectingBackspace = 0
         focusStealReplayPending = false
@@ -714,6 +730,7 @@ class OngeulInputController: IMKInputController {
         case .englishLockToggle:
             guard let bundleId = currentBundleId else { return false }
             let effect = coordinator.toggleLock(for: bundleId)
+            refreshLockCache()
             applyEffect(effect, to: client)
             return true
         }
@@ -743,6 +760,7 @@ class OngeulInputController: IMKInputController {
               let bundleId = currentBundleId
         else { return }
         let effect = coordinator.toggleLock(for: bundleId)
+        refreshLockCache()
         applyEffect(effect, to: client)
 
         // Lock 토글은 modeChanged=false이므로 아이콘 별도 동기화
@@ -750,10 +768,11 @@ class OngeulInputController: IMKInputController {
         client.selectMode(modeId)
     }
 
-    /// KeyEventTap에서 호출: 현재 앱이 English Lock 상태인지 반환
+    /// KeyEventTap에서 호출: 현재 앱이 English Lock 상태인지 반환.
+    /// 매 키 이벤트마다 호출되므로 캐시된 값을 반환한다.
+    /// 캐시 갱신: activateServer/toggleLock 직후.
     func isCurrentAppLocked() -> Bool {
-        guard let bundleId = currentBundleId else { return false }
-        return coordinator.isLocked(bundleId)
+        cachedLockedForCurrentApp
     }
 
     // MARK: - Input Mode Management
@@ -773,8 +792,10 @@ class OngeulInputController: IMKInputController {
         guard coordinator.mode != targetMode else { return }
 
         // English Lock 상태면 외부 변경 거부 → 강제로 English 아이콘 복원
+        // 사용자에게 잠금 상태임을 시각적으로 알림 (왜 안 바뀌는지 명확히)
         if let bundleId = currentBundleId, coordinator.isLocked(bundleId) {
             (sender as? (any IMKTextInput))?.selectMode(InputModeID.english)
+            LockOverlay.shared.show(locked: true)
             return
         }
 
@@ -891,18 +912,29 @@ class OngeulInputController: IMKInputController {
             if focusStealExpectingBackspace == 0 {
                 // async 리플레이 예약. 버퍼 캡처를 async 시점까지 지연하여,
                 // backspace 소비 후 ~ async 실행 전에 도착하는 키도 포함시킨다.
+                // 예약 사이에 deactivateServer가 발생하면 work item을 cancel하여
+                // 다른 앱의 client로 키가 흘러가는 것을 방지한다.
                 focusStealReplayPending = true
-                DispatchQueue.main.async { [weak self] in
+                let targetBundleId = currentBundleId
+                focusStealReplayWorkItem?.cancel()
+                let workItem = DispatchWorkItem { [weak self] in
                     guard let self else { return }
+                    self.focusStealReplayWorkItem = nil
                     self.focusStealReplayPending = false
                     let keys = self.focusStealKeyBuffer
                     self.focusStealKeyBuffer = []
-                    guard !keys.isEmpty, let client: any IMKTextInput = self.client() else { return }
+                    // 활성 앱이 바뀌었으면 리플레이 포기 (잘못된 client에 키가 가는 것 방지)
+                    guard !keys.isEmpty,
+                          self.currentBundleId == targetBundleId,
+                          let client: any IMKTextInput = self.client()
+                    else { return }
                     for key in keys {
                         let result = self.coordinator.processKey(key: key)
                         self.applyResult(result, to: client)
                     }
                 }
+                focusStealReplayWorkItem = workItem
+                DispatchQueue.main.async(execute: workItem)
             }
             return false
         }

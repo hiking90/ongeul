@@ -37,8 +37,12 @@ if CommandLine.arguments.contains("--enable-input-sources") {
     exit(exitCode)
 }
 
-let connectionName = Bundle.main.infoDictionary!["InputMethodConnectionName"] as! String
-let bundleIdentifier = Bundle.main.bundleIdentifier!
+guard let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String else {
+    fatalError("Info.plist missing required key 'InputMethodConnectionName'")
+}
+guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+    fatalError("Bundle has no identifier")
+}
 
 let server = IMKServer(name: connectionName, bundleIdentifier: bundleIdentifier)
 

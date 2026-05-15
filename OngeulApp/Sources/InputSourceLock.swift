@@ -22,6 +22,9 @@ final class InputSourceLock: NSObject {
     private let minimumInterval: CFAbsoluteTime = 0.3  // 300ms 디바운스
     private var activityToken: NSObjectProtocol?
     private var wakeTimer: Timer?
+    /// 디바운스 윈도우에 걸려 무시된 호출의 1회 재시도용 타이머.
+    /// 디바운스 직후 OS가 다시 ABC로 돌려놓는 race에서 사용자가 갇히는 것을 방지.
+    private var debounceRetryTimer: Timer?
 
     private override init() {
         super.init()
@@ -73,6 +76,9 @@ final class InputSourceLock: NSObject {
 
         wakeTimer?.invalidate()
         wakeTimer = nil
+
+        debounceRetryTimer?.invalidate()
+        debounceRetryTimer = nil
 
         if let token = activityToken {
             ProcessInfo.processInfo.endActivity(token)
@@ -132,14 +138,28 @@ final class InputSourceLock: NSObject {
     func verifyAndRecover(source: String = "notification") {
         guard isObserving else { return }
 
-        // 디바운스: 짧은 시간 내 반복 전환 방지
+        // 디바운스: 짧은 시간 내 반복 전환 방지.
+        // 윈도우 내 호출은 즉시 무시하되, 디바운스 직후 OS가 다시 ABC로 돌려놓는
+        // race에 대비해 1회 재시도를 예약한다 (사용자가 ABC에 갇히는 것 방지).
         let now = CFAbsoluteTimeGetCurrent()
-        guard now - lastSwitchTime > minimumInterval else { return }
+        let elapsed = now - lastSwitchTime
+        if elapsed <= minimumInterval {
+            if debounceRetryTimer == nil {
+                let delay = (minimumInterval - elapsed) + 0.05
+                let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+                    self?.debounceRetryTimer = nil
+                    self?.verifyAndRecover(source: "debounce-retry")
+                }
+                RunLoop.main.add(timer, forMode: .common)
+                debounceRetryTimer = timer
+            }
+            return
+        }
 
         // 보안 입력 활성 시 (암호 필드 등) → 복귀하지 않음
         if IsSecureEventInputEnabled() {
             os_log("InputSourceLock: skip — secure input active (via %{public}@)",
-                   log: log, type: .debug, source)
+                   log: log, type: .info, source)
             return
         }
 
@@ -160,7 +180,7 @@ final class InputSourceLock: NSObject {
         ) as String
         if sourceType != kTISTypeKeyboardLayout as String {
             os_log("InputSourceLock: skip — non-keyboard-layout: %{public}@ (via %{public}@)",
-                   log: log, type: .debug, currentId, source)
+                   log: log, type: .info, currentId, source)
             return
         }
 

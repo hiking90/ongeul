@@ -358,6 +358,13 @@ class OngeulInputController: IMKInputController {
     // 현재 조합 중인 텍스트 (composedString 콜백용)
     private var currentComposingText: String?
 
+    // SelectMode 디바운스: 토글 직후 macOS IMK가 ~100–350ms 동안 keystroke dispatch를
+    // stall하는 문제를 우회하기 위해, 마지막 keystroke로부터 selectModeIdleInterval 동안
+    // 추가 입력이 없을 때 selectMode를 호출한다.
+    private var pendingSelectModeId: String?
+    private var pendingSelectModeTask: DispatchWorkItem?
+    private static let selectModeIdleInterval: TimeInterval = 0.6
+
     // Focus-steal correction (FocusStealCorrector로 추출).
     // 인스턴스는 lazy 초기화 — coordinator/KeyEventTap 의존성이 모두 준비된 후 사용.
     private lazy var focusSteal: FocusStealCorrector = {
@@ -555,7 +562,9 @@ class OngeulInputController: IMKInputController {
             applyEffect(effect, to: client)
         }
 
-        // 아이콘 동기화 — applyEffect의 modeChanged와 무관하게 항상 수행
+        // 아이콘 동기화 — applyEffect의 modeChanged와 무관하게 항상 수행.
+        // 이전 client에 대한 보류된 selectMode는 stale이므로 폐기.
+        cancelSelectMode()
         if let client = sender as? (any IMKTextInput) {
             let modeId = InputModeID.from(coordinator.mode)
             client.selectMode(modeId)
@@ -593,6 +602,8 @@ class OngeulInputController: IMKInputController {
 
     override func deactivateServer(_ sender: Any!) {
         focusSteal.cancel()
+        // 보류된 selectMode를 지금 호출 — 입력은 끝났으니 stall이 더 이상 의미 없다.
+        flushSelectMode()
 
         // keyBuffer는 activateServer에서만 정리 (focus-steal 증거 보존)
 
@@ -670,6 +681,10 @@ class OngeulInputController: IMKInputController {
         guard let event = event,
               let client = sender as? (any IMKTextInput) else {
             return false
+        }
+
+        if event.type == .keyDown {
+            bumpSelectModeIdle()
         }
 
         loadLayoutIfNeeded()
@@ -753,9 +768,9 @@ class OngeulInputController: IMKInputController {
         refreshLockCache()
         applyEffect(effect, to: client)
 
-        // Lock 토글은 modeChanged=false이므로 아이콘 별도 동기화
+        // Lock 토글은 modeChanged=false이므로 아이콘 별도 동기화 (디바운스)
         let modeId = InputModeID.from(coordinator.mode)
-        client.selectMode(modeId)
+        scheduleSelectMode(modeId)
     }
 
     /// KeyEventTap에서 호출: 현재 앱이 English Lock 상태인지 반환.
@@ -775,6 +790,9 @@ class OngeulInputController: IMKInputController {
             super.setValue(value, forTag: tag, client: sender)
             return
         }
+
+        // 외부에서 모드를 강제했으므로 보류된 selectMode는 stale.
+        cancelSelectMode()
 
         let targetMode: InputMode = (modeId == InputModeID.english) ? .english : .korean
 
@@ -956,9 +974,10 @@ class OngeulInputController: IMKInputController {
             os_log("mode → %{public}@", log: log, type: .default,
                    coordinator.mode == .korean ? "korean" : "english")
 
-            // 메뉴바 아이콘 동기화
+            // 메뉴바 아이콘 동기화 — 디바운스: 사용자 입력이 idle 상태가 될 때 호출.
+            // 즉시 호출하면 macOS IMK가 ~100–350ms keystroke dispatch를 stall한다.
             let modeId = InputModeID.from(coordinator.mode)
-            client.selectMode(modeId)
+            scheduleSelectMode(modeId)
         }
         switch effect.lockOverlay {
         case .show(let locked):
@@ -970,6 +989,50 @@ class OngeulInputController: IMKInputController {
         case nil:
             break
         }
+    }
+
+    // MARK: - Private: SelectMode Debounce
+
+    /// 모드 변경 시 호출. 사용자 입력이 idle 상태가 될 때까지 selectMode를 지연한다.
+    /// 같은 modeId로 연속 호출되면 타이머만 재시작; 다른 modeId면 보류 대상이 갱신된다.
+    private func scheduleSelectMode(_ modeId: String) {
+        pendingSelectModeId = modeId
+        pendingSelectModeTask?.cancel()
+        let task = DispatchWorkItem { [weak self] in
+            self?.fireSelectMode()
+        }
+        pendingSelectModeTask = task
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.selectModeIdleInterval, execute: task)
+    }
+
+    /// keyDown 진입 시 호출. 보류 중일 때만 타이머 재시작 (idle 카운트 리셋).
+    private func bumpSelectModeIdle() {
+        guard let modeId = pendingSelectModeId else { return }
+        scheduleSelectMode(modeId)
+    }
+
+    /// 보류된 selectMode를 즉시 호출 (deactivateServer 등 stall이 더 이상 의미 없을 때).
+    private func flushSelectMode() {
+        guard pendingSelectModeTask != nil else { return }
+        pendingSelectModeTask?.cancel()
+        fireSelectMode()
+    }
+
+    /// 보류된 selectMode를 폐기 (외부 모드 변경, 새 client attach 등 stale 상황).
+    private func cancelSelectMode() {
+        pendingSelectModeTask?.cancel()
+        pendingSelectModeTask = nil
+        pendingSelectModeId = nil
+    }
+
+    /// 타이머 만료 또는 flush 시 호출. client가 없으면 조용히 폐기.
+    private func fireSelectMode() {
+        let modeId = pendingSelectModeId
+        pendingSelectModeTask = nil
+        pendingSelectModeId = nil
+        guard let modeId, let client: any IMKTextInput = self.client() else { return }
+        client.selectMode(modeId)
     }
 
     // MARK: - Private: Layout Loading
@@ -1029,6 +1092,8 @@ extension OngeulInputController: FocusStealDelegate {
     }
 
     func focusStealSyncIconKorean() {
+        // focus-steal은 한글 모드를 강제하므로 보류된 selectMode는 stale.
+        cancelSelectMode()
         self.client()?.selectMode(InputModeID.korean)
     }
 

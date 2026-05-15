@@ -363,7 +363,7 @@ class OngeulInputController: IMKInputController {
     // 추가 입력이 없을 때 selectMode를 호출한다.
     private var pendingSelectModeId: String?
     private var pendingSelectModeTask: DispatchWorkItem?
-    private static let selectModeIdleInterval: TimeInterval = 0.3
+    private static let selectModeIdleInterval: TimeInterval = 0.6
 
     // Focus-steal correction (FocusStealCorrector로 추출).
     // 인스턴스는 lazy 초기화 — coordinator/KeyEventTap 의존성이 모두 준비된 후 사용.

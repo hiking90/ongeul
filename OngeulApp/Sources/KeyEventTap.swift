@@ -14,10 +14,7 @@ class KeyEventTap {
     private static var toggleDetector = ToggleDetector()
 
     // Focus-steal correction: 키 버퍼 (activateServer에서 초기화)
-    struct RecordedKey {
-        let character: String
-        let timestamp: CFAbsoluteTime
-    }
+    // RecordedKey 정의는 RecordedKey.swift로 이동됨.
     static var keyBuffer: [RecordedKey] = []
     static var keyBufferWasKoreanMode = false
 

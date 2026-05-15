@@ -23,7 +23,7 @@ class FocusStealTests: XCTestCase {
 
         // 첫 키 추가 시 koreanMode 기록
         KeyEventTap.keyBuffer.append(
-            KeyEventTap.RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
+            RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
         )
         if KeyEventTap.keyBuffer.count == 1 {
             KeyEventTap.keyBufferWasKoreanMode = (KeyEventTap.currentInputMode == .korean)
@@ -37,7 +37,7 @@ class FocusStealTests: XCTestCase {
         KeyEventTap.keyBuffer = []
 
         KeyEventTap.keyBuffer.append(
-            KeyEventTap.RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
+            RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
         )
         if KeyEventTap.keyBuffer.count == 1 {
             KeyEventTap.keyBufferWasKoreanMode = (KeyEventTap.currentInputMode == .korean)
@@ -51,7 +51,7 @@ class FocusStealTests: XCTestCase {
     func testBufferResetsWhenFirstKeyOlderThan200ms() {
         let staleTime = CFAbsoluteTimeGetCurrent() - 0.3  // 300ms ago
         KeyEventTap.keyBuffer = [
-            KeyEventTap.RecordedKey(character: "j", timestamp: staleTime)
+            RecordedKey(character: "j", timestamp: staleTime)
         ]
 
         // CGEventTap의 리셋 로직 재현
@@ -66,7 +66,7 @@ class FocusStealTests: XCTestCase {
     func testBufferKeepsWhenFirstKeyWithin200ms() {
         let recentTime = CFAbsoluteTimeGetCurrent() - 0.05  // 50ms ago
         KeyEventTap.keyBuffer = [
-            KeyEventTap.RecordedKey(character: "j", timestamp: recentTime)
+            RecordedKey(character: "j", timestamp: recentTime)
         ]
 
         let now = CFAbsoluteTimeGetCurrent()
@@ -82,7 +82,7 @@ class FocusStealTests: XCTestCase {
     func testFocusStealCondition_koreanAndNotEmpty_shouldActivate() {
         KeyEventTap.keyBufferWasKoreanMode = true
         KeyEventTap.keyBuffer = [
-            KeyEventTap.RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
+            RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
         ]
 
         let shouldActivate = KeyEventTap.keyBufferWasKoreanMode && !KeyEventTap.keyBuffer.isEmpty
@@ -92,7 +92,7 @@ class FocusStealTests: XCTestCase {
     func testFocusStealCondition_englishMode_shouldNotActivate() {
         KeyEventTap.keyBufferWasKoreanMode = false
         KeyEventTap.keyBuffer = [
-            KeyEventTap.RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
+            RecordedKey(character: "j", timestamp: CFAbsoluteTimeGetCurrent())
         ]
 
         let shouldActivate = KeyEventTap.keyBufferWasKoreanMode && !KeyEventTap.keyBuffer.isEmpty
@@ -110,7 +110,7 @@ class FocusStealTests: XCTestCase {
     // MARK: - Elapsed 체크 (500ms 타임아웃)
 
     func testElapsedCheck_withinThreshold_shouldProceed() {
-        let recentKey = KeyEventTap.RecordedKey(
+        let recentKey = RecordedKey(
             character: "j", timestamp: CFAbsoluteTimeGetCurrent() - 0.1
         )
         let elapsed = CFAbsoluteTimeGetCurrent() - recentKey.timestamp
@@ -118,7 +118,7 @@ class FocusStealTests: XCTestCase {
     }
 
     func testElapsedCheck_beyondThreshold_shouldSkip() {
-        let staleKey = KeyEventTap.RecordedKey(
+        let staleKey = RecordedKey(
             character: "j", timestamp: CFAbsoluteTimeGetCurrent() - 1.0
         )
         let elapsed = CFAbsoluteTimeGetCurrent() - staleKey.timestamp
@@ -130,8 +130,8 @@ class FocusStealTests: XCTestCase {
     func testMultipleKeysAccumulateInBuffer() {
         let now = CFAbsoluteTimeGetCurrent()
         KeyEventTap.keyBuffer = [
-            KeyEventTap.RecordedKey(character: "j", timestamp: now),
-            KeyEventTap.RecordedKey(character: "b", timestamp: now + 0.05),
+            RecordedKey(character: "j", timestamp: now),
+            RecordedKey(character: "b", timestamp: now + 0.05),
         ]
 
         XCTAssertEqual(KeyEventTap.keyBuffer.count, 2)
@@ -142,9 +142,9 @@ class FocusStealTests: XCTestCase {
     func testBufferMapToCharacters() {
         let now = CFAbsoluteTimeGetCurrent()
         KeyEventTap.keyBuffer = [
-            KeyEventTap.RecordedKey(character: "j", timestamp: now),
-            KeyEventTap.RecordedKey(character: "b", timestamp: now + 0.03),
-            KeyEventTap.RecordedKey(character: "s", timestamp: now + 0.06),
+            RecordedKey(character: "j", timestamp: now),
+            RecordedKey(character: "b", timestamp: now + 0.03),
+            RecordedKey(character: "s", timestamp: now + 0.06),
         ]
 
         let characters = KeyEventTap.keyBuffer.map { $0.character }

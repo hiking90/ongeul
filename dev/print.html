@@ -189,7 +189,7 @@
 <h2 id="기존-입력기와의-차이점"><a class="header" href="#기존-입력기와의-차이점">기존 입력기와의 차이점</a></h2>
 <div class="table-wrapper"><table><thead><tr><th></th><th>기존 입력기</th><th>Ongeul</th></tr></thead><tbody>
 <tr><td>영문 입력</td><td>시스템에 위임 (ABC 전환)</td><td>엔진이 직접 입력</td></tr>
-<tr><td>등록된 입력 소스</td><td>2개 (한글 + ABC)</td><td>1개 (Ongeul만)</td></tr>
+<tr><td>한/영에 사용하는 입력 소스</td><td>2개 (한글 + ABC)</td><td>1개 (Ongeul)</td></tr>
 <tr><td>한/영 전환</td><td>macOS 입력 소스 전환</td><td>내부 모드 전환</td></tr>
 <tr><td>세션 간섭</td><td>발생 가능</td><td>원천 차단</td></tr>
 </tbody></table>
@@ -332,7 +332,7 @@
 <li>목록에서 <strong>Ongeul</strong> 을 찾아 추가합니다.</li>
 </ol>
 <h2 id="3-기존-입력-소스-정리"><a class="header" href="#3-기존-입력-소스-정리">3. 기존 입력 소스 정리</a></h2>
-<p>Ongeul은 한글과 영문을 모두 처리하므로, 기존 한글 입력기는 제거합니다. 영문 입력 소스(ABC 등)는 제거해도 되고 남겨둬도 됩니다.</p>
+<p>Ongeul은 한글과 영문을 모두 처리하므로, 기존 <strong>한글 입력기</strong>는 제거합니다. ABC는 macOS 기본 입력기라 삭제되지 않지만, Ongeul이 영문도 처리하므로 그대로 두어도 무방합니다.</p>
 <ol>
 <li>입력 소스 목록에서 기존 <strong>한글 입력기</strong>를 선택하고 <strong>−</strong> 버튼으로 제거합니다.</li>
 </ol>
@@ -651,7 +651,7 @@
 <li><strong>시스템 설정</strong> → <strong>키보드</strong> → <strong>입력 소스</strong> → <strong>편집...</strong> 을 클릭합니다.</li>
 <li>목록에서 <strong>Ongeul</strong> 을 선택합니다.</li>
 <li><strong>−</strong> 버튼을 클릭하여 제거합니다.</li>
-<li><strong>ABC</strong> 등 다른 입력 소스를 추가합니다 (입력 소스가 최소 1개 필요).</li>
+<li>ABC는 macOS 기본 입력기로 삭제되지 않으므로, Ongeul을 제거해도 입력 소스가 0개가 되지는 않습니다. 한글 입력이 다시 필요하면 macOS 기본 <strong>한글 입력기</strong>(예: 2-Set Korean)를 추가합니다.</li>
 </ol>
 <h2 id="3-로그아웃로그인"><a class="header" href="#3-로그아웃로그인">3. 로그아웃/로그인</a></h2>
 <p>변경 사항을 완전히 반영하려면 로그아웃 후 재로그인하세요.</p>

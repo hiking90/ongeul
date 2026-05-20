@@ -22,6 +22,18 @@
 "prefs.toggleKey.capsLock" = "CapsLock";
 "prefs.capsLockDelay" = "macOS 자체 UI로는 CapsLock 지연을 끄지 못합니다. 터미널에서 hidutil 명령 필요 — 자세한 안내는 문서 참고.";
 
+/* CapsLock 권한 안내 시트 (CapsLock 전환 키 신규 선택 시) */
+"prefs.capsLockSheet.title"      = "CapsLock을 한/영 전환 키로 사용";
+"prefs.capsLockSheet.intro"      = "CapsLock을 짧게 누르면 한/영 전환, 길게 누르면 본연의 대문자 잠금이 활성화됩니다.";
+"prefs.capsLockSheet.needInput"  = "이 기능에는 입력 모니터링 권한이 필요합니다.";
+"prefs.capsLockSheet.needAccess" = "이 기능에는 손쉬운 사용 권한이 필요합니다.";
+"prefs.capsLockSheet.restart"    = "권한 부여 후 입력기를 다시 선택하거나 로그아웃/로그인이 필요합니다.";
+"prefs.capsLockSheet.openInput"  = "입력 모니터링 설정 열기";
+"prefs.capsLockSheet.openAccess" = "손쉬운 사용 설정 열기";
+
+/* 메뉴바: CapsLock HID 모니터 권한 결손 안내 */
+"menu.capsLockNeedsPermission" = "⚠ CapsLock: 입력 모니터링 권한 필요";
+
 /* Escape → English */
 "prefs.escapeToEnglish" = "ESC / Ctrl+[ 키로 영문 전환 (Vim 모드)";
 

@@ -22,6 +22,18 @@
 "prefs.toggleKey.capsLock" = "CapsLock";
 "prefs.capsLockDelay" = "macOS has no UI to disable CapsLock delay; hidutil is required — see documentation.";
 
+/* CapsLock permission sheet (shown on first selection of CapsLock toggle) */
+"prefs.capsLockSheet.title"      = "Use CapsLock as Korean/English Toggle";
+"prefs.capsLockSheet.intro"      = "Tap CapsLock to toggle Korean/English. Press and hold to activate the conventional Caps Lock (uppercase).";
+"prefs.capsLockSheet.needInput"  = "This feature requires the Input Monitoring permission.";
+"prefs.capsLockSheet.needAccess" = "This feature requires the Accessibility permission.";
+"prefs.capsLockSheet.restart"    = "After granting permissions, reselect the input source or log out and back in.";
+"prefs.capsLockSheet.openInput"  = "Open Input Monitoring Settings";
+"prefs.capsLockSheet.openAccess" = "Open Accessibility Settings";
+
+/* Menu bar warning when CapsLock HID monitor lacks permission */
+"menu.capsLockNeedsPermission" = "⚠ CapsLock: Input Monitoring Permission Required";
+
 /* Escape → English */
 "prefs.escapeToEnglish" = "Switch to English on ESC / Ctrl+[ (Vim mode)";
 

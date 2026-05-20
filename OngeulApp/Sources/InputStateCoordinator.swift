@@ -40,21 +40,27 @@ final class InputStateCoordinator: FocusStealModeController {
     /// - `toggleKey == .capsLock`일 때 LED를 모드에 동기화한다(LED ON = 한글).
     ///   `syncCapsLock: false`는 CapsLock 누름 자체가 모드 변경을 일으킨 경로에서 사용:
     ///   하드웨어가 이미 LED를 변경했으므로 재설정은 echo만 만들 뿐 (shouldHandle이 걸러내긴 하지만 불필요).
+    /// - 본연 CapsLock 잠금(`hidRealLockOn`) 동안은 사용자가 명시적으로 켠 LED 상태를 존중 —
+    ///   모드 변경이 LED를 건드리지 않는다 (doc 32).
     private func setMode(_ mode: InputMode, syncCapsLock: Bool = true) {
         engine.setMode(mode: mode)
         KeyEventTap.currentInputMode = mode
-        if syncCapsLock && KeyEventTap.toggleKey == .capsLock {
+        if syncCapsLock
+            && KeyEventTap.toggleKey == .capsLock
+            && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
             CapsLockSync.setState(mode == .korean)
         }
     }
 
-    /// `engine.toggleMode()` 직접 호출 경로(다른 전환 키, IMK fallback 등).
+    /// `engine.toggleMode()` 직접 호출 경로(다른 전환 키, IMK fallback, HID 짧은 탭 등).
     /// setMode를 거치지 않으므로 KeyEventTap·CapsLock LED 동기화를 직접 수행.
+    /// 본연 CapsLock 잠금 동안은 LED 건드리지 않음 (doc 32).
     private func toggleEngineMode() -> ProcessResult {
         let result = engine.toggleMode()
         let mode = engine.getMode()
         KeyEventTap.currentInputMode = mode
-        if KeyEventTap.toggleKey == .capsLock {
+        if KeyEventTap.toggleKey == .capsLock
+            && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
             CapsLockSync.setState(mode == .korean)
         }
         return result

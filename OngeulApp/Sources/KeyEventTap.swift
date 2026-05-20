@@ -65,14 +65,21 @@ class KeyEventTap {
                 }
 
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-                let flags = event.flags
+                var flags = event.flags
 
                 // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
-                    // CapsLock 방어: 어떤 이유로든 CapsLock이 켜져 있으면 즉시 OFF
+                    // CapsLock 방어: 어떤 이유로든 CapsLock이 켜져 있으면 즉시 OFF.
+                    // forceOff()의 IOKit 왕복 지연 동안 keyDown에 남는 stale
+                    // maskAlphaShift를 이벤트에서 직접 제거하여 영문 통과 경로의
+                    // 대문자 누수(이슈 #10)를 차단한다. 탭이 IME·앱보다 앞단이므로
+                    // IMK 경로와 영문 직통 경로가 한 곳에서 모두 보정된다.
+                    // 이후 keyboardGetUnicodeString도 보정된 flags를 사용한다.
                     if KeyEventTap.toggleKey == .capsLock
                         && flags.contains(.maskAlphaShift) {
                         CapsLockSync.forceOff()
+                        flags.subtract(.maskAlphaShift)
+                        event.flags = flags
                     }
 
                     KeyEventTap.toggleDetector.cancelOnKeyDown()

@@ -344,8 +344,12 @@ private final class PreferencesPanel {
     private func commitSettings(previousToggleKey: ToggleKey, newToggleKey: ToggleKey) {
         OngeulInputController.toggleKey = newToggleKey
 
-        // CapsLock 전환 키 변경 시 LED OFF (잔존 상태 정리)
-        if previousToggleKey == .capsLock || newToggleKey == .capsLock {
+        // CapsLock 전환 키 변경 시 LED OFF (잔존 상태 정리).
+        // 조건 1: 실제 전이가 일어난 경우만 (toggleKey 변경 없이 OK만 누른 경우는 건드리지 않음).
+        // 조건 2: 본연 CapsLock 잠금 중에는 사용자가 명시적으로 켠 LED 상태 존중 (doc 32 §10 전역 유지).
+        if previousToggleKey != newToggleKey
+            && (previousToggleKey == .capsLock || newToggleKey == .capsLock)
+            && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
             CapsLockSync.setState(false)
         }
 
@@ -689,8 +693,11 @@ class OngeulInputController: IMKInputController {
         }
 
         // CapsLock이 toggle key일 때 방어적 LED OFF
-        // (다른 앱에서 CapsLock이 켜진 상태로 전환된 경우 대비)
-        if Self.toggleKey == .capsLock && KeyEventTap.shared.isInstalled {
+        // (다른 앱에서 CapsLock이 켜진 상태로 전환된 경우 대비).
+        // 단 본연 CapsLock 잠금 중에는 사용자가 명시적으로 켠 LED 유지 (doc 32 §10 전역).
+        if Self.toggleKey == .capsLock
+            && KeyEventTap.shared.isInstalled
+            && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
             CapsLockSync.setState(false)
         }
 

@@ -47,21 +47,23 @@ mkdir -p "$INSTALL_DIR"
 rm -rf "$INSTALL_DIR/Ongeul.app"
 cp -r "$APP_BUNDLE" "$INSTALL_DIR/"
 
-# ── 5. 손쉬운 사용(Accessibility) 권한 설정 ──
+# ── 5. TCC 권한 설정 (손쉬운 사용 + 입력 모니터링) ──
 
 BUNDLE_ID="io.github.hiking90.inputmethod.Ongeul"
 TCC_DB="/Library/Application Support/com.apple.TCC/TCC.db"
 INSTALLED_APP="$INSTALL_DIR/Ongeul.app"
 
-echo "=== Setting up Accessibility permission ==="
+echo "=== Setting up TCC permissions ==="
 
-# 앱이 재서명되면 기존 TCC 항목이 무효화되므로 리셋
+# 앱이 재서명되면 기존 TCC 항목이 무효화되므로 리셋.
+#  - Accessibility: 항상 필요 (CGEventTap)
+#  - ListenEvent (입력 모니터링): CapsLock 전환 키 사용 시 필요 (HID 모니터)
 sudo tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
+sudo tccutil reset ListenEvent   "$BUNDLE_ID" 2>/dev/null || true
 
 SIP_STATUS=$(csrutil status 2>&1)
 if echo "$SIP_STATUS" | grep -q "disabled"; then
-    # SIP 비활성화 상태: sqlite3로 자동 권한 부여
-    # 서명된 앱에서 csreq blob 생성
+    # SIP 비활성화 상태: sqlite3로 자동 권한 부여 (서명된 앱의 csreq 사용)
     CSREQ_VALUE="NULL"
     REQ_STR=$(codesign -d -r- "$INSTALLED_APP" 2>&1 | awk -F ' => ' '/designated/{print $2}')
     if [ -n "$REQ_STR" ]; then
@@ -73,18 +75,24 @@ if echo "$SIP_STATUS" | grep -q "disabled"; then
         rm -f "$CSREQ_TMP"
     fi
 
-    sudo sqlite3 "$TCC_DB" \
-        "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('kTCCServiceAccessibility', '${BUNDLE_ID}', 0, 2, 3, 1, ${CSREQ_VALUE}, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+    # 두 서비스 동시 부여 — 동일한 csreq, 동일한 INSERT 패턴.
+    for SERVICE in kTCCServiceAccessibility kTCCServiceListenEvent; do
+        sudo sqlite3 "$TCC_DB" \
+            "INSERT OR REPLACE INTO access (service, client, client_type, auth_value, auth_reason, auth_version, csreq, policy_id, indirect_object_identifier_type, indirect_object_identifier, indirect_object_code_identity, flags, last_modified) VALUES ('${SERVICE}', '${BUNDLE_ID}', 0, 2, 3, 1, ${CSREQ_VALUE}, NULL, NULL, 'UNUSED', NULL, 0, CAST(strftime('%s','now') AS INTEGER));"
+    done
 
-    # tccd 재시작으로 변경사항 반영
+    # tccd 재시작으로 변경사항 반영 (두 서비스 모두 적용)
     sudo killall tccd 2>/dev/null || true
 
-    echo "    Accessibility 권한이 자동으로 부여되었습니다."
+    echo "    손쉬운 사용 + 입력 모니터링 권한이 자동으로 부여되었습니다."
 else
     # SIP 활성화 상태: 수동 설정 안내
     echo "    SIP이 활성화되어 있어 자동 권한 부여가 불가합니다."
-    echo "    시스템 설정 → 개인 정보 보호 및 보안 → 손쉬운 사용 에서"
-    echo "    Ongeul을 추가하고 활성화해 주세요."
+    echo "    시스템 설정 → 개인 정보 보호 및 보안 에서 다음을 추가/활성화해 주세요:"
+    echo "      • 손쉬운 사용 (CGEventTap 사용 — 필수)"
+    echo "      • 입력 모니터링 (CapsLock 전환 키 사용 시 필요 — HID 모니터)"
+    echo "    참고: 입력 모니터링은 Ongeul이 CapsLock 모드로 첫 진입할 때까지"
+    echo "    리스트에 보이지 않을 수 있습니다 (전환 키를 CapsLock으로 바꾼 직후 표시됨)."
 fi
 echo ""
 

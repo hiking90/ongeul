@@ -68,10 +68,4 @@ enum CapsLockSync {
     static func reset() {
         setState(false)
     }
-
-    /// 하위 호환: 기존 호출자(설정 패널·KeyEventTap keyDown 방어 등)가 사용.
-    /// 기능적으로 `setState(false)`와 동일.
-    static func forceOff() {
-        setState(false)
-    }
 }

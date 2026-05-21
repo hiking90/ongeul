@@ -346,7 +346,7 @@ private final class PreferencesPanel {
 
         // CapsLock 전환 키 변경 시 LED OFF (잔존 상태 정리)
         if previousToggleKey == .capsLock || newToggleKey == .capsLock {
-            CapsLockSync.forceOff()
+            CapsLockSync.setState(false)
         }
 
         let newLayout: String
@@ -691,7 +691,7 @@ class OngeulInputController: IMKInputController {
         // CapsLock이 toggle key일 때 방어적 LED OFF
         // (다른 앱에서 CapsLock이 켜진 상태로 전환된 경우 대비)
         if Self.toggleKey == .capsLock && KeyEventTap.shared.isInstalled {
-            CapsLockSync.forceOff()
+            CapsLockSync.setState(false)
         }
 
         // HID 모니터 lifecycle — toggleKey == .capsLock일 때만 start.

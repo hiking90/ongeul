@@ -88,7 +88,7 @@ class KeyEventTap {
                         && flags.contains(.maskAlphaShift)
                         && KeyEventTap.currentInputMode == .english
                         && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
-                        CapsLockSync.forceOff()
+                        CapsLockSync.setState(false)
                         flags.subtract(.maskAlphaShift)
                         event.flags = flags
                     }

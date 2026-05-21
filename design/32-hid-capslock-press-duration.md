@@ -1,6 +1,6 @@
 # 32. HID 기반 CapsLock 입력 처리 (짧게 / 길게 분리)
 
-> **상태**: 설계 v2 — Phase 1.5 스파이크 결과 대기
+> **상태**: 설계 v2 — **스파이크 완료, 시나리오 A 확정 (2026-05-21)**. PR #14 머지 ready.
 
 ## Context
 
@@ -42,6 +42,16 @@
 | 상태/LED 자체가 외부 stomp에 의해 즉시 되돌려짐 | **C** | 이 doc 보류. (B) 기능 미지원 유지 — HID는 짧은 탭 신뢰성·#10 race 차단 용도로만 한정 채택할지 별도 판단 |
 
 본 문서 이하 내용은 결과 **A** 가정. **B**가 되면 § 기존 코드 통합 절의 일부만 교체(영문 통과 경로에 대문자 합성). **C**면 doc 폐기.
+
+### ✅ 스파이크 결과 (2026-05-21)
+
+end-to-end 시퀀스 *한국어 모드 → 길게 누름 → 영문 + Caps Lock ON → 대문자 영문 타이핑 정상 → 짧은 탭 → 한국어 복원 + LED OFF* 가 사용자 환경에서 모두 확인됨. 핵심 단언:
+
+- **`IOHIDSetModifierLockState(handle, kIOHIDCapsLockState, true)` 호출 후, 실제 keyDown들이 alpha-shift 적용된 대문자 문자로 앱에 전달됨** → **시나리오 A 확정**.
+- macOS의 OS-level stomp(SokIM이 11회 반복으로 회피하던 Sonoma+ bubble) 현상은 우리 환경에선 *관찰되지 않음* — 단일 `setState(true)` 호출로 상태 유지됨.
+- macOS native parity 약속(*"한국어 → 길게 → 영문대문자 → 짧은 탭 → 한국어"가 단일 시퀀스*)이 `modeBeforeRealLock` 복원 로직으로 정확히 동작.
+
+→ 본 doc의 핵심 설계 가정이 모두 입증. PR #14의 스파이크 gate 해제, 머지 ready.
 
 ## 목표
 

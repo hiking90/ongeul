@@ -49,6 +49,9 @@ final class CapsLockHIDMonitor {
     /// keyUp에서 *exit press의 up*(=다음 press의 up)인지 *진입 press의 up*인지 구별.
     private var pressTriggeredLockTransition: Bool = false
     private var longPressTimer: DispatchWorkItem?
+    /// 본연 CapsLock 진입 직전의 입력 모드. exit 시 이 모드로 복원 (macOS native parity).
+    /// macOS: "한글 → 길게 → English+caps → 짧은 탭 → 한글 (caps off)"가 단일 동작 시퀀스.
+    private var modeBeforeRealLock: InputMode?
 
     /// `start()` 실패 사유.
     enum StartError: Error, CustomStringConvertible {
@@ -131,6 +134,7 @@ final class CapsLockHIDMonitor {
         longPressTimer = nil
         isKeyDown = false
         pressTriggeredLockTransition = false
+        modeBeforeRealLock = nil
         if mode != .cgEventTapAuthority {
             mode = .cgEventTapAuthority
         }
@@ -213,7 +217,11 @@ final class CapsLockHIDMonitor {
     }
 
     private func enterRealCapsLock() {
-        os_log("enterRealCapsLock", log: log, type: .info)
+        // 진입 직전 모드 기록 — exit에서 복원 (macOS native parity).
+        // KeyEventTap.currentInputMode가 InputStateCoordinator.setMode와 동기화돼 있음.
+        modeBeforeRealLock = KeyEventTap.currentInputMode
+        os_log("enterRealCapsLock (prev=%{public}@)",
+               log: log, type: .info, String(describing: modeBeforeRealLock ?? .english))
         // mode를 먼저 변경 → 이후 setMode 호출이 LED 동기화 게이트(`mode != .hidRealLockOn`)에 걸림.
         mode = .hidRealLockOn
         DispatchQueue.main.async { [weak controller] in
@@ -222,9 +230,20 @@ final class CapsLockHIDMonitor {
     }
 
     private func exitRealCapsLock() {
-        os_log("exitRealCapsLock", log: log, type: .info)
+        let prev = modeBeforeRealLock
+        modeBeforeRealLock = nil
         mode = .hidToggleAuthority
-        CapsLockSync.setState(false)  // LED off
-        // mode(엔진 입력 모드)는 변경하지 않음 — 사용자가 진입 시 SET한 영문 그대로 유지.
+        os_log("exitRealCapsLock (restore=%{public}@)",
+               log: log, type: .info, String(describing: prev ?? .english))
+        if let prev = prev {
+            // macOS native parity: 진입 직전 모드로 복원 (LED도 자동 동기화).
+            // 즉 "한글 → 길게 → 영문+caps → 짧은 탭" 시퀀스가 한국어로 환원되어 끝남.
+            DispatchQueue.main.async { [weak controller] in
+                controller?.performExitRealCapsLock(restoreMode: prev)
+            }
+        } else {
+            // 안전망 — 모드 정보 없으면 LED만 끔.
+            CapsLockSync.setState(false)
+        }
     }
 }

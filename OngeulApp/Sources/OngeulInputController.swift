@@ -368,6 +368,9 @@ private final class PreferencesPanel {
 
         // HID 모니터 lifecycle (toggleKey 전이 시)
         if newToggleKey == .capsLock {
+            // controller 주입을 start() 이전에 — race 방지 (activateServer 호출 전이라도
+            // 사용자가 prefs 닫고 즉시 CapsLock 누르면 HID 콜백이 fire될 수 있음).
+            CapsLockHIDMonitor.shared.controller = KeyEventTap.activeController
             do {
                 try CapsLockHIDMonitor.shared.start()
             } catch {
@@ -932,6 +935,22 @@ class OngeulInputController: IMKInputController {
         // .hidRealLockOn 게이트가 active이므로 doc 30 mode-sync는 LED를 안 건드림 →
         // 본연 CapsLock LED를 직접 ON으로 set.
         CapsLockSync.setState(true)
+    }
+
+    /// CapsLockHIDMonitor의 본연 CapsLock exit에서 호출 (doc 32, macOS native parity).
+    /// 진입 직전 모드로 복원 + LED를 그 모드에 맞춰 set.
+    /// 예: "한글 → 길게 → 영문+caps → 짧은 탭"이 한국어 + LED ON으로 환원되어 단일 동작 시퀀스 완결.
+    func performExitRealCapsLock(restoreMode: InputMode) {
+        guard let client: any IMKTextInput = self.client() else { return }
+        let korean = (restoreMode == .korean)
+        // 모드 복원 (setMode가 syncCapsLock=false라 LED는 안 만짐).
+        if let effect = coordinator.setModeFromCapsLockPress(
+            korean: korean, for: currentBundleId
+        ) {
+            applyEffect(effect, to: client)
+        }
+        // 복원된 모드에 맞춰 LED 명시적 동기화 (Korean=ON, English=OFF).
+        CapsLockSync.setState(korean)
     }
 
     func performVimEscapeFromTap() {

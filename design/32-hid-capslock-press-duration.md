@@ -468,6 +468,7 @@ NSWorkspace.shared.open(URL(string:
 4. **`CGEventSourceFlagsState(.combinedSessionState).contains(.maskAlphaShift)`**: 즉시 true?
 5. **stomp 검증**: 호출 후 1~2초 관찰. OS가 외부 요인으로 false로 되돌리는가? SokIM 11회 반복 패턴의 현재 OS 유효성.
 6. **HID 콜백이 시스템 Caps Lock 지연과 무관하게 도착하는가?** `hidutil property --set CapsLockDelayOverride 250` 설정 후 짧은 탭 — HID 모니터가 받는가? (받는다면 사용자에게 `hidutil` 안내 불필요화 가능.)
+7. **`CapsLockSync.shouldHandle()` 100ms 타임아웃의 OS 부하 민감성**: 정상 환경에선 `IOHIDSetModifierLockState` 후 echo `flagsChanged`가 1~10ms 내 도착해 `expectedState` 가드가 정확히 동작하지만, 무거운 VM/CI/저성능 환경에서 echo가 100ms 이상 지연되면 가드가 만료되어 echo를 *사용자 입력*으로 오인 → spurious 토글 발생. 측정: 인위적 부하(`stress-ng -c N` 등) 상태에서 mode 변경 → echo 도착 시간 분포 측정. 디폴트 100ms로 부족하면 doc 30·doc 32의 `expectedStateTimeout`을 상향 검토 (단, 사용자가 임계 안에 CapsLock을 누를 물리적 한계와 균형).
 
 ### 예상 시간
 

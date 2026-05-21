@@ -945,19 +945,20 @@ class OngeulInputController: IMKInputController {
     }
 
     /// CapsLockHIDMonitor의 본연 CapsLock exit에서 호출 (doc 32, macOS native parity).
-    /// 진입 직전 모드로 복원 + LED를 그 모드에 맞춰 set.
-    /// 예: "한글 → 길게 → 영문+caps → 짧은 탭"이 한국어 + LED ON으로 환원되어 단일 동작 시퀀스 완결.
+    /// 진입 직전 모드로 복원 + LED OFF.
+    /// 예: "한글 → 길게 → 영문+caps → 짧은 탭"이 한국어 + LED OFF로 환원되어 단일 동작 시퀀스 완결.
+    /// LED는 HID 모드에서 *본연 CapsLock 활성 여부* 만을 표현하므로, 복원된 모드와 무관하게 항상 OFF.
     func performExitRealCapsLock(restoreMode: InputMode) {
         guard let client: any IMKTextInput = self.client() else { return }
         let korean = (restoreMode == .korean)
-        // 모드 복원 (setMode가 syncCapsLock=false라 LED는 안 만짐).
+        // 모드 복원 (setMode가 syncCapsLock=false + HID 모드라 LED는 안 만짐).
         if let effect = coordinator.setModeFromCapsLockPress(
             korean: korean, for: currentBundleId
         ) {
             applyEffect(effect, to: client)
         }
-        // 복원된 모드에 맞춰 LED 명시적 동기화 (Korean=ON, English=OFF).
-        CapsLockSync.setState(korean)
+        // LED는 항상 OFF — HID 모드에서 LED = realLockOn 표시 전용.
+        CapsLockSync.setState(false)
     }
 
     func performVimEscapeFromTap() {

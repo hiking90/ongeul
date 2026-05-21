@@ -85,7 +85,7 @@ doc 32는 doc 30을 *대체하지 않는다*. 분업:
 | **CGEventTap CapsLock 분기의 게이팅(HID 활성 시 우회)** | `KeyEventTap` 수정 | **doc 32** |
 | TCC UX 시트(권한 안내·딥링크) | `OngeulInputController` 설정 패널 | **doc 32** |
 
-doc 30이 정의한 SET 의미론(*"LED ON = 한글"*)은 **짧은 탭 분기에서만 적용**되고, 길게-누름은 SET 의미론 외부의 별도 분기(=본연 CapsLock)로 다룬다.
+doc 30이 정의한 SET 의미론(*"LED ON = 한글"*)은 **CGEventTap 폴백 모드(HID 미활성)에서만 유효**하고, HID 모드(hidToggleAuthority/hidRealLockOn)에서는 **LED가 *본연 CapsLock 활성 여부* 만을 표현**한다. 이유: HID 모드에선 길게-누름이 진짜 Caps Lock을 켤 수 있으므로 LED가 두 의미를 가지면(Korean indicator vs Caps Lock 활성) 사용자에게 ambiguous. macOS 표준 의미("LED ON = 대문자 잠금")와 정합하도록 *LED = realLockOn 표시 전용*으로 통일. 모드 indicator는 메뉴바 아이콘이 담당.
 
 ## 옵트인 게이팅
 
@@ -145,7 +145,7 @@ enum CapsLockMode {
 |---|---|
 | `KeyEventTap` flagsChanged CapsLock 분기 (doc 30) | `current == .cgEventTapAuthority` 일 때만 실행 |
 | `KeyEventTap` keyDown `.maskAlphaShift` strip ([PR #11](https://github.com/hiking90/ongeul/pull/11)) | `current != .hidRealLockOn` 일 때만 실행 (본연 잠금 중엔 대문자 통과) |
-| `InputStateCoordinator.setMode` LED 동기화 (doc 30) | `current != .hidRealLockOn` 일 때만 LED set (본연 잠금 중엔 사용자 상태 존중) |
+| `InputStateCoordinator.setMode` LED 동기화 (doc 30) | `current == .cgEventTapAuthority` 일 때만 LED set. HID 모드(toggleAuthority/realLockOn)에선 LED 미동기화 — LED는 realLockOn 전용 indicator |
 | `CapsLockHIDMonitor` | 자기 자신이 상태 변경의 권위. 시작/정지/타이머 발화/short tap/long press 시 `current`를 변경 |
 
 상태 전이:
@@ -173,7 +173,7 @@ hidRealLockOn        ──HID fail/stop──▶     cgEventTapAuthority  (+ LE
         │     │                                       │
         │     ├─ HID: keyUp(0x39) (timer 아직)        │
         │     │     → coordinator.toggleMode()        │
-        │     │       doc 30이 LED 동기화             │
+        │     │       (HID 모드: LED 미동기화 — 항상 OFF) │
         │     │       복귀 ─▶ [CapsOFF]                │
         │     │                                       │
         │     └─ Timer 발화 (keyDown 유지 중)         │
@@ -191,12 +191,14 @@ hidRealLockOn        ──HID fail/stop──▶     cgEventTapAuthority  (+ LE
         └─────────────────────────────────────────────┘
 ```
 
-| 현재 | 입력 | 동작 | 다음 |
+| 현재 | 입력 | 동작 | 다음 LED |
 |---|---|---|---|
-| CapsOFF | 짧은 탭 (< 800ms) | toggleMode + doc 30 mode-sync로 LED 정합 | CapsOFF (또는 LED=ON if 한글) |
-| CapsOFF | 길게 (≥ 800ms) | `setState(true)` + 토글 억제 + mode=`hidRealLockOn` | CapsON |
-| CapsON | 짧은 탭 | `setState(false)` + mode=`hidToggleAuthority` + 토글 안 함 | CapsOFF |
-| CapsON | 길게 | 짧은 탭과 동일 — `setState(false)` + 종료 | CapsOFF |
+| CapsOFF | 짧은 탭 (< 800ms) | toggleMode (HID 모드라 LED 미동기화 — 모드만 변경) | OFF |
+| CapsOFF | 길게 (≥ 800ms) | `setState(true)` + 토글 억제 + mode=`hidRealLockOn` | **ON** (realLockOn 표시) |
+| CapsON | 짧은 탭 | exitRealCapsLock — `setState(false)` + mode=`hidToggleAuthority` + 진입직전 모드 복원, 토글 안 함 | OFF |
+| CapsON | 길게 | 짧은 탭과 동일 — `setState(false)` + 종료 | OFF |
+
+> **LED 의미**: HID 모드에서 LED는 *본연 CapsLock 활성 여부* 만 표현(=`hidRealLockOn` 상태). macOS 표준 의미와 일치, 사용자 혼란 방지. 모드 표시는 메뉴바 아이콘이 담당.
 
 ## 임계값 — 800ms 하드코딩
 
@@ -438,10 +440,10 @@ NSWorkspace.shared.open(URL(string:
 
 | # | 상황 | 결과 |
 |---|---|---|
-| 1 | OFF 상태에서 짧게 탭 (전환 키=CapsLock, HID 정상) | HID keyDown → 타이머 시작 + `setState(false)`. keyUp이 임계 전 → `toggleMode()`. doc 30 mode-sync가 LED를 모드에 정합. PR #11 strip 정상. |
+| 1 | OFF 상태에서 짧게 탭 (전환 키=CapsLock, HID 정상) | HID keyDown → 타이머 시작 + `setState(false)`. keyUp이 임계 전 → `toggleMode()` → 엔진 모드만 토글 (HID 모드에선 LED 미동기화 — LED는 OFF 유지). PR #11 strip 정상. |
 | 2 | OFF 상태에서 800ms 이상 보유 | 타이머 발화 → `mode=.hidRealLockOn` + `setState(true)`. 한/영 토글 안 함. 이후 keyDown들은 strip 면제 → 대문자가 앱에 전달 (스파이크 결과 A 가정). |
 | 3 | ON 상태에서 짧게 탭 | `mode == .hidRealLockOn` 확인 → `exitRealCapsLock()` → `setState(false)` + `mode=.hidToggleAuthority`. 토글 안 함. |
-| 4 | ON 상태에서 한/영 모드가 다른 경로(우커맨드 탭 등)로 변경 | `setMode`가 `mode == .hidRealLockOn` 가드에 막혀 LED 안 건드림 — 사용자가 켠 본연 CapsLock 유지. |
+| 4 | ON 상태에서 한/영 모드가 다른 경로(우커맨드 탭 등)로 변경 | `setMode`가 HID 모드 가드에 막혀 LED 안 건드림 — 사용자가 켠 본연 CapsLock LED 유지. |
 | 5 | 권한 미부여 | `start()` `kIOReturnNotPermitted` throws → `mode=.cgEventTapAuthority` 유지 → doc 30 CGEventTap 경로. 메뉴바 배너 + 딥링크. (B) 미지원. |
 | 6 | SokIM과 공존 | HID open 성공(비-seize). 양측 상태 set 시도가 겹치면 race — `hidRealLockOn` 시점에만 set ON하므로 일상 짧은 탭은 안전. 사용자 안내 권고. |
 | 7 | 절전 → 복귀 | `didWakeNotification` → `CapsLockHIDMonitor.restart()`. |

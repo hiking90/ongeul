@@ -73,12 +73,29 @@ final class CapsLockHIDMonitor {
 
     /// IOHIDManager 생성 + CapsLock-only 매칭 + 콜백 등록 + Open.
     /// 이미 시작돼 있으면 멱등 (return). 실패 시 throws.
+    ///
+    /// **TCC 등록 보장 (IOHIDRequestAccess)**:
+    /// `IOHIDManagerOpen` 만으로는 최근 macOS (Sonoma/Sequoia/Tahoe)에서 앱이 시스템 설정 →
+    /// 입력 모니터링 리스트에 *등록조차 되지 않는* 사례가 있다. Apple이 문서화한 등록 트리거
+    /// API는 `IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)`. 호출 결과(true/false)는
+    /// 기능적으로는 의미 없으나(이미 granted면 true), **호출 자체의 부수효과로 TCC.db에
+    /// 앱 항목이 생성되어 리스트에 노출되는 것이 핵심**. 모든 start() 호출에서 IOHIDManagerOpen
+    /// 이전에 unconditional하게 호출한다 (멱등, granted 상태에선 no-op).
     func start() throws {
         if hid != nil {
             os_log("start: already started", log: log, type: .debug)
             return
         }
 
+        // 1) TCC 등록 트리거 — Apple 권장 등록 API. IOHIDManagerOpen 이전에 호출 필수.
+        let checkBefore = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+        let requestResult = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+        let checkAfter = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+        os_log("start: TCC check before=%{public}d, RequestAccess=%{public}d, check after=%{public}d",
+               log: log, type: .info,
+               checkBefore.rawValue, requestResult, checkAfter.rawValue)
+
+        // 2) IOHIDManager 설정 + Open
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, 0)
 
         IOHIDManagerSetDeviceMatching(manager, [
@@ -104,19 +121,19 @@ final class CapsLockHIDMonitor {
         let res = IOHIDManagerOpen(manager, 0)
         switch res {
         case kIOReturnSuccess:
-            os_log("start: success", log: log, type: .info)
+            os_log("start: IOHIDManagerOpen success", log: log, type: .info)
             self.hid = manager
             self.mode = .hidToggleAuthority
         case kIOReturnNotPermitted:
-            os_log("start: not permitted (Input Monitoring TCC)", log: log, type: .error)
+            os_log("start: IOHIDManagerOpen not permitted (Input Monitoring TCC)", log: log, type: .error)
             IOHIDManagerClose(manager, 0)
             throw StartError.notPermitted
         case kIOReturnExclusiveAccess:
-            os_log("start: exclusive access conflict", log: log, type: .error)
+            os_log("start: IOHIDManagerOpen exclusive access conflict", log: log, type: .error)
             IOHIDManagerClose(manager, 0)
             throw StartError.exclusiveAccess
         default:
-            os_log("start: other error %d", log: log, type: .error, res)
+            os_log("start: IOHIDManagerOpen other error %{public}d", log: log, type: .error, res)
             IOHIDManagerClose(manager, 0)
             throw StartError.other(res)
         }

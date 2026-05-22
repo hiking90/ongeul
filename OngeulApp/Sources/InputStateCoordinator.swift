@@ -180,6 +180,13 @@ final class InputStateCoordinator: FocusStealModeController {
         }
     }
 
+    /// 본연 CapsLock 세션 종료 시 엔진 모드만 복원 (doc 32 §10).
+    /// `deactivateServer`에서 호출 — 이후 `deactivate(for:)`가 복원된 모드를 per-app store에 저장한다.
+    /// LED는 HID 게이트(`mode != .cgEventTapAuthority`)로 건드리지 않음.
+    func restoreModeAfterRealLock(_ mode: InputMode) {
+        setMode(mode, syncCapsLock: false)
+    }
+
     /// 시스템 발 모드 변경 (setValue:forTag:client: 경유).
     /// UI/아이콘은 이미 시스템이 변경했으므로 내부 상태만 동기화.
     /// flush 결과를 반환하여 호출자가 client에 적용할 수 있도록 한다.

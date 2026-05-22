@@ -459,7 +459,7 @@ NSWorkspace.shared.open(URL(string:
 | 7 | 절전 → 복귀 | `didWakeNotification` → `CapsLockHIDMonitor.restart()`. |
 | 8 | 전환 키를 CapsLock→우커맨드로 변경 | `okClicked`에서 `stop()` + `CapsLockSync.reset()` + LED OFF. TCC 권한은 시스템에 남되 모니터는 정지. |
 | 9 | 우커맨드→CapsLock 변경 | UX 시트 (권한 결손 시) 또는 즉시 활성 (권한 둘 다 있음) → `start()`. |
-| 10 | 본연 CapsLock ON 상태에서 IME 전환(앱 변경) | `mode=.hidRealLockOn` 그대로 유지 (전역). macOS Caps Lock 의미론 매칭. |
+| 10 | 본연 CapsLock ON 상태에서 IME 전환(앱 변경) | `deactivateServer`에서 `exitRealLockForSessionEnd()` 호출 → realLockOn 해제 + 진입 직전 모드로 엔진 복원 + LED OFF. **세션 한정**(전역 아님) — 아래 § 미해결 #1 참조. |
 | 11 | 암호 필드 진입 (Secure Input) | doc 30 시나리오와 동일. HID 콜백은 계속 들어오지만 `controller.isCurrentAppLocked`/`IsSecureEventInputEnabled` 체크로 coordinator 호출 억제. |
 | 12 | `hidRealLockOn` 상태에서 사용자가 권한 회수 | HID 콜백 중단. 헬스체크가 회수를 탐지하면 `CapsLockSync.setState(false)` + `mode=.cgEventTapAuthority`로 환원. |
 
@@ -525,13 +525,15 @@ NSWorkspace.shared.open(URL(string:
 
 ## 미해결 / 후속 검토
 
-1. **`hidRealLockOn`의 영속성**: 앱 전환 시 전역 ON 유지로 결정([§ 동작 시나리오](#동작-시나리오) #10). macOS Caps Lock 의미론과 일치하며 사용자 멘탈 모델과도 합치. *전역* 결정으로 doc 32 확정.
+1. **`hidRealLockOn`의 영속성**: ~~전역~~ → **세션 한정으로 수정** (앱 전환/포커스 상실 시 `deactivateServer`의 `exitRealLockForSessionEnd()`가 자동 해제 + 진입 직전 모드 복원). 이유: 진짜 macOS Caps Lock은 입력 소스와 *직교*(어떤 소스든 대문자만)라 전역이 자연스럽지만, 우리 realLockOn은 **영문 모드 강제와 커플링**돼 있어 전역 유지 시 per-app 모드 복원이 엔진을 다른 모드로 바꿔 *LED는 ON(caps)인데 한글이 입력되는 drift*가 발생. transient 의도("지금 대문자")에도 세션 한정이 부합하며, caps episode가 진입 직전 상태로 완전히 환원되어 끝남. (트레이드오프: 진짜 macOS Caps Lock과 달리 앱 전환을 가로질러 유지되지 않음 — 모드 커플링 때문에 수용.)
 2. **HID 콜백 침묵 자동 복구**: SokIM `restartIfIdle()` 패턴 도입 여부. idle 임계와 false positive 검토.
 3. **`IOHIDSetModifierLockState` Tahoe 동작 차이**: 스파이크에서 정밀화.
 4. **`NSInputMonitoringUsageDescription` IMK 적용성**: ~~미검증~~ → **검증됨 (필수)**. 이 키가 Info.plist에 없으면 `IOHIDManagerOpen` 호출이 TCC 리스트에 앱을 *등록조차 시키지 못함* (시스템 설정 → 입력 모니터링에 앱이 안 보임). on-demand 등록 흐름이 무력화되어 사용자가 권한 부여 자체를 할 수 없는 막다른 상태가 됨. **현재 [`OngeulApp/Resources/Info.plist`](../OngeulApp/Resources/Info.plist)에 `NSAccessibilityUsageDescription`과 함께 추가됨**. IMK 앱이 표준 TCC 프롬프트를 띄우지 못하는 한계는 여전 → 우리 시트 + 딥링크 경로 유지.
 5. **다중 키보드 동시**: 두 키보드의 CapsLock 거의 동시 누름 시 상태머신 일관성 검증.
 6. **이슈 #10과의 연결**: 본 doc 채택 후 #10 환경 원인(SokIM 공존 / Tahoe race) 중 무엇이 실제였는지 사후 회고 필요. PR #11으로 충분히 닫혔는지, 본 doc 구현 후에야 닫히는지 분리 검증.
 7. **`CapsLockSync.expectedState` 단일 변수 덮어쓰기 race**: 빠른 연속 `setState()` 호출(예: `loadLayout` 직후 `activateApp` 같은 init 시퀀스, 또는 `enterRealCapsLock`의 `setState(true)`가 직전 `setState(false)` echo 도착 전에 일어나는 경우) 시 이전 `expectedState`가 덮어써져 *#1의 echo가 #2의 expected와 불일치 → `shouldHandle()`이 사용자 입력으로 오인 → spurious 토글* 가능. doc 30의 100ms 타임아웃은 echo 미도착만 처리하고 덮어쓰기는 막지 못함. 실제 발생 조건은 5ms 내 두 번의 mode-set이라 좁지만 0은 아님. 견고한 해결은 `expectedState`를 *큐* 구조로 두고 echo 도착 시 oldest와 매칭하는 것 — 복잡도 증가로 doc 32 범위 외, 후속 RFC. 스파이크 측정 항목 #7(OS 부하 민감성)에서 함께 확인 가치.
+8. **alpha-lock 외부 desync 미감지**: 본 설계는 `setState`로 alpha-lock을 set-and-forget. realLockOn 중 다른 앱/시스템이 alpha-lock을 false로 바꾸면 *LED ON인데 소문자* 불일치. 외부 actor가 드물고 헬스 폴링은 과하므로 알려진 한계로 둠. 불변식 `alpha-lock == true ⟺ mode == .hidRealLockOn`은 우리 코드 내부에서만 보장.
+9. **on/off 비대칭 (의도적)**: ON은 800ms 임계 게이트, OFF는 realLockOn 중 *아무 press*(짧게/길게 무관 — `onKeyDown`이 realLockOn에서 즉시 early-return하고 `onKeyUp`이 exit). 즉 caps를 켠 뒤엔 길게 눌러도 그냥 꺼짐. macOS의 "caps on 상태에서 탭하면 끔"과 부합하나, 사용자가 "길게 눌러 유지" 같은 걸 기대하면 어긋남 — 문서/도움말에 명시 가치.
 
 ---
 

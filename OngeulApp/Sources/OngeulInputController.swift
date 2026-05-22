@@ -739,6 +739,14 @@ class OngeulInputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
+        // 본연 CapsLock(realLockOn) 활성 중 세션 종료(앱 전환/포커스 상실) → 강제 해제.
+        // realLockOn은 영문에 커플링돼 있어 다른 앱으로 끌고 가면 엔진 모드 drift가 생기므로,
+        // 세션 한정으로 종료하고 진입 직전 모드로 엔진을 복원한다 (doc 32 §10).
+        // 복원을 coordinator.deactivate(per-app 저장)보다 *먼저* 수행 → 영문이 저장되는 것 방지.
+        if let restore = CapsLockHIDMonitor.shared.exitRealLockForSessionEnd() {
+            coordinator.restoreModeAfterRealLock(restore)
+        }
+
         focusSteal.cancel()
         // 보류된 selectMode를 지금 호출 — 입력은 끝났으니 stall이 더 이상 의미 없다.
         flushSelectMode()

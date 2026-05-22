@@ -263,4 +263,28 @@ final class CapsLockHIDMonitor {
             CapsLockSync.setState(false)
         }
     }
+
+    /// 세션 종료(앱 전환/포커스 상실)로 realLockOn을 강제 해제 (doc 32 §10).
+    ///
+    /// realLockOn은 영문 모드에 커플링돼 있어 다른 앱으로 끌고 가면 엔진 모드 drift가
+    /// 발생한다(전역 LED·flag는 ON인데 per-app 복원이 엔진을 다른 모드로 바꿈). 따라서
+    /// realLockOn을 *세션 한정* 으로 두고 IMK `deactivateServer`에서 강제 해제한다.
+    ///
+    /// HID 콜백이 아닌 IMK 생명주기(메인 스레드)에서 호출되므로 controller dispatch 불필요.
+    /// LED는 여기서 OFF 처리하고, 진입 직전 모드를 반환하여 호출자가 엔진 모드 복원에 쓰게 한다.
+    @discardableResult
+    func exitRealLockForSessionEnd() -> InputMode? {
+        guard mode == .hidRealLockOn else { return nil }
+        let prev = modeBeforeRealLock
+        modeBeforeRealLock = nil
+        pressTriggeredLockTransition = false
+        isKeyDown = false
+        longPressTimer?.cancel()
+        longPressTimer = nil
+        mode = .hidToggleAuthority
+        CapsLockSync.setState(false)
+        os_log("exitRealLockForSessionEnd (restore=%{public}@)",
+               log: log, type: .info, String(describing: prev ?? .english))
+        return prev
+    }
 }

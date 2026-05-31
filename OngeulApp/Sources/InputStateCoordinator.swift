@@ -31,19 +31,32 @@ final class InputStateCoordinator: FocusStealModeController {
     func backspace() -> ProcessResult { engine.backspace() }
     func flush() -> ProcessResult { engine.flush() }
 
-    // MARK: - Private: 모드 변경 + KeyEventTap 동기화
+    // MARK: - Private: 모드 변경 + KeyEventTap / CapsLock LED 동기화
 
-    /// 모드 변경 + KeyEventTap 동기화.
-    /// KeyEventTap은 CGEvent 레벨에서 현재 모드를 참조하므로(Control+[ 필터링, keyBuffer 기록),
-    /// 모든 모드 변경 시 반드시 동기화해야 한다.
-    private func setMode(_ mode: InputMode) {
+    /// 모드 변경 + KeyEventTap 동기화 + CapsLock LED 동기화(doc 30).
+    ///
+    /// - KeyEventTap은 CGEvent 레벨에서 현재 모드를 참조하므로(Control+[ 필터링, keyBuffer 기록),
+    ///   모든 모드 변경 시 반드시 동기화해야 한다.
+    /// - `toggleKey == .capsLock`일 때 LED를 모드에 동기화한다(LED ON = 한글).
+    ///   `syncCapsLock: false`는 CapsLock 누름 자체가 모드 변경을 일으킨 경로에서 사용:
+    ///   하드웨어가 이미 LED를 변경했으므로 재설정은 echo만 만들 뿐 (shouldHandle이 걸러내긴 하지만 불필요).
+    private func setMode(_ mode: InputMode, syncCapsLock: Bool = true) {
         engine.setMode(mode: mode)
         KeyEventTap.currentInputMode = mode
+        if syncCapsLock && KeyEventTap.toggleKey == .capsLock {
+            CapsLockSync.setState(mode == .korean)
+        }
     }
 
+    /// `engine.toggleMode()` 직접 호출 경로(다른 전환 키, IMK fallback 등).
+    /// setMode를 거치지 않으므로 KeyEventTap·CapsLock LED 동기화를 직접 수행.
     private func toggleEngineMode() -> ProcessResult {
         let result = engine.toggleMode()
-        KeyEventTap.currentInputMode = engine.getMode()
+        let mode = engine.getMode()
+        KeyEventTap.currentInputMode = mode
+        if KeyEventTap.toggleKey == .capsLock {
+            CapsLockSync.setState(mode == .korean)
+        }
         return result
     }
 
@@ -119,6 +132,24 @@ final class InputStateCoordinator: FocusStealModeController {
         if let bundleId { perAppStore.saveMode(newMode, for: bundleId) }
 
         return StateEffect(processResult: result, modeChanged: true)
+    }
+
+    /// CapsLock 누름에 의한 모드 SET (doc 30 SET 의미론).
+    ///
+    /// 사용자가 CapsLock을 누른 시점에는 macOS 하드웨어가 이미 alpha-lock 상태를 토글했으므로,
+    /// 그 결과 상태를 입력 모드에 그대로 반영(LED ON=한글, LED OFF=영문)한다.
+    /// `syncCapsLock: false`로 호출 — 하드웨어가 이미 변경한 LED를 우리가 다시 set 하는
+    /// 불필요한 echo를 피한다 (`CapsLockSync.shouldHandle()`이 막아주긴 하지만 호출 자체 회피).
+    ///
+    /// Lock 상태면 nil 반환 (구조적 가드).
+    func setModeFromCapsLockPress(korean: Bool, for bundleId: String?) -> StateEffect? {
+        if isLocked(bundleId) { return nil }
+        let newMode: InputMode = korean ? .korean : .english
+        // 한글 → 영문 전환 시 조합 중인 한글 flush
+        let flushResult = (engine.getMode() == .korean && newMode != .korean) ? engine.flush() : nil
+        setMode(newMode, syncCapsLock: false)
+        if let bundleId { perAppStore.saveMode(newMode, for: bundleId) }
+        return StateEffect(processResult: flushResult, modeChanged: true)
     }
 
     /// English Lock 토글

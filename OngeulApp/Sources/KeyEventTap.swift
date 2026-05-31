@@ -65,14 +65,27 @@ class KeyEventTap {
                 }
 
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-                let flags = event.flags
+                var flags = event.flags
 
                 // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
-                    // CapsLock 방어: 어떤 이유로든 CapsLock이 켜져 있으면 즉시 OFF
+                    // CapsLock 방어 (영문 모드 한정): 영문 통과 경로에서 stale
+                    // maskAlphaShift가 남으면 대문자가 누수된다(이슈 #10). forceOff()의
+                    // IOKit 왕복 지연 동안 keyDown에 남는 비트를 이벤트에서 직접 제거하고
+                    // LED도 OFF로 강제한다. 탭이 IME·앱보다 앞단이므로 IMK 경로와 영문
+                    // 직통 경로가 한 곳에서 모두 보정된다. 이후 keyboardGetUnicodeString도
+                    // 보정된 flags를 사용한다.
+                    //
+                    // 한글 모드에서는 strip하지 않는다: doc 30의 "LED ON = 한글" 의미론상
+                    // alpha-lock이 켜져 있는 것이 정상(= LED 인디케이터)이고, 자모는 keycode
+                    // 기반이라 대문자 누수가 없다. 여기서 끄면 한글 진입 후 첫 키 입력에
+                    // LED가 꺼져 인디케이터가 무력화된다.
                     if KeyEventTap.toggleKey == .capsLock
-                        && flags.contains(.maskAlphaShift) {
+                        && flags.contains(.maskAlphaShift)
+                        && KeyEventTap.currentInputMode == .english {
                         CapsLockSync.forceOff()
+                        flags.subtract(.maskAlphaShift)
+                        event.flags = flags
                     }
 
                     KeyEventTap.toggleDetector.cancelOnKeyDown()
@@ -165,18 +178,21 @@ class KeyEventTap {
                 if type == .flagsChanged && keyCode == Int64(KeyCode.capsLock)
                     && KeyEventTap.toggleKey == .capsLock {
                     let capsLockOn = flags.contains(.maskAlphaShift)
-                    os_log("capsLock flagsChanged: capsLockOn=%{public}d", log: log, type: .debug, capsLockOn)
-                    // capsLockOn=true (OFF→ON press)만 처리. forceOff()가 하드웨어를 항상 OFF로
-                    // 유지하므로 모든 실제 press는 capsLockOn=true. false는 echo 또는 release.
-                    if capsLockOn {
-                        CapsLockSync.forceOff()
+                    // doc 30 SET 의미론: LED ON=한글, LED OFF=영문. 하드웨어가 이미 상태를
+                    // 토글했으므로 SET을 그대로 받아들이고 모드를 그에 맞춘다.
+                    // CapsLockSync.shouldHandle()이 setState() echo를 필터링한다.
+                    if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
+                        os_log("capsLock flagsChanged: capsLockOn=%{public}d (user)",
+                               log: log, type: .debug, capsLockOn)
                         if let controller = KeyEventTap.activeController,
                            !controller.isCurrentAppLocked() {
                             // 동기 호출: CapsLock은 key press 시점에 발생하므로
                             // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
-                            controller.performToggleFromTap()
-                            os_log("capsLock: toggled", log: log, type: .debug)
+                            controller.performCapsLockModeSet(korean: capsLockOn)
                         }
+                    } else {
+                        os_log("capsLock flagsChanged: capsLockOn=%{public}d (echo, filtered)",
+                               log: log, type: .debug, capsLockOn)
                     }
                     return Unmanaged.passUnretained(event)  // 이벤트 통과 — 앱에 정상 전달
                 }

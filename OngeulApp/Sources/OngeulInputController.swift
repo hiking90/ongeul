@@ -707,14 +707,15 @@ class OngeulInputController: IMKInputController {
         // (접근성 미허용 시에만 이 경로로 폴백)
         if KeyEventTap.shared.isInstalled { return false }
 
-        // CapsLock 전환 (CGEventTap 미설치 폴백)
+        // CapsLock 전환 (CGEventTap 미설치 폴백, doc 30 SET 의미론)
         if Self.toggleKey == .capsLock && event.keyCode == KeyCode.capsLock {
-            // capsLockOn=true (press)만 처리. release/echo는 무시.
-            guard event.modifierFlags.contains(.capsLock) else { return false }
-            CapsLockSync.forceOff()  // LED OFF 유지 (locked 상태와 무관)
+            let capsLockOn = event.modifierFlags.contains(.capsLock)
+            // CapsLockSync.setState() echo 필터링
+            guard CapsLockSync.shouldHandle(capsLockOn: capsLockOn) else { return false }
             guard !isCurrentAppLocked() else { return false }
-            guard let effect = coordinator.toggleMode(for: currentBundleId)
-            else { return false }
+            guard let effect = coordinator.setModeFromCapsLockPress(
+                korean: capsLockOn, for: currentBundleId
+            ) else { return false }
             applyEffect(effect, to: client)
             return false  // flagsChanged는 소비하지 않음
         }
@@ -746,6 +747,18 @@ class OngeulInputController: IMKInputController {
     func performToggleFromTap() {
         guard let client: any IMKTextInput = self.client(),
               let effect = coordinator.toggleMode(for: currentBundleId)
+        else { return }
+        applyEffect(effect, to: client)
+    }
+
+    /// KeyEventTap의 CapsLock flagsChanged 분기에서 호출 (doc 30 SET 의미론).
+    /// `korean: true` ⇒ 한글 모드 SET, `false` ⇒ 영문 모드 SET.
+    /// 사용자가 CapsLock을 누른 결과 LED 상태를 입력 모드에 반영하는 단방향 SET.
+    func performCapsLockModeSet(korean: Bool) {
+        guard let client: any IMKTextInput = self.client(),
+              let effect = coordinator.setModeFromCapsLockPress(
+                  korean: korean, for: currentBundleId
+              )
         else { return }
         applyEffect(effect, to: client)
     }

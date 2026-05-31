@@ -20,7 +20,7 @@
 "prefs.toggleKey.rightShift" = "오른쪽 Shift (단독)";
 "prefs.toggleKey.shiftSpace" = "Shift + Space";
 "prefs.toggleKey.capsLock" = "CapsLock";
-"prefs.capsLockDelay" = "시스템 설정 > 키보드에서 CapsLock 지연을 비활성화하세요.";
+"prefs.capsLockDelay" = "macOS 자체 UI로는 CapsLock 지연을 끄지 못합니다. 터미널에서 hidutil 명령 필요 — 자세한 안내는 문서 참고.";
 
 /* Escape → English */
 "prefs.escapeToEnglish" = "ESC / Ctrl+[ 키로 영문 전환 (Vim 모드)";

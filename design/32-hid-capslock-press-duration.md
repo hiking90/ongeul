@@ -1,6 +1,6 @@
 # 32. HID 기반 CapsLock 입력 처리 (짧게 / 길게 분리)
 
-> **상태**: 설계 v2 — Phase 1.5 스파이크 결과 대기
+> **상태**: 설계 v2 — **스파이크 완료, 시나리오 A 확정 (2026-05-21)**. PR #14 머지 ready.
 
 ## Context
 
@@ -42,6 +42,16 @@
 | 상태/LED 자체가 외부 stomp에 의해 즉시 되돌려짐 | **C** | 이 doc 보류. (B) 기능 미지원 유지 — HID는 짧은 탭 신뢰성·#10 race 차단 용도로만 한정 채택할지 별도 판단 |
 
 본 문서 이하 내용은 결과 **A** 가정. **B**가 되면 § 기존 코드 통합 절의 일부만 교체(영문 통과 경로에 대문자 합성). **C**면 doc 폐기.
+
+### ✅ 스파이크 결과 (2026-05-21)
+
+end-to-end 시퀀스 *한국어 모드 → 길게 누름 → 영문 + Caps Lock ON → 대문자 영문 타이핑 정상 → 짧은 탭 → 한국어 복원 + LED OFF* 가 사용자 환경에서 모두 확인됨. 핵심 단언:
+
+- **`IOHIDSetModifierLockState(handle, kIOHIDCapsLockState, true)` 호출 후, 실제 keyDown들이 alpha-shift 적용된 대문자 문자로 앱에 전달됨** → **시나리오 A 확정**.
+- macOS의 OS-level stomp(SokIM이 11회 반복으로 회피하던 Sonoma+ bubble) 현상은 우리 환경에선 *관찰되지 않음* — 단일 `setState(true)` 호출로 상태 유지됨.
+- macOS native parity 약속(*"한국어 → 길게 → 영문대문자 → 짧은 탭 → 한국어"가 단일 시퀀스*)이 `modeBeforeRealLock` 복원 로직으로 정확히 동작.
+
+→ 본 doc의 핵심 설계 가정이 모두 입증. PR #14의 스파이크 gate 해제, 머지 ready.
 
 ## 목표
 
@@ -85,7 +95,7 @@ doc 32는 doc 30을 *대체하지 않는다*. 분업:
 | **CGEventTap CapsLock 분기의 게이팅(HID 활성 시 우회)** | `KeyEventTap` 수정 | **doc 32** |
 | TCC UX 시트(권한 안내·딥링크) | `OngeulInputController` 설정 패널 | **doc 32** |
 
-doc 30이 정의한 SET 의미론(*"LED ON = 한글"*)은 **짧은 탭 분기에서만 적용**되고, 길게-누름은 SET 의미론 외부의 별도 분기(=본연 CapsLock)로 다룬다.
+doc 30이 정의한 SET 의미론(*"LED ON = 한글"*)은 **CGEventTap 폴백 모드(HID 미활성)에서만 유효**하고, HID 모드(hidToggleAuthority/hidRealLockOn)에서는 **LED가 *본연 CapsLock 활성 여부* 만을 표현**한다. 이유: HID 모드에선 길게-누름이 진짜 Caps Lock을 켤 수 있으므로 LED가 두 의미를 가지면(Korean indicator vs Caps Lock 활성) 사용자에게 ambiguous. macOS 표준 의미("LED ON = 대문자 잠금")와 정합하도록 *LED = realLockOn 표시 전용*으로 통일. 모드 indicator는 메뉴바 아이콘이 담당.
 
 ## 옵트인 게이팅
 
@@ -145,7 +155,7 @@ enum CapsLockMode {
 |---|---|
 | `KeyEventTap` flagsChanged CapsLock 분기 (doc 30) | `current == .cgEventTapAuthority` 일 때만 실행 |
 | `KeyEventTap` keyDown `.maskAlphaShift` strip ([PR #11](https://github.com/hiking90/ongeul/pull/11)) | `current != .hidRealLockOn` 일 때만 실행 (본연 잠금 중엔 대문자 통과) |
-| `InputStateCoordinator.setMode` LED 동기화 (doc 30) | `current != .hidRealLockOn` 일 때만 LED set (본연 잠금 중엔 사용자 상태 존중) |
+| `InputStateCoordinator.setMode` LED 동기화 (doc 30) | `current == .cgEventTapAuthority` 일 때만 LED set. HID 모드(toggleAuthority/realLockOn)에선 LED 미동기화 — LED는 realLockOn 전용 indicator |
 | `CapsLockHIDMonitor` | 자기 자신이 상태 변경의 권위. 시작/정지/타이머 발화/short tap/long press 시 `current`를 변경 |
 
 상태 전이:
@@ -173,7 +183,7 @@ hidRealLockOn        ──HID fail/stop──▶     cgEventTapAuthority  (+ LE
         │     │                                       │
         │     ├─ HID: keyUp(0x39) (timer 아직)        │
         │     │     → coordinator.toggleMode()        │
-        │     │       doc 30이 LED 동기화             │
+        │     │       (HID 모드: LED 미동기화 — 항상 OFF) │
         │     │       복귀 ─▶ [CapsOFF]                │
         │     │                                       │
         │     └─ Timer 발화 (keyDown 유지 중)         │
@@ -191,12 +201,14 @@ hidRealLockOn        ──HID fail/stop──▶     cgEventTapAuthority  (+ LE
         └─────────────────────────────────────────────┘
 ```
 
-| 현재 | 입력 | 동작 | 다음 |
+| 현재 | 입력 | 동작 | 다음 LED |
 |---|---|---|---|
-| CapsOFF | 짧은 탭 (< 800ms) | toggleMode + doc 30 mode-sync로 LED 정합 | CapsOFF (또는 LED=ON if 한글) |
-| CapsOFF | 길게 (≥ 800ms) | `setState(true)` + 토글 억제 + mode=`hidRealLockOn` | CapsON |
-| CapsON | 짧은 탭 | `setState(false)` + mode=`hidToggleAuthority` + 토글 안 함 | CapsOFF |
-| CapsON | 길게 | 짧은 탭과 동일 — `setState(false)` + 종료 | CapsOFF |
+| CapsOFF | 짧은 탭 (< 800ms) | toggleMode (HID 모드라 LED 미동기화 — 모드만 변경) | OFF |
+| CapsOFF | 길게 (≥ 800ms) | `setState(true)` + 토글 억제 + mode=`hidRealLockOn` | **ON** (realLockOn 표시) |
+| CapsON | 짧은 탭 | exitRealCapsLock — `setState(false)` + mode=`hidToggleAuthority` + 진입직전 모드 복원, 토글 안 함 | OFF |
+| CapsON | 길게 | 짧은 탭과 동일 — `setState(false)` + 종료 | OFF |
+
+> **LED 의미**: HID 모드에서 LED는 *본연 CapsLock 활성 여부* 만 표현(=`hidRealLockOn` 상태). macOS 표준 의미와 일치, 사용자 혼란 방지. 모드 표시는 메뉴바 아이콘이 담당.
 
 ## 임계값 — 800ms 하드코딩
 
@@ -297,9 +309,9 @@ if type == .flagsChanged && keyCode == Int64(KeyCode.capsLock)
 if KeyEventTap.toggleKey == .capsLock
     && flags.contains(.maskAlphaShift) {
     if CapsLockHIDMonitor.shared.mode == .hidRealLockOn {
-        // 본연 CapsLock ON 중에는 strip·forceOff 면제 → 대문자 통과
+        // 본연 CapsLock ON 중에는 strip·setState 호출 자체를 면제 → 대문자 통과
     } else {
-        CapsLockSync.forceOff()
+        CapsLockSync.setState(false)
         flags.subtract(.maskAlphaShift)
         event.flags = flags
     }
@@ -438,16 +450,16 @@ NSWorkspace.shared.open(URL(string:
 
 | # | 상황 | 결과 |
 |---|---|---|
-| 1 | OFF 상태에서 짧게 탭 (전환 키=CapsLock, HID 정상) | HID keyDown → 타이머 시작 + `setState(false)`. keyUp이 임계 전 → `toggleMode()`. doc 30 mode-sync가 LED를 모드에 정합. PR #11 strip 정상. |
+| 1 | OFF 상태에서 짧게 탭 (전환 키=CapsLock, HID 정상) | HID keyDown → 타이머 시작 + `setState(false)`. keyUp이 임계 전 → `toggleMode()` → 엔진 모드만 토글 (HID 모드에선 LED 미동기화 — LED는 OFF 유지). PR #11 strip 정상. |
 | 2 | OFF 상태에서 800ms 이상 보유 | 타이머 발화 → `mode=.hidRealLockOn` + `setState(true)`. 한/영 토글 안 함. 이후 keyDown들은 strip 면제 → 대문자가 앱에 전달 (스파이크 결과 A 가정). |
 | 3 | ON 상태에서 짧게 탭 | `mode == .hidRealLockOn` 확인 → `exitRealCapsLock()` → `setState(false)` + `mode=.hidToggleAuthority`. 토글 안 함. |
-| 4 | ON 상태에서 한/영 모드가 다른 경로(우커맨드 탭 등)로 변경 | `setMode`가 `mode == .hidRealLockOn` 가드에 막혀 LED 안 건드림 — 사용자가 켠 본연 CapsLock 유지. |
+| 4 | ON 상태에서 한/영 모드가 다른 경로(우커맨드 탭 등)로 변경 | `setMode`가 HID 모드 가드에 막혀 LED 안 건드림 — 사용자가 켠 본연 CapsLock LED 유지. |
 | 5 | 권한 미부여 | `start()` `kIOReturnNotPermitted` throws → `mode=.cgEventTapAuthority` 유지 → doc 30 CGEventTap 경로. 메뉴바 배너 + 딥링크. (B) 미지원. |
 | 6 | SokIM과 공존 | HID open 성공(비-seize). 양측 상태 set 시도가 겹치면 race — `hidRealLockOn` 시점에만 set ON하므로 일상 짧은 탭은 안전. 사용자 안내 권고. |
 | 7 | 절전 → 복귀 | `didWakeNotification` → `CapsLockHIDMonitor.restart()`. |
 | 8 | 전환 키를 CapsLock→우커맨드로 변경 | `okClicked`에서 `stop()` + `CapsLockSync.reset()` + LED OFF. TCC 권한은 시스템에 남되 모니터는 정지. |
 | 9 | 우커맨드→CapsLock 변경 | UX 시트 (권한 결손 시) 또는 즉시 활성 (권한 둘 다 있음) → `start()`. |
-| 10 | 본연 CapsLock ON 상태에서 IME 전환(앱 변경) | `mode=.hidRealLockOn` 그대로 유지 (전역). macOS Caps Lock 의미론 매칭. |
+| 10 | 본연 CapsLock ON 상태에서 IME 전환(앱 변경) | `deactivateServer`에서 `exitRealLockForSessionEnd()` 호출 → realLockOn 해제 + 진입 직전 모드로 엔진 복원 + LED OFF. **세션 한정**(전역 아님) — 아래 § 미해결 #1 참조. |
 | 11 | 암호 필드 진입 (Secure Input) | doc 30 시나리오와 동일. HID 콜백은 계속 들어오지만 `controller.isCurrentAppLocked`/`IsSecureEventInputEnabled` 체크로 coordinator 호출 억제. |
 | 12 | `hidRealLockOn` 상태에서 사용자가 권한 회수 | HID 콜백 중단. 헬스체크가 회수를 탐지하면 `CapsLockSync.setState(false)` + `mode=.cgEventTapAuthority`로 환원. |
 
@@ -468,6 +480,7 @@ NSWorkspace.shared.open(URL(string:
 4. **`CGEventSourceFlagsState(.combinedSessionState).contains(.maskAlphaShift)`**: 즉시 true?
 5. **stomp 검증**: 호출 후 1~2초 관찰. OS가 외부 요인으로 false로 되돌리는가? SokIM 11회 반복 패턴의 현재 OS 유효성.
 6. **HID 콜백이 시스템 Caps Lock 지연과 무관하게 도착하는가?** `hidutil property --set CapsLockDelayOverride 250` 설정 후 짧은 탭 — HID 모니터가 받는가? (받는다면 사용자에게 `hidutil` 안내 불필요화 가능.)
+7. **`CapsLockSync.shouldHandle()` 100ms 타임아웃의 OS 부하 민감성**: 정상 환경에선 `IOHIDSetModifierLockState` 후 echo `flagsChanged`가 1~10ms 내 도착해 `expectedState` 가드가 정확히 동작하지만, 무거운 VM/CI/저성능 환경에서 echo가 100ms 이상 지연되면 가드가 만료되어 echo를 *사용자 입력*으로 오인 → spurious 토글 발생. 측정: 인위적 부하(`stress-ng -c N` 등) 상태에서 mode 변경 → echo 도착 시간 분포 측정. 디폴트 100ms로 부족하면 doc 30·doc 32의 `expectedStateTimeout`을 상향 검토 (단, 사용자가 임계 안에 CapsLock을 누를 물리적 한계와 균형).
 
 ### 예상 시간
 
@@ -512,12 +525,15 @@ NSWorkspace.shared.open(URL(string:
 
 ## 미해결 / 후속 검토
 
-1. **`hidRealLockOn`의 영속성**: 앱 전환 시 전역 ON 유지로 결정([§ 동작 시나리오](#동작-시나리오) #10). macOS Caps Lock 의미론과 일치하며 사용자 멘탈 모델과도 합치. *전역* 결정으로 doc 32 확정.
+1. **`hidRealLockOn`의 영속성**: ~~전역~~ → **세션 한정으로 수정** (앱 전환/포커스 상실 시 `deactivateServer`의 `exitRealLockForSessionEnd()`가 자동 해제 + 진입 직전 모드 복원). 이유: 진짜 macOS Caps Lock은 입력 소스와 *직교*(어떤 소스든 대문자만)라 전역이 자연스럽지만, 우리 realLockOn은 **영문 모드 강제와 커플링**돼 있어 전역 유지 시 per-app 모드 복원이 엔진을 다른 모드로 바꿔 *LED는 ON(caps)인데 한글이 입력되는 drift*가 발생. transient 의도("지금 대문자")에도 세션 한정이 부합하며, caps episode가 진입 직전 상태로 완전히 환원되어 끝남. (트레이드오프: 진짜 macOS Caps Lock과 달리 앱 전환을 가로질러 유지되지 않음 — 모드 커플링 때문에 수용.)
 2. **HID 콜백 침묵 자동 복구**: SokIM `restartIfIdle()` 패턴 도입 여부. idle 임계와 false positive 검토.
 3. **`IOHIDSetModifierLockState` Tahoe 동작 차이**: 스파이크에서 정밀화.
-4. **`NSInputMonitoringUsageDescription` IMK 적용성**: IMK 앱은 시스템 launch 백그라운드 프로세스라 표준 TCC 프롬프트 비신뢰. 사용자 매뉴얼(우리 시트) + 딥링크로 우회.
+4. **`NSInputMonitoringUsageDescription` IMK 적용성**: ~~미검증~~ → **검증됨 (필수)**. 이 키가 Info.plist에 없으면 `IOHIDManagerOpen` 호출이 TCC 리스트에 앱을 *등록조차 시키지 못함* (시스템 설정 → 입력 모니터링에 앱이 안 보임). on-demand 등록 흐름이 무력화되어 사용자가 권한 부여 자체를 할 수 없는 막다른 상태가 됨. **현재 [`OngeulApp/Resources/Info.plist`](../OngeulApp/Resources/Info.plist)에 `NSAccessibilityUsageDescription`과 함께 추가됨**. IMK 앱이 표준 TCC 프롬프트를 띄우지 못하는 한계는 여전 → 우리 시트 + 딥링크 경로 유지.
 5. **다중 키보드 동시**: 두 키보드의 CapsLock 거의 동시 누름 시 상태머신 일관성 검증.
 6. **이슈 #10과의 연결**: 본 doc 채택 후 #10 환경 원인(SokIM 공존 / Tahoe race) 중 무엇이 실제였는지 사후 회고 필요. PR #11으로 충분히 닫혔는지, 본 doc 구현 후에야 닫히는지 분리 검증.
+7. **`CapsLockSync.expectedState` 단일 변수 덮어쓰기 race**: 빠른 연속 `setState()` 호출(예: `loadLayout` 직후 `activateApp` 같은 init 시퀀스, 또는 `enterRealCapsLock`의 `setState(true)`가 직전 `setState(false)` echo 도착 전에 일어나는 경우) 시 이전 `expectedState`가 덮어써져 *#1의 echo가 #2의 expected와 불일치 → `shouldHandle()`이 사용자 입력으로 오인 → spurious 토글* 가능. doc 30의 100ms 타임아웃은 echo 미도착만 처리하고 덮어쓰기는 막지 못함. 실제 발생 조건은 5ms 내 두 번의 mode-set이라 좁지만 0은 아님. 견고한 해결은 `expectedState`를 *큐* 구조로 두고 echo 도착 시 oldest와 매칭하는 것 — 복잡도 증가로 doc 32 범위 외, 후속 RFC. 스파이크 측정 항목 #7(OS 부하 민감성)에서 함께 확인 가치.
+8. **alpha-lock 외부 desync 미감지**: 본 설계는 `setState`로 alpha-lock을 set-and-forget. realLockOn 중 다른 앱/시스템이 alpha-lock을 false로 바꾸면 *LED ON인데 소문자* 불일치. 외부 actor가 드물고 헬스 폴링은 과하므로 알려진 한계로 둠. 불변식 `alpha-lock == true ⟺ mode == .hidRealLockOn`은 우리 코드 내부에서만 보장.
+9. **on/off 비대칭 (의도적)**: ON은 800ms 임계 게이트, OFF는 realLockOn 중 *아무 press*(짧게/길게 무관 — `onKeyDown`이 realLockOn에서 즉시 early-return하고 `onKeyUp`이 exit). 즉 caps를 켠 뒤엔 길게 눌러도 그냥 꺼짐. macOS의 "caps on 상태에서 탭하면 끔"과 부합하나, 사용자가 "길게 눌러 유지" 같은 걸 기대하면 어긋남 — 문서/도움말에 명시 가치.
 
 ---
 

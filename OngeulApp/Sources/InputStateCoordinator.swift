@@ -33,28 +33,34 @@ final class InputStateCoordinator: FocusStealModeController {
 
     // MARK: - Private: 모드 변경 + KeyEventTap / CapsLock LED 동기화
 
-    /// 모드 변경 + KeyEventTap 동기화 + CapsLock LED 동기화(doc 30).
+    /// 모드 변경 + KeyEventTap 동기화 + CapsLock LED 동기화.
     ///
     /// - KeyEventTap은 CGEvent 레벨에서 현재 모드를 참조하므로(Control+[ 필터링, keyBuffer 기록),
     ///   모든 모드 변경 시 반드시 동기화해야 한다.
-    /// - `toggleKey == .capsLock`일 때 LED를 모드에 동기화한다(LED ON = 한글).
-    ///   `syncCapsLock: false`는 CapsLock 누름 자체가 모드 변경을 일으킨 경로에서 사용:
-    ///   하드웨어가 이미 LED를 변경했으므로 재설정은 echo만 만들 뿐 (shouldHandle이 걸러내긴 하지만 불필요).
+    /// - LED는 **CGEventTap 폴백 모드에서만** 모드에 동기화 (doc 30 SET 의미론, LED ON = 한글).
+    ///   HID 모드(toggleAuthority/realLockOn)에서는 LED가 *본연 CapsLock 활성 여부* 만을
+    ///   가리킴 (macOS 표준 의미 + 사용자 멘탈 모델 일치). 모드 indicator는 메뉴바 아이콘이 담당.
+    /// - `syncCapsLock: false`는 CapsLock 누름 자체가 모드 변경을 일으킨 경로에서 사용:
+    ///   하드웨어가 이미 LED를 변경했으므로 재설정은 echo만 만듦 (shouldHandle이 걸러내긴 하지만 불필요).
     private func setMode(_ mode: InputMode, syncCapsLock: Bool = true) {
         engine.setMode(mode: mode)
         KeyEventTap.currentInputMode = mode
-        if syncCapsLock && KeyEventTap.toggleKey == .capsLock {
+        if syncCapsLock
+            && KeyEventTap.toggleKey == .capsLock
+            && CapsLockHIDMonitor.shared.mode == .cgEventTapAuthority {
             CapsLockSync.setState(mode == .korean)
         }
     }
 
-    /// `engine.toggleMode()` 직접 호출 경로(다른 전환 키, IMK fallback 등).
+    /// `engine.toggleMode()` 직접 호출 경로(다른 전환 키, IMK fallback, HID 짧은 탭 등).
     /// setMode를 거치지 않으므로 KeyEventTap·CapsLock LED 동기화를 직접 수행.
+    /// LED 동기화 규칙은 `setMode`와 동일 — HID 모드에선 LED를 건드리지 않음.
     private func toggleEngineMode() -> ProcessResult {
         let result = engine.toggleMode()
         let mode = engine.getMode()
         KeyEventTap.currentInputMode = mode
-        if KeyEventTap.toggleKey == .capsLock {
+        if KeyEventTap.toggleKey == .capsLock
+            && CapsLockHIDMonitor.shared.mode == .cgEventTapAuthority {
             CapsLockSync.setState(mode == .korean)
         }
         return result
@@ -172,6 +178,13 @@ final class InputStateCoordinator: FocusStealModeController {
                 lockOverlay: .show(locked: true)
             )
         }
+    }
+
+    /// 본연 CapsLock 세션 종료 시 엔진 모드만 복원 (doc 32 §10).
+    /// `deactivateServer`에서 호출 — 이후 `deactivate(for:)`가 복원된 모드를 per-app store에 저장한다.
+    /// LED는 HID 게이트(`mode != .cgEventTapAuthority`)로 건드리지 않음.
+    func restoreModeAfterRealLock(_ mode: InputMode) {
+        setMode(mode, syncCapsLock: false)
     }
 
     /// 시스템 발 모드 변경 (setValue:forTag:client: 경유).

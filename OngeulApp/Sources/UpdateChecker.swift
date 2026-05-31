@@ -102,6 +102,11 @@ final class UpdateChecker {
                 os_log("Update check failed: %{public}@",
                        log: Self.log, type: .error, error.localizedDescription)
                 if !silent { showError() }
+                // 실패 시 lastCheckDate를 되돌려, 다음 checkIfNeeded에서 재시도 가능하게 한다.
+                // (성공 시에만 line 52에서 날짜를 박아 24h 간격을 유지.)
+                // 이렇게 하지 않으면 checkIfNeeded가 최초 실행 시 박아둔 placeholder 날짜가
+                // 남아, 첫 자동 체크가 실패하면 24시간 동안 자동 체크가 봉인된다.
+                self.lastCheckDate = nil
             }
         }
     }

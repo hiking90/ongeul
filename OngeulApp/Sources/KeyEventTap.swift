@@ -70,20 +70,25 @@ class KeyEventTap {
                 // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
                     // CapsLock 방어 (영문 모드 한정): 영문 통과 경로에서 stale
-                    // maskAlphaShift가 남으면 대문자가 누수된다(이슈 #10). forceOff()의
-                    // IOKit 왕복 지연 동안 keyDown에 남는 비트를 이벤트에서 직접 제거하고
-                    // LED도 OFF로 강제한다. 탭이 IME·앱보다 앞단이므로 IMK 경로와 영문
-                    // 직통 경로가 한 곳에서 모두 보정된다. 이후 keyboardGetUnicodeString도
-                    // 보정된 flags를 사용한다.
+                    // maskAlphaShift가 남으면 대문자가 누수된다(이슈 #10).
+                    // CapsLockSync.setState(false)의 IOKit 왕복 지연 동안 keyDown에 남는
+                    // 비트를 이벤트에서 직접 제거하고 LED도 OFF로 강제한다. 탭이 IME·앱보다
+                    // 앞단이므로 IMK 경로와 영문 직통 경로가 한 곳에서 모두 보정된다.
+                    // 이후 keyboardGetUnicodeString도 보정된 flags를 사용한다.
                     //
                     // 한글 모드에서는 strip하지 않는다: doc 30의 "LED ON = 한글" 의미론상
                     // alpha-lock이 켜져 있는 것이 정상(= LED 인디케이터)이고, 자모는 keycode
                     // 기반이라 대문자 누수가 없다. 여기서 끄면 한글 진입 후 첫 키 입력에
                     // LED가 꺼져 인디케이터가 무력화된다.
+                    //
+                    // 본연 CapsLock 잠금(HID 길게-누름으로 진입) 중에도 strip 면제 —
+                    // realLockOn은 영문 모드로 강제되므로 currentInputMode 가드만으로는
+                    // 막히지 않는다. 사용자가 명시적으로 켠 대문자 잠금이 통과돼야 한다 (doc 32).
                     if KeyEventTap.toggleKey == .capsLock
                         && flags.contains(.maskAlphaShift)
-                        && KeyEventTap.currentInputMode == .english {
-                        CapsLockSync.forceOff()
+                        && KeyEventTap.currentInputMode == .english
+                        && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
+                        CapsLockSync.setState(false)
                         flags.subtract(.maskAlphaShift)
                         event.flags = flags
                     }
@@ -175,8 +180,12 @@ class KeyEventTap {
                 // CapsLock은 하드웨어 토글이므로 ToggleDetector를 사용하지 않고
                 // flagsChanged에서 직접 감지하되, 다른 전환 키와 동일한 TOGGLE로 처리한다.
                 // LED는 항상 OFF로 강제하여 CapsLock이 켜지지 않도록 한다.
+                // HID 모니터가 활성이면 (mode != .cgEventTapAuthority) HID가 권위 —
+                // CapsLock 분기는 건너뛴다. HID가 keyDown/keyUp으로 short/long 판정 후
+                // performToggleFromTap (짧은 탭) 또는 performEnterRealCapsLock (길게)을 호출.
                 if type == .flagsChanged && keyCode == Int64(KeyCode.capsLock)
-                    && KeyEventTap.toggleKey == .capsLock {
+                    && KeyEventTap.toggleKey == .capsLock
+                    && CapsLockHIDMonitor.shared.mode == .cgEventTapAuthority {
                     let capsLockOn = flags.contains(.maskAlphaShift)
                     // doc 30 SET 의미론: LED ON=한글, LED OFF=영문. 하드웨어가 이미 상태를
                     // 토글했으므로 SET을 그대로 받아들이고 모드를 그에 맞춘다.

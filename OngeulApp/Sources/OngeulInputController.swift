@@ -1,9 +1,34 @@
 import Cocoa
 import InputMethodKit
 import Carbon
+import IOKit.hid
+import ApplicationServices
 import os.log
 
 private let log = OSLog(subsystem: "io.github.hiking90.inputmethod.Ongeul", category: "input")
+
+// MARK: - System Settings Deep Links
+
+/// 시스템 설정의 Privacy 페인 딥링크.
+/// macOS 13+에서 `x-apple.systempreferences:` URL scheme으로 특정 페인까지 이동.
+private enum PrivacyPane: String {
+    case inputMonitoring = "Privacy_ListenEvent"
+    case accessibility   = "Privacy_Accessibility"
+
+    func open() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(rawValue)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+}
+
+/// CapsLock HID 모드에 필요한 권한 조회 (프롬프트 트리거 없이 상태만 확인).
+private enum CapsLockPermissions {
+    static var inputMonitoring: Bool {
+        IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
+    }
+    static var accessibility: Bool { AXIsProcessTrusted() }
+}
 
 // MARK: - Input Mode IDs
 private enum InputModeID {
@@ -292,11 +317,40 @@ private final class PreferencesPanel {
     @objc private func okClicked(_ sender: Any?) {
         let previousToggleKey = OngeulInputController.toggleKey
         let newToggleKey = toggleKeyTitles[togglePopup.indexOfSelectedItem].0
+        let transitioningToCapsLock = (previousToggleKey != .capsLock && newToggleKey == .capsLock)
+
+        // CapsLock으로 신규 전환 시, 결손 권한이 있으면 안내 시트.
+        // 둘 다 부여돼 있으면 시트 없이 즉시 commit.
+        if transitioningToCapsLock {
+            let missingInput  = !CapsLockPermissions.inputMonitoring
+            let missingAccess = !CapsLockPermissions.accessibility
+            if missingInput || missingAccess {
+                presentCapsLockPermissionAlert(
+                    missingInput: missingInput,
+                    missingAccess: missingAccess,
+                    previousToggleKey: previousToggleKey,
+                    newToggleKey: newToggleKey
+                )
+                return
+            }
+        }
+
+        commitSettings(previousToggleKey: previousToggleKey, newToggleKey: newToggleKey)
+        panel.orderOut(nil)
+    }
+
+    /// 실제 설정 적용 + KeyEventTap 재설치 + HID 모니터 lifecycle.
+    /// okClicked에서 직접 또는 권한 시트 confirm 후 호출.
+    private func commitSettings(previousToggleKey: ToggleKey, newToggleKey: ToggleKey) {
         OngeulInputController.toggleKey = newToggleKey
 
-        // CapsLock 전환 키 변경 시 LED OFF 강제
-        if previousToggleKey == .capsLock || newToggleKey == .capsLock {
-            CapsLockSync.forceOff()
+        // CapsLock 전환 키 변경 시 LED OFF (잔존 상태 정리).
+        // 조건 1: 실제 전이가 일어난 경우만 (toggleKey 변경 없이 OK만 누른 경우는 건드리지 않음).
+        // 조건 2: 본연 CapsLock 잠금 중에는 사용자가 명시적으로 켠 LED 상태 존중 (doc 32 §10 전역 유지).
+        if previousToggleKey != newToggleKey
+            && (previousToggleKey == .capsLock || newToggleKey == .capsLock)
+            && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
+            CapsLockSync.setState(false)
         }
 
         let newLayout: String
@@ -316,7 +370,75 @@ private final class PreferencesPanel {
         KeyEventTap.toggleKey = OngeulInputController.toggleKey
         KeyEventTap.shared.install()
 
-        panel.orderOut(nil)
+        // HID 모니터 lifecycle (toggleKey 전이 시)
+        if newToggleKey == .capsLock {
+            // controller 주입을 start() 이전에 — race 방지 (activateServer 호출 전이라도
+            // 사용자가 prefs 닫고 즉시 CapsLock 누르면 HID 콜백이 fire될 수 있음).
+            CapsLockHIDMonitor.shared.controller = KeyEventTap.activeController
+            do {
+                try CapsLockHIDMonitor.shared.start()
+            } catch {
+                os_log("CapsLockHIDMonitor.start failed: %{public}@",
+                       log: log, type: .error, String(describing: error))
+            }
+        } else if previousToggleKey == .capsLock {
+            CapsLockHIDMonitor.shared.stop()
+        }
+    }
+
+    /// 결손 권한 안내 시트 — 결손 종류에 따라 버튼 동적 구성.
+    /// "설정 열기" 클릭 → 해당 페인 + commit. "취소" → toggleKey 원복.
+    private func presentCapsLockPermissionAlert(
+        missingInput: Bool,
+        missingAccess: Bool,
+        previousToggleKey: ToggleKey,
+        newToggleKey: ToggleKey
+    ) {
+        let alert = NSAlert()
+        alert.messageText = NSLocalizedString("prefs.capsLockSheet.title", comment: "")
+
+        var lines = [NSLocalizedString("prefs.capsLockSheet.intro", comment: "")]
+        if missingInput {
+            lines.append(NSLocalizedString("prefs.capsLockSheet.needInput", comment: ""))
+        }
+        if missingAccess {
+            lines.append(NSLocalizedString("prefs.capsLockSheet.needAccess", comment: ""))
+        }
+        lines.append(NSLocalizedString("prefs.capsLockSheet.restart", comment: ""))
+        alert.informativeText = lines.joined(separator: "\n\n")
+        alert.alertStyle = .informational
+
+        // 결손 종류별 동적 버튼 (가장 첫 추가가 default)
+        var openActions: [(NSApplication.ModalResponse, () -> Void)] = []
+        if missingInput {
+            alert.addButton(withTitle: NSLocalizedString("prefs.capsLockSheet.openInput", comment: ""))
+            let resp = NSApplication.ModalResponse(
+                NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + openActions.count
+            )
+            openActions.append((resp, { PrivacyPane.inputMonitoring.open() }))
+        }
+        if missingAccess {
+            alert.addButton(withTitle: NSLocalizedString("prefs.capsLockSheet.openAccess", comment: ""))
+            let resp = NSApplication.ModalResponse(
+                NSApplication.ModalResponse.alertFirstButtonReturn.rawValue + openActions.count
+            )
+            openActions.append((resp, { PrivacyPane.accessibility.open() }))
+        }
+        alert.addButton(withTitle: NSLocalizedString("prefs.cancel", comment: ""))
+
+        alert.beginSheetModal(for: panel) { [weak self] response in
+            guard let self = self else { return }
+            if let action = openActions.first(where: { $0.0 == response }) {
+                action.1()  // 해당 Privacy 페인 열기
+                self.commitSettings(previousToggleKey: previousToggleKey, newToggleKey: newToggleKey)
+            } else {
+                // 취소 — popup을 이전 값으로 되돌리고 commit 안 함
+                if let idx = self.toggleKeyTitles.firstIndex(where: { $0.0 == previousToggleKey }) {
+                    self.togglePopup.selectItem(at: idx)
+                }
+            }
+            self.panel.orderOut(nil)
+        }
     }
 
     @objc private func cancelClicked(_ sender: Any?) {
@@ -571,9 +693,25 @@ class OngeulInputController: IMKInputController {
         }
 
         // CapsLock이 toggle key일 때 방어적 LED OFF
-        // (다른 앱에서 CapsLock이 켜진 상태로 전환된 경우 대비)
-        if Self.toggleKey == .capsLock && KeyEventTap.shared.isInstalled {
-            CapsLockSync.forceOff()
+        // (다른 앱에서 CapsLock이 켜진 상태로 전환된 경우 대비).
+        // 단 본연 CapsLock 잠금 중에는 사용자가 명시적으로 켠 LED 유지 (doc 32 §10 전역).
+        if Self.toggleKey == .capsLock
+            && KeyEventTap.shared.isInstalled
+            && CapsLockHIDMonitor.shared.mode != .hidRealLockOn {
+            CapsLockSync.setState(false)
+        }
+
+        // HID 모니터 lifecycle — toggleKey == .capsLock일 때만 start.
+        // 멱등 (이미 시작돼 있으면 즉시 return). 권한 미부여 등으로 실패하면 로깅만,
+        // CGEventTap 폴백이 자동으로 동작. 메뉴바 헬스 항목이 사용자에게 안내.
+        if Self.toggleKey == .capsLock {
+            CapsLockHIDMonitor.shared.controller = self
+            do {
+                try CapsLockHIDMonitor.shared.start()
+            } catch {
+                os_log("CapsLockHIDMonitor.start failed: %{public}@",
+                       log: log, type: .info, String(describing: error))
+            }
         }
 
         // Focus-steal correction: 키 입력 시점에 한글 모드였고, English Lock이 아닌 경우만
@@ -601,6 +739,14 @@ class OngeulInputController: IMKInputController {
     }
 
     override func deactivateServer(_ sender: Any!) {
+        // 본연 CapsLock(realLockOn) 활성 중 세션 종료(앱 전환/포커스 상실) → 강제 해제.
+        // realLockOn은 영문에 커플링돼 있어 다른 앱으로 끌고 가면 엔진 모드 drift가 생기므로,
+        // 세션 한정으로 종료하고 진입 직전 모드로 엔진을 복원한다 (doc 32 §10).
+        // 복원을 coordinator.deactivate(per-app 저장)보다 *먼저* 수행 → 영문이 저장되는 것 방지.
+        if let restore = CapsLockHIDMonitor.shared.exitRealLockForSessionEnd() {
+            coordinator.restoreModeAfterRealLock(restore)
+        }
+
         focusSteal.cancel()
         // 보류된 selectMode를 지금 호출 — 입력은 끝났으니 stall이 더 이상 의미 없다.
         flushSelectMode()
@@ -624,6 +770,17 @@ class OngeulInputController: IMKInputController {
     override func menu() -> NSMenu! {
         os_log("menu() called", log: log, type: .default)
         let menu = NSMenu()
+
+        // CapsLock 모드 + HID 모니터 미활성(권한 미부여 등) → 헬스 안내 항목.
+        if Self.toggleKey == .capsLock && !CapsLockHIDMonitor.shared.isStarted {
+            let warningItem = NSMenuItem(
+                title: NSLocalizedString("menu.capsLockNeedsPermission", comment: ""),
+                action: #selector(openCapsLockPermission(_:)),
+                keyEquivalent: "")
+            warningItem.target = self
+            menu.addItem(warningItem)
+            menu.addItem(NSMenuItem.separator())
+        }
 
         let prefsItem = NSMenuItem(
             title: NSLocalizedString("menu.preferences", comment: ""),
@@ -660,6 +817,22 @@ class OngeulInputController: IMKInputController {
     @objc private func openHelp(_ sender: Any?) {
         if let url = URL(string: "https://hiking90.github.io/ongeul/") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// 메뉴바 헬스 항목 클릭 — 결손 권한 페인 열기 + HID 재시작 시도.
+    @objc private func openCapsLockPermission(_ sender: Any?) {
+        if !CapsLockPermissions.inputMonitoring {
+            PrivacyPane.inputMonitoring.open()
+        } else if !CapsLockPermissions.accessibility {
+            PrivacyPane.accessibility.open()
+        }
+        // 즉시 재시도 — 권한이 이미 부여된 상태일 수도 있고, 부여 직후 사용자가 다시 호출할 수도 있음.
+        do {
+            try CapsLockHIDMonitor.shared.start()
+        } catch {
+            os_log("CapsLockHIDMonitor.start retry failed: %{public}@",
+                   log: log, type: .info, String(describing: error))
         }
     }
 
@@ -761,6 +934,39 @@ class OngeulInputController: IMKInputController {
               )
         else { return }
         applyEffect(effect, to: client)
+    }
+
+    /// CapsLockHIDMonitor의 길게-누름 임계 발화에서 호출 (doc 32).
+    /// 본연 CapsLock 활성화 = 영문 모드 SET + alpha-lock ON.
+    /// macOS native parity: 길게 누르면 항상 *uppercase English* 환경 (현재 모드 무관).
+    func performEnterRealCapsLock() {
+        guard let client: any IMKTextInput = self.client() else { return }
+        // 영문 모드로 SET (현재 모드 무관). setMode가 syncCapsLock=false라 LED 안 건드림.
+        if let effect = coordinator.setModeFromCapsLockPress(
+            korean: false, for: currentBundleId
+        ) {
+            applyEffect(effect, to: client)
+        }
+        // .hidRealLockOn 게이트가 active이므로 doc 30 mode-sync는 LED를 안 건드림 →
+        // 본연 CapsLock LED를 직접 ON으로 set.
+        CapsLockSync.setState(true)
+    }
+
+    /// CapsLockHIDMonitor의 본연 CapsLock exit에서 호출 (doc 32, macOS native parity).
+    /// 진입 직전 모드로 복원 + LED OFF.
+    /// 예: "한글 → 길게 → 영문+caps → 짧은 탭"이 한국어 + LED OFF로 환원되어 단일 동작 시퀀스 완결.
+    /// LED는 HID 모드에서 *본연 CapsLock 활성 여부* 만을 표현하므로, 복원된 모드와 무관하게 항상 OFF.
+    func performExitRealCapsLock(restoreMode: InputMode) {
+        guard let client: any IMKTextInput = self.client() else { return }
+        let korean = (restoreMode == .korean)
+        // 모드 복원 (setMode가 syncCapsLock=false + HID 모드라 LED는 안 만짐).
+        if let effect = coordinator.setModeFromCapsLockPress(
+            korean: korean, for: currentBundleId
+        ) {
+            applyEffect(effect, to: client)
+        }
+        // LED는 항상 OFF — HID 모드에서 LED = realLockOn 표시 전용.
+        CapsLockSync.setState(false)
     }
 
     func performVimEscapeFromTap() {

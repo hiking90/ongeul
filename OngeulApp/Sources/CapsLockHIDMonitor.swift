@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import IOKit
 import IOKit.hid
@@ -32,7 +33,17 @@ enum CapsLockMode {
 /// 옵트인: `toggleKey == .capsLock`이고 사용자가 입력 모니터링 권한을 부여한 경우에만 기동.
 final class CapsLockHIDMonitor {
     static let shared = CapsLockHIDMonitor()
-    private init() {}
+    private init() {
+        // 절전 복귀 시 IOHIDManager 연결이 끊겨도(dead-but-non-nil) start()는 `hid != nil`이라
+        // 재오픈하지 못해 CapsLock 모니터가 조용히 죽는다. 활성 상태였다면 wake 시 재시작한다.
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleWake()
+        }
+    }
 
     /// 외부에서 읽기만. 상태 전이는 본 클래스가 단독 수행.
     private(set) var mode: CapsLockMode = .cgEventTapAuthority
@@ -44,6 +55,8 @@ final class CapsLockHIDMonitor {
     private static let longPressThresholdMs: Int = 800
 
     private var hid: IOHIDManager?
+    /// 절전 복귀 옵저버 토큰 (싱글톤이라 해제하지 않지만 보관).
+    private var wakeObserver: NSObjectProtocol?
     private var isKeyDown: Bool = false
     /// 현재 진행 중인 press가 임계 발화로 `.hidRealLockOn` 진입을 일으켰는지.
     /// keyUp에서 *exit press의 up*(=다음 press의 up)인지 *진입 press의 up*인지 구별.
@@ -162,6 +175,15 @@ final class CapsLockHIDMonitor {
     func restart() {
         stop()
         try? start()
+    }
+
+    /// 절전 복귀(`didWakeNotification`) 처리 — 활성 상태였을 때만 재시작.
+    /// `isStarted` 가드로 `toggleKey != .capsLock`(미활성)일 땐 no-op이 되어,
+    /// HID를 쓰지 않는 사용자에게 모니터가 켜지는 일이 없다.
+    private func handleWake() {
+        guard isStarted else { return }
+        os_log("didWake: restarting HID monitor", log: log, type: .info)
+        restart()
     }
 
     // MARK: - HID 콜백 본체

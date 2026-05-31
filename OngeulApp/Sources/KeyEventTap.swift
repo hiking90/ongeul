@@ -69,14 +69,20 @@ class KeyEventTap {
 
                 // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
-                    // CapsLock 방어: 어떤 이유로든 CapsLock이 켜져 있으면 즉시 OFF.
-                    // forceOff()의 IOKit 왕복 지연 동안 keyDown에 남는 stale
-                    // maskAlphaShift를 이벤트에서 직접 제거하여 영문 통과 경로의
-                    // 대문자 누수(이슈 #10)를 차단한다. 탭이 IME·앱보다 앞단이므로
-                    // IMK 경로와 영문 직통 경로가 한 곳에서 모두 보정된다.
-                    // 이후 keyboardGetUnicodeString도 보정된 flags를 사용한다.
+                    // CapsLock 방어 (영문 모드 한정): 영문 통과 경로에서 stale
+                    // maskAlphaShift가 남으면 대문자가 누수된다(이슈 #10). forceOff()의
+                    // IOKit 왕복 지연 동안 keyDown에 남는 비트를 이벤트에서 직접 제거하고
+                    // LED도 OFF로 강제한다. 탭이 IME·앱보다 앞단이므로 IMK 경로와 영문
+                    // 직통 경로가 한 곳에서 모두 보정된다. 이후 keyboardGetUnicodeString도
+                    // 보정된 flags를 사용한다.
+                    //
+                    // 한글 모드에서는 strip하지 않는다: doc 30의 "LED ON = 한글" 의미론상
+                    // alpha-lock이 켜져 있는 것이 정상(= LED 인디케이터)이고, 자모는 keycode
+                    // 기반이라 대문자 누수가 없다. 여기서 끄면 한글 진입 후 첫 키 입력에
+                    // LED가 꺼져 인디케이터가 무력화된다.
                     if KeyEventTap.toggleKey == .capsLock
-                        && flags.contains(.maskAlphaShift) {
+                        && flags.contains(.maskAlphaShift)
+                        && KeyEventTap.currentInputMode == .english {
                         CapsLockSync.forceOff()
                         flags.subtract(.maskAlphaShift)
                         event.flags = flags

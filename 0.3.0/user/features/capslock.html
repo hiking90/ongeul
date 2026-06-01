@@ -187,14 +187,21 @@
 <h3 id="동작-방식"><a class="header" href="#동작-방식">동작 방식</a></h3>
 <ul>
 <li>CapsLock을 누를 때마다 한글/영문 모드가 전환됩니다.</li>
-<li>CapsLock LED는 항상 꺼진 상태로 유지됩니다. 대문자 잠금 기능은 비활성화됩니다.</li>
+<li><strong>CapsLock LED가 현재 입력 모드를 나타냅니다</strong>: LED ON = 한글, LED OFF = 영문. 모드가 다른 경로(다른 전환 키 사용, 앱 전환에 따른 per-app 모드 복원 등)로 바뀌어도 LED가 자동으로 동기화됩니다.</li>
+<li>본연의 대문자 잠금 기능은 비활성화됩니다 (CapsLock = 한/영 전환 키 용도). 대문자 잠금이 필요하면 다른 전환 키(우측 Command/Option 등)를 선택하세요.</li>
 <li><a href="english-lock.html">영문 잠금</a> 상태에서는 CapsLock이 기존 대문자 잠금으로 동작합니다.</li>
 </ul>
 <h3 id="사전-설정"><a class="header" href="#사전-설정">사전 설정</a></h3>
-<p><strong>시스템 설정 → 키보드</strong>에서 다음을 확인하세요:</p>
 <ol>
-<li><strong>CapsLock 지연 비활성화</strong> — CapsLock 입력 지연을 끄세요. 지연이 활성화되어 있으면 CapsLock을 빠르게 누를 때 전환이 무시될 수 있습니다.</li>
-<li><strong>"Caps Lock으로 ABC 입력 소스 전환"</strong> 옵션 비활성화 — 이 옵션이 켜져 있으면 CapsLock을 누를 때 Ongeul에서 ABC로 전환되어 버립니다.</li>
+<li>
+<p><strong>macOS CapsLock 지연 해제</strong> — macOS는 CapsLock에 약 100–250ms 지연을 적용해 빠른 탭을 무시합니다. 이 지연을 끄지 않으면 짧은 탭으로 한/영 전환이 안 됩니다. macOS는 이 지연을 위한 시스템 설정 UI를 제공하지 <em>않으므로</em>, <strong>터미널</strong>에서 다음 명령으로 끕니다:</p>
+<pre><code class="language-bash">hidutil property --set '{"CapsLockDelayOverride":0}'
+</code></pre>
+<p>이 설정은 재부팅 시 초기화됩니다. 영구화하려면 LaunchAgent 등록이 필요합니다 (외부 참고: <a href="https://github.com/gkpln3/CapsLockNoDelay">CapsLockNoDelay</a>).</p>
+</li>
+<li>
+<p><strong>"Caps Lock 키로 ABC 입력 소스 전환" 옵션 비활성화</strong> — <strong>시스템 설정 → 키보드 → 입력 소스 → 편집...</strong> 에서 <em>"Caps Lock 키로 ABC 입력 소스 전환"</em> 옵션을 끕니다. 켜져 있으면 CapsLock을 누를 때 macOS가 먼저 ABC로 전환해 Ongeul이 비활성화됩니다.</p>
+</li>
 </ol>
 <h2 id="capslock-정규화"><a class="header" href="#capslock-정규화">CapsLock 정규화</a></h2>
 <p>CapsLock을 전환 키로 사용하지 않는 경우에도, Ongeul은 CapsLock 상태에 관계없이 일관된 입력을 제공합니다.</p>

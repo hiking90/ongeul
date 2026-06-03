@@ -45,7 +45,10 @@ func routeKeyDown(
         return .passToSystem
     }
 
-    // Control+[ → Vim ESC 등가
+    // Control+[ → Vim ESC 등가.
+    // KeyEventTap 미설치(접근성 미허용) 시의 폴백 경로 (doc 27 §Phase 2).
+    // 탭 설치 시에는 KeyEventTap.swift의 Control+[ 핸들러가 권위이며, 양 경로가 모두
+    // 발화해도 mode 전환 후 한쪽이 no-op이 되어 실효 실행은 1회다.
     if modifiers.contains(.control)
         && !modifiers.contains(.command)
         && !modifiers.contains(.option)

@@ -456,6 +456,11 @@ impl Automata for JamoAutomata {
                     self.buffer.jungseong = Some(prev_v);
                     self.prev_jungseong = None;
                     self.buffer.state = AutomataState::Jungseong;
+                } else {
+                    // 불변식 위반 방어: Jungseong2 진입 시 prev_jungseong은 항상 설정되지만,
+                    // 만약 None이면 정체(stuck) 상태가 되므로 현재 모음을 유지한 채 S2로 강등한다.
+                    crate::warn_unexpected("backspace Jungseong2", "prev_jungseong is None");
+                    self.buffer.state = AutomataState::Jungseong;
                 }
                 AutomataResult::handled(None, self.buffer.to_string())
             }
@@ -476,6 +481,11 @@ impl Automata for JamoAutomata {
                 if let Some(prev_t) = self.prev_jongseong {
                     self.buffer.jongseong = Some(prev_t);
                     self.prev_jongseong = None;
+                    self.buffer.state = AutomataState::Jongseong;
+                } else {
+                    // 불변식 위반 방어: prev_jongseong이 None이면 정체 상태가 되므로
+                    // 현재(겹)종성을 유지한 채 S4로 강등한다 (다음 backspace에서 종성 전체 제거).
+                    crate::warn_unexpected("backspace Jongseong2", "prev_jongseong is None");
                     self.buffer.state = AutomataState::Jongseong;
                 }
                 AutomataResult::handled(None, self.buffer.to_string())

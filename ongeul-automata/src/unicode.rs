@@ -61,12 +61,6 @@ pub fn decompose_syllable(ch: char) -> Option<(u32, u32, u32)> {
     Some((l, v, t))
 }
 
-/// 초성/중성/종성 인덱스로 음절 문자열을 만든다.
-/// 종성이 None이면 종성 없는 음절.
-pub fn compose_syllable_char(l: u32, v: u32, t: Option<u32>) -> Option<char> {
-    compose_syllable(l, v, t.unwrap_or(0))
-}
-
 // ── 호환 자모 ↔ 위치 자모 변환 ──
 
 /// 호환 자모 자음 → 초성 인덱스 (L index)

@@ -134,6 +134,10 @@ class KeyEventTap {
                 }
 
                 // === Control+[ → Vim ESC 등가 (이벤트는 소비하지 않고 통과) ===
+                // 이중 경로 주의 (doc 27 §Phase 2): 탭 설치 시 이 경로가 권위이고,
+                // 탭 미설치(접근성 미허용) 시에는 IMK handle() → routeKeyDown의 .escape 분기가 폴백.
+                // 탭 설치 상태에서는 두 경로가 모두 발화하지만, 먼저 실행된 쪽이 flush+영문전환을
+                // 끝내면 나머지는 mode==.english로 인해 no-op이 되므로 실효 실행은 1회다.
                 if type == .keyDown
                     && keyCode == 0x21  // [ key
                     && flags.contains(.maskControl)

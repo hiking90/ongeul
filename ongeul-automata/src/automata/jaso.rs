@@ -269,6 +269,10 @@ impl Automata for JasoAutomata {
                     self.buffer.jongseong = Some(prev_t);
                     self.prev_jongseong = None;
                     self.buffer.state = AutomataState::Jongseong;
+                } else {
+                    // 불변식 위반 방어: prev_jongseong이 None이면 정체 상태가 되므로 S4로 강등.
+                    crate::warn_unexpected("backspace Jongseong2 (jaso)", "prev_jongseong is None");
+                    self.buffer.state = AutomataState::Jongseong;
                 }
                 AutomataResult::handled(None, self.buffer.to_string())
             }
@@ -290,6 +294,10 @@ impl Automata for JasoAutomata {
                 if let Some(prev_v) = self.prev_jungseong {
                     self.buffer.jungseong = Some(prev_v);
                     self.prev_jungseong = None;
+                    self.buffer.state = AutomataState::Jungseong;
+                } else {
+                    // 불변식 위반 방어: prev_jungseong이 None이면 정체 상태가 되므로 S2로 강등.
+                    crate::warn_unexpected("backspace Jungseong2 (jaso)", "prev_jungseong is None");
                     self.buffer.state = AutomataState::Jungseong;
                 }
                 AutomataResult::handled(None, self.buffer.to_string())

@@ -464,6 +464,10 @@ class OngeulInputController: IMKInputController {
     private var coordinator: InputStateCoordinator { Self.coordinator }
 
     private var loadedLayoutId: String?
+    /// 로드/파싱에 실패한 레이아웃 id. 키 입력마다 `loadLayoutIfNeeded`가 호출되므로,
+    /// 깨진 레이아웃에 대해 매 키스트로크마다 파일 IO·파싱·에러 로그가 반복되는 것을 막는다.
+    /// 설정에서 다른 레이아웃으로 바꾸면 desiredLayoutId가 달라져 자연히 재시도된다.
+    private var failedLayoutId: String?
     private var toggleDetector = ToggleDetector()
 
     /// 합성 이벤트 마커 (CGEvent userData)
@@ -1259,6 +1263,8 @@ class OngeulInputController: IMKInputController {
     private func loadLayoutIfNeeded() {
         let desiredLayoutId = Self.savedLayoutId
         guard loadedLayoutId != desiredLayoutId else { return }
+        // 이미 실패한 레이아웃이면 키스트로크마다 재시도하지 않는다 (N2).
+        guard failedLayoutId != desiredLayoutId else { return }
 
         let isInitialLoad = (loadedLayoutId == nil)
 
@@ -1275,6 +1281,7 @@ class OngeulInputController: IMKInputController {
 
         guard let url, let json = try? String(contentsOf: url, encoding: .utf8) else {
             os_log("Failed to load layout: %{public}@.json5", log: log, type: .error, desiredLayoutId)
+            failedLayoutId = desiredLayoutId
             return
         }
 
@@ -1284,8 +1291,10 @@ class OngeulInputController: IMKInputController {
                 applyResult(flushResult, to: client)
             }
             loadedLayoutId = desiredLayoutId
+            failedLayoutId = nil
         } catch {
             os_log("Failed to parse layout: %{public}@", log: log, type: .error, String(describing: error))
+            failedLayoutId = desiredLayoutId
         }
     }
 }

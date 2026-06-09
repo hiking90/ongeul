@@ -18,6 +18,27 @@ class KeyEventTap {
     static var keyBuffer: [RecordedKey] = []
     static var keyBufferWasKoreanMode = false
 
+    // keyBuffer 강제 만료: 입력이 멈춘 뒤 복호화된 (민감할 수 있는) 문자가 메모리에
+    // 무기한 남지 않도록 한다. activateServer/modifier 외에는 다음 keyDown 시에만
+    // lazy prune 되므로, 키 입력이 끊기면 잔존했다. 만료 시각을 focus-steal 의 포기
+    // 임계값(첫 키 0.5s 경과 시 보정 포기 — FocusStealCorrector)과 정렬해, 마지막
+    // 입력 +0.5s 후 비워도 보정에 실제로 쓰일 키는 제거하지 않는다.
+    private static let keyBufferMaxLifetime: TimeInterval = 0.5
+    private static var keyBufferExpiryTask: DispatchWorkItem?
+
+    /// keyBuffer 강제 만료 타이머를 (재)예약한다. 키 append 시마다 호출.
+    /// 모두 메인 런루프에서 실행되므로 별도 동기화 불필요.
+    static func scheduleKeyBufferExpiry() {
+        keyBufferExpiryTask?.cancel()
+        let task = DispatchWorkItem {
+            KeyEventTap.keyBuffer.removeAll()
+            KeyEventTap.keyBufferExpiryTask = nil
+        }
+        keyBufferExpiryTask = task
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + keyBufferMaxLifetime, execute: task)
+    }
+
     // 현재 입력 모드 (모드 변경 시 OngeulInputController에서 갱신)
     static var currentInputMode: InputMode = .english
 
@@ -125,7 +146,10 @@ class KeyEventTap {
                                 character: label,
                                 timestamp: now
                             ))
-                            os_log("focusSteal: recorded key='%{public}@' koreanMode=%d bufSize=%d",
+                            KeyEventTap.scheduleKeyBufferExpiry()
+                            // 복호화된 타이핑 문자는 민감할 수 있으므로 private 으로 로깅
+                            // (통합 로그에 평문 키가 남지 않도록). bufSize/koreanMode 만 public.
+                            os_log("focusSteal: recorded key='%{private}@' koreanMode=%d bufSize=%d",
                                    log: log, type: .debug, label,
                                    KeyEventTap.keyBufferWasKoreanMode,
                                    KeyEventTap.keyBuffer.count)

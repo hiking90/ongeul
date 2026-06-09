@@ -114,6 +114,12 @@ final class InputStateCoordinator: FocusStealModeController {
         } else {
             mode = .english
         }
+        // 같은 앱 재활성화(!isAppSwitch)에서 한→영 전환 시 조합 중 텍스트를 보존한다.
+        // set_mode는 한→영 시 조합을 폐기하므로(lib.rs 계약), 호출 전에 flush해 그
+        // committed를 StateEffect로 전달 → applyEffect가 현재(같은) client에 삽입한다.
+        // 앱 전환 시엔 위 reset()이 이미 버퍼를 비웠고 다른 client이므로 보존하지 않는다.
+        let flushResult = (!isAppSwitch && engine.getMode() == .korean && mode == .english)
+            ? engine.flush() : nil
         setMode(mode)
         perAppStore.saveMode(mode, for: bundleId)
 
@@ -124,6 +130,7 @@ final class InputStateCoordinator: FocusStealModeController {
         let modeChanged = prevMode != nil && prevMode != mode
 
         return StateEffect(
+            processResult: flushResult,
             modeChanged: modeChanged,
             lockOverlay: isAppSwitch ? .hide : nil
         )

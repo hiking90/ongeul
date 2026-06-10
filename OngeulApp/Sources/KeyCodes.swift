@@ -17,6 +17,10 @@ enum KeyCode {
     static let arrowDown: UInt16  = 125
     static let arrowUp: UInt16    = 126
 
+    /// 방향키 키코드 집합. routeKeyDown 핫패스에서 매 키마다 Set 리터럴을
+    /// 새로 할당하지 않도록 static으로 한 번만 생성한다.
+    static let arrowKeys: Set<UInt16> = [arrowLeft, arrowRight, arrowDown, arrowUp]
+
     /// 키패드(텐키) 키코드 집합. Enter(0x4C)는 제외 — 일반 Enter와 통합 처리.
     /// kVK_ANSI_Keypad* (Decimal, Multiply, Plus, Clear, Divide, Minus, Equals, 0-9)
     static let numpadKeys: Set<UInt16> = [

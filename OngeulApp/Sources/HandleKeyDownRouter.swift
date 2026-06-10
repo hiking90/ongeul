@@ -81,12 +81,8 @@ func routeKeyDown(
         return .escape
     }
 
-    // 방향키 → flush 후 통과
-    let arrowKeys: Set<UInt16> = [
-        KeyCode.arrowLeft, KeyCode.arrowRight,
-        KeyCode.arrowDown, KeyCode.arrowUp,
-    ]
-    if arrowKeys.contains(keyCode) {
+    // 방향키 → flush 후 통과 (KeyCode.arrowKeys는 static — 매 키 할당 회피)
+    if KeyCode.arrowKeys.contains(keyCode) {
         return .flushAndPassToSystem
     }
 

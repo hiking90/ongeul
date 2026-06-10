@@ -116,43 +116,56 @@ class KeyEventTap {
 
                     KeyEventTap.toggleDetector.cancelOnKeyDown()
 
-                    // Modifier 단축키(cmd, ctrl, option)는 텍스트 입력이 아니므로
-                    // focus-steal 버퍼에 기록하지 않는다.
-                    let hasModifier = flags.contains(.maskCommand)
-                        || flags.contains(.maskControl)
-                        || flags.contains(.maskAlternate)
+                    // focus-steal 키 버퍼 기록은 한글 모드에서만 의미가 있다.
+                    // 소비처(activateServer)가 keyBufferWasKoreanMode로 게이트하므로 영문 모드
+                    // 기록은 시스템 전역 키마다 헛도는 할당·GCD 타이머(scheduleKeyBufferExpiry)
+                    // churn일 뿐이고, 복호화된 영문 키가 메모리에 남아 프라이버시에도 불리하다.
+                    // 버퍼링 윈도우 중 후발 키는 forceKoreanForReplay가 이미 currentInputMode를
+                    // .korean으로 동기 설정한 뒤이므로 이 게이트를 통과해 정상 캡처된다.
+                    if KeyEventTap.currentInputMode == .korean {
+                        // Modifier 단축키(cmd, ctrl, option)는 텍스트 입력이 아니므로
+                        // focus-steal 버퍼에 기록하지 않는다.
+                        let hasModifier = flags.contains(.maskCommand)
+                            || flags.contains(.maskControl)
+                            || flags.contains(.maskAlternate)
 
-                    var length = 0
-                    var chars = [UniChar](repeating: 0, count: 4)
-                    event.keyboardGetUnicodeString(
-                        maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
-                    if hasModifier {
-                        KeyEventTap.keyBuffer.removeAll()
-                    } else if length > 0 {
-                        let str = String(utf16CodeUnits: chars, count: length)
-                        let capsLock = flags.contains(.maskAlphaShift)
-                        let shift = flags.contains(.maskShift)
-                        if let label = keyLabel(characters: str, capsLock: capsLock, shift: shift) {
-                            let now = CFAbsoluteTimeGetCurrent()
-                            // 첫 키가 200ms보다 오래되면 버퍼 리셋 (메모리 증가 방지)
-                            if let first = KeyEventTap.keyBuffer.first,
-                               now - first.timestamp > 0.2 {
-                                KeyEventTap.keyBuffer.removeAll()
+                        if hasModifier {
+                            KeyEventTap.keyBuffer.removeAll()
+                        } else {
+                            // 비modifier 키일 때만 유니코드 문자열을 추출한다 — modifier
+                            // 단축키에서 호출 후 폐기하던 keyboardGetUnicodeString 비용 제거.
+                            var length = 0
+                            var chars = [UniChar](repeating: 0, count: 4)
+                            event.keyboardGetUnicodeString(
+                                maxStringLength: 4, actualStringLength: &length, unicodeString: &chars)
+                            if length > 0 {
+                                let str = String(utf16CodeUnits: chars, count: length)
+                                let capsLock = flags.contains(.maskAlphaShift)
+                                let shift = flags.contains(.maskShift)
+                                if let label = keyLabel(characters: str, capsLock: capsLock, shift: shift) {
+                                    let now = CFAbsoluteTimeGetCurrent()
+                                    // 첫 키가 200ms보다 오래되면 버퍼 리셋 (메모리 증가 방지)
+                                    if let first = KeyEventTap.keyBuffer.first,
+                                       now - first.timestamp > 0.2 {
+                                        KeyEventTap.keyBuffer.removeAll()
+                                    }
+                                    if KeyEventTap.keyBuffer.isEmpty {
+                                        // 이 블록은 한글 모드 게이트 내부이므로 항상 true.
+                                        KeyEventTap.keyBufferWasKoreanMode = true
+                                    }
+                                    KeyEventTap.keyBuffer.append(RecordedKey(
+                                        character: label,
+                                        timestamp: now
+                                    ))
+                                    KeyEventTap.scheduleKeyBufferExpiry()
+                                    // 복호화된 타이핑 문자는 민감할 수 있으므로 private 으로 로깅
+                                    // (통합 로그에 평문 키가 남지 않도록). bufSize/koreanMode 만 public.
+                                    os_log("focusSteal: recorded key='%{private}@' koreanMode=%d bufSize=%d",
+                                           log: log, type: .debug, label,
+                                           KeyEventTap.keyBufferWasKoreanMode,
+                                           KeyEventTap.keyBuffer.count)
+                                }
                             }
-                            if KeyEventTap.keyBuffer.isEmpty {
-                                KeyEventTap.keyBufferWasKoreanMode = (KeyEventTap.currentInputMode == .korean)
-                            }
-                            KeyEventTap.keyBuffer.append(RecordedKey(
-                                character: label,
-                                timestamp: now
-                            ))
-                            KeyEventTap.scheduleKeyBufferExpiry()
-                            // 복호화된 타이핑 문자는 민감할 수 있으므로 private 으로 로깅
-                            // (통합 로그에 평문 키가 남지 않도록). bufSize/koreanMode 만 public.
-                            os_log("focusSteal: recorded key='%{private}@' koreanMode=%d bufSize=%d",
-                                   log: log, type: .debug, label,
-                                   KeyEventTap.keyBufferWasKoreanMode,
-                                   KeyEventTap.keyBuffer.count)
                         }
                     }
                 }

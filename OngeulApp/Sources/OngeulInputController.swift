@@ -374,7 +374,7 @@ private final class PreferencesPanel {
         if newToggleKey == .capsLock {
             // controller 주입을 start() 이전에 — race 방지 (activateServer 호출 전이라도
             // 사용자가 prefs 닫고 즉시 CapsLock 누르면 HID 콜백이 fire될 수 있음).
-            CapsLockHIDMonitor.shared.controller = KeyEventTap.activeController
+            CapsLockHIDMonitor.shared.controller = KeyEventTap.resolvedController
             do {
                 try CapsLockHIDMonitor.shared.start()
             } catch {
@@ -620,6 +620,10 @@ class OngeulInputController: IMKInputController {
         return InputModeID.toMode(id)
     }
 
+    /// 현재 macOS 키보드 입력 소스가 Ongeul(한/영 중 하나)인지.
+    /// KeyEventTap이 activeController 폴백을 "Ongeul이 실제 활성일 때만" 적용하기 위해 사용 (doc 33 #1).
+    static func isOngeulActiveInputSource() -> Bool { currentSystemInputMode() != nil }
+
     private var currentBundleId: String?
 
     /// currentBundleId의 English Lock 상태 캐시.
@@ -637,6 +641,7 @@ class OngeulInputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         KeyEventTap.activeController = self
+        KeyEventTap.lastController = self
 
         // 이전 focus-steal 세션 초기화 (deactivateServer 없이 재호출되는 경우 대비)
         focusSteal.cancel()
@@ -1002,6 +1007,10 @@ class OngeulInputController: IMKInputController {
     func isCurrentAppLocked() -> Bool {
         cachedLockedForCurrentApp
     }
+
+    /// 탭 콜백이 "이 컨트롤러로 토글을 적용할 수 있는가"를 동기 판정한다.
+    /// 탭 콜백은 메인 런루프에서 실행되므로 client() 동기 호출이 안전하다.
+    var hasLiveClient: Bool { self.client() != nil }
 
     // MARK: - Input Mode Management
 

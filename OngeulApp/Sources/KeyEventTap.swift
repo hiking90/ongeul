@@ -10,6 +10,20 @@ class KeyEventTap {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     static weak var activeController: OngeulInputController?
+    /// activeController가 IMK 라이프사이클 레이스(전체화면/Space 전환 시 activate→deactivate
+    /// 역순 배달, deactivate 후 activate 누락 등)로 nil이 되어도 토글이 죽지 않도록, 마지막으로
+    /// 활성화된 컨트롤러를 보존한다. deactivateServer에서는 지우지 않는다 (weak 이므로 컨트롤러
+    /// 해제 시 자동 nil). 배경·전체 분석은 doc 33.
+    static weak var lastController: OngeulInputController?
+    /// 탭 진입점이 사용할 컨트롤러 — activeController 우선, 없으면 마지막 활성 컨트롤러.
+    /// 단 lastController 폴백은 **Ongeul이 실제 활성 입력 소스일 때만** 적용한다.
+    /// activeController가 nil이면서 Ongeul이 활성이면 = 라이프사이클 레이스(path 2, 세션은 살아있음).
+    /// Ongeul이 비활성(다른 입력기 사용 중)이면 폴백을 금지 — stale lastController로 토글/소비하면
+    /// 다른 입력기의 키를 먹고 per-app 모드를 잘못 저장한다 (doc 33 #1).
+    static var resolvedController: OngeulInputController? {
+        if let active = activeController { return active }
+        return OngeulInputController.isOngeulActiveInputSource() ? lastController : nil
+    }
     static var toggleKey: ToggleKey = .rightCommand
     private static var toggleDetector = ToggleDetector()
 
@@ -181,7 +195,7 @@ class KeyEventTap {
                     && !flags.contains(.maskCommand)
                     && !flags.contains(.maskAlternate)
                     && KeyEventTap.currentInputMode == .korean {
-                    if let controller = KeyEventTap.activeController {
+                    if let controller = KeyEventTap.resolvedController {
                         DispatchQueue.main.async {
                             controller.performVimEscapeFromTap()
                         }
@@ -196,24 +210,32 @@ class KeyEventTap {
                     && !flags.contains(.maskAlternate)
                     && !flags.contains(.maskCommand)
                     && !flags.contains(.maskControl) {
+                    // activeController가 라이프사이클 레이스로 nil이어도 lastController로 폴백.
+                    let controller = KeyEventTap.resolvedController
                     // English Lock 상태 → 시스템에 통과 (소비하지 않음)
-                    if KeyEventTap.activeController?.isCurrentAppLocked() == true {
+                    if controller?.isCurrentAppLocked() == true {
+                        return Unmanaged.passUnretained(event)
+                    }
+                    // 토글을 확실히 적용할 수 있는 컨트롤러(살아있는 client)가 있을 때만 소비한다.
+                    // 없으면 통과시켜 IMK handle()이 진짜 포커스된 세션에서 처리하게 한다
+                    // (올바른 라우팅 + 합성 중 한글 commit 보장). 무조건 소비하면 이 갭에서
+                    // 토글이 죽고(블랙홀) 합성 중 한글이 유실될 수 있다 (doc 33).
+                    guard let controller, controller.hasLiveClient else {
+                        if type == .keyDown {
+                            os_log("Shift+Space: no live controller → IMK fallback",
+                                   log: log, type: .error)
+                        }
                         return Unmanaged.passUnretained(event)
                     }
                     if type == .keyDown {
-                        if let controller = KeyEventTap.activeController {
-                            os_log("Shift+Space intercepted (keyDown), toggling",
-                                   log: log, type: .debug)
-                            DispatchQueue.main.async {
-                                controller.performToggleFromTap()
-                            }
-                        } else {
-                            os_log("Shift+Space intercepted (keyDown), no active controller",
-                                   log: log, type: .error)
+                        os_log("Shift+Space intercepted (keyDown), toggling%{public}@",
+                               log: log, type: .default,
+                               KeyEventTap.activeController == nil ? " [lastController fallback]" : "")
+                        DispatchQueue.main.async {
+                            controller.performToggleFromTap()
                         }
                     }
-                    // activeController 유무와 관계없이 항상 소비
-                    // (JetBrains 등에서 deactivate→activate 갭 중 space 누출 방지)
+                    // keyDown/keyUp 모두 소비 (짝 맞춤) — JetBrains 등에서 space 누출 방지.
                     return nil
                 }
 
@@ -234,7 +256,7 @@ class KeyEventTap {
                     if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
                         os_log("capsLock flagsChanged: capsLockOn=%{public}d (user)",
                                log: log, type: .debug, capsLockOn)
-                        if let controller = KeyEventTap.activeController,
+                        if let controller = KeyEventTap.resolvedController,
                            !controller.isCurrentAppLocked() {
                             // 동기 호출: CapsLock은 key press 시점에 발생하므로
                             // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
@@ -259,7 +281,7 @@ class KeyEventTap {
                     )
                     switch action {
                     case .toggle:
-                        if let controller = KeyEventTap.activeController,
+                        if let controller = KeyEventTap.resolvedController,
                            !controller.isCurrentAppLocked() {
                             os_log("modifier tap intercepted, toggling", log: log, type: .debug)
                             DispatchQueue.main.async {
@@ -267,7 +289,7 @@ class KeyEventTap {
                             }
                         }
                     case .englishLockToggle:
-                        if let controller = KeyEventTap.activeController {
+                        if let controller = KeyEventTap.resolvedController {
                             os_log("4-key English Lock intercepted", log: log, type: .debug)
                             DispatchQueue.main.async {
                                 controller.performEnglishLockToggleFromTap()

@@ -7,8 +7,10 @@ enum ToggleKey: String, CaseIterable {
     case rightShift = "rightShift"
     case shiftSpace = "shiftSpace"
     case capsLock = "capsLock"
+    case hangulKey = "hangulKey"
 
-    /// flagsChanged에서 감지할 keyCode (shiftSpace, capsLock은 nil → 별도 경로에서 처리)
+    /// flagsChanged에서 감지할 keyCode
+    /// (shiftSpace, capsLock, hangulKey는 nil → keyDown 등 별도 경로에서 처리)
     var keyCode: UInt16? {
         switch self {
         case .rightCommand: return KeyCode.rightCommand
@@ -17,6 +19,7 @@ enum ToggleKey: String, CaseIterable {
         case .rightShift:   return KeyCode.rightShift
         case .shiftSpace:   return nil
         case .capsLock:     return nil   // CGEventTap 콜백에서 직접 처리
+        case .hangulKey:    return nil   // keyDown(keycode 104)에서 직접 처리
         }
     }
 
@@ -28,6 +31,7 @@ enum ToggleKey: String, CaseIterable {
         case .leftShift, .rightShift: return .shift
         case .shiftSpace:   return nil
         case .capsLock:     return nil
+        case .hangulKey:    return nil
         }
     }
 }

@@ -132,6 +132,7 @@ private final class PreferencesPanel {
         toggleKeyTitles = [
             (.rightCommand, NSLocalizedString("prefs.toggleKey.rightCommand", comment: "")),
             (.rightOption,  NSLocalizedString("prefs.toggleKey.rightOption", comment: "")),
+            (.hangulKey,    NSLocalizedString("prefs.toggleKey.hangulKey", comment: "")),
             (.leftShift,    NSLocalizedString("prefs.toggleKey.leftShift", comment: "")),
             (.rightShift,   NSLocalizedString("prefs.toggleKey.rightShift", comment: "")),
             (.shiftSpace,   NSLocalizedString("prefs.toggleKey.shiftSpace", comment: "")),
@@ -1088,7 +1089,7 @@ class OngeulInputController: IMKInputController {
         client: any IMKTextInput
     ) -> Bool {
         switch action {
-        case .shiftSpaceToggle:
+        case .shiftSpaceToggle, .hangulKeyToggle:
             guard let effect = coordinator.toggleMode(for: currentBundleId)
             else { return false }
             applyEffect(effect, to: client)

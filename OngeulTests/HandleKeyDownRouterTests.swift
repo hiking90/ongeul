@@ -23,6 +23,36 @@ class HandleKeyDownRouterTests: XCTestCase {
         XCTAssertEqual(action, .space)
     }
 
+    func testHangulKeyToggle_koreanMode() {
+        // 한/영 전용 키(keycode 104) + hangulKey 모드 → 토글
+        let action = routeKeyDown(
+            keyCode: KeyCode.hangul, characters: nil,
+            modifiers: [], engineMode: .korean,
+            toggleKey: .hangulKey
+        )
+        XCTAssertEqual(action, .hangulKeyToggle)
+    }
+
+    func testHangulKeyToggle_englishMode() {
+        // 영문→한글 전환이 가능해야 하므로 영문 early-return보다 먼저 매칭되어야 한다.
+        let action = routeKeyDown(
+            keyCode: KeyCode.hangul, characters: nil,
+            modifiers: [], engineMode: .english,
+            toggleKey: .hangulKey
+        )
+        XCTAssertEqual(action, .hangulKeyToggle)
+    }
+
+    func testHangulKey_notActiveForOtherToggleKey() {
+        // hangulKey 모드가 아니면 keycode 104는 토글하지 않는다 (영문 모드 → passToSystem).
+        let action = routeKeyDown(
+            keyCode: KeyCode.hangul, characters: nil,
+            modifiers: [], engineMode: .english,
+            toggleKey: .rightCommand
+        )
+        XCTAssertEqual(action, .passToSystem)
+    }
+
     func testEnglishModePassthrough() {
         let action = routeKeyDown(
             keyCode: 0x05, characters: "g",

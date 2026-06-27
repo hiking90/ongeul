@@ -239,6 +239,34 @@ class KeyEventTap {
                     return nil
                 }
 
+                // === 한/영 전용 키 처리 (hangulKey 모드) ===
+                // 한국어 전용 외장 키보드의 한/영 키(kVK_JIS_Kana, keycode 104)를 한영 토글로 사용.
+                // shiftSpace와 동일 구조: keyDown에서 토글하고, keyDown/keyUp을 모두 소비해
+                // keycode 104가 앱이나 시스템 입력 소스 전환으로 누출되지 않게 한다.
+                // 살아있는 client가 없으면 통과 → IMK handle() → routeKeyDown(.hangulKeyToggle)
+                // 폴백이 진짜 포커스된 세션에서 처리한다 (doc 33).
+                if KeyEventTap.toggleKey == .hangulKey
+                    && keyCode == Int64(KeyCode.hangul) {
+                    let controller = KeyEventTap.resolvedController
+                    guard let controller, controller.hasLiveClient else {
+                        if type == .keyDown {
+                            os_log("Hangul key: no live controller → IMK fallback",
+                                   log: log, type: .error)
+                        }
+                        return Unmanaged.passUnretained(event)
+                    }
+                    // English Lock 중에는 토글하지 않되, 한/영 키는 다른 기능이 없으므로 소비한다.
+                    if type == .keyDown && !controller.isCurrentAppLocked() {
+                        os_log("Hangul key intercepted (keyDown), toggling%{public}@",
+                               log: log, type: .default,
+                               KeyEventTap.activeController == nil ? " [lastController fallback]" : "")
+                        DispatchQueue.main.async {
+                            controller.performToggleFromTap()
+                        }
+                    }
+                    return nil
+                }
+
                 // === flagsChanged: CapsLock 기반 한영 TOGGLE ===
                 // CapsLock은 하드웨어 토글이므로 ToggleDetector를 사용하지 않고
                 // flagsChanged에서 직접 감지하되, 다른 전환 키와 동일한 TOGGLE로 처리한다.

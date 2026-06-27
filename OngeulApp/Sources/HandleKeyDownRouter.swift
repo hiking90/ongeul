@@ -4,6 +4,8 @@ import AppKit
 enum KeyDownAction: Equatable {
     /// Shift+Space 한/영 전환 (shiftSpace 모드)
     case shiftSpaceToggle
+    /// 한/영 키(외장 한국어 키보드, keycode 104) 한/영 전환 (hangulKey 모드)
+    case hangulKeyToggle
     /// 영문 모드: 시스템에 위임
     case passToSystem
     /// Cmd/Ctrl 단축키 또는 방향키: flush 후 시스템에 위임
@@ -38,6 +40,14 @@ func routeKeyDown(
         && !modifiers.contains(.command)
         && !modifiers.contains(.control) {
         return .shiftSpaceToggle
+    }
+
+    // 한/영 전용 키 (hangulKey 모드) → 한/영 전환.
+    // CGEventTap 미설치(접근성 미허용) 시의 폴백 경로. 탭 설치 시에는 KeyEventTap이
+    // keycode 104를 소비하므로 IMK까지 도달하지 않는다(shiftSpace와 동일 이중 경로).
+    // 영문 모드 early-return 앞에 위치해야 영문→한글 전환이 가능하다.
+    if toggleKey == .hangulKey && keyCode == KeyCode.hangul {
+        return .hangulKeyToggle
     }
 
     // 영문 모드: 전환 키 외 모든 키를 시스템에 위임

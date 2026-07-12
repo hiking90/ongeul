@@ -685,19 +685,24 @@ class OngeulInputController: IMKInputController {
             Self.chromiumAppCache[bundleId] = Self.isChromiumBased(bundleId: bundleId)
         }
 
+        let systemMode = Self.currentSystemInputMode()
         let effect = coordinator.activateApp(
             bundleId: bundleId,
-            systemMode: Self.currentSystemInputMode()
+            systemMode: systemMode
         )
         refreshLockCache()
         if let client = sender as? (any IMKTextInput) {
             applyEffect(effect, to: client)
         }
 
-        // 아이콘 동기화 — applyEffect의 modeChanged와 무관하게 항상 수행.
-        // 이전 client에 대한 보류된 selectMode는 stale이므로 폐기.
+        // 아이콘 동기화 — 단, 시스템 입력 소스가 이미 현재 모드와 일치하면 selectMode를
+        // 호출하지 않는다. Chromium 계열 앱(Chrome, Claude 데스크톱)은 selectMode로 입력
+        // 소스를 (재)assert하면 IMK 세션을 deactivate→activate로 재생성하는데, 그 재활성화가
+        // 다시 이 selectMode를 호출해 ~10Hz 피드백 루프(menu() 폭주)를 만들고 그 사이 키
+        // 입력이 deactivate 틈으로 유실된다. 모드가 실제로 어긋났을 때만 1회 갱신하면,
+        // 갱신 직후 systemMode가 일치하게 되어 다음 activate에서 루프가 끊긴다.
         cancelSelectMode()
-        if let client = sender as? (any IMKTextInput) {
+        if systemMode != coordinator.mode, let client = sender as? (any IMKTextInput) {
             let modeId = InputModeID.from(coordinator.mode)
             client.selectMode(modeId)
         }

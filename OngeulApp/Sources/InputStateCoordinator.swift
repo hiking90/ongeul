@@ -10,6 +10,13 @@ final class InputStateCoordinator: FocusStealModeController {
     private let lockStore = EnglishLockStore()
     private(set) var activeAppBundleId: String?
 
+    /// TIS dirty 플래그 (doc 34): 엔진 모드가 바뀌었지만 TIS(selectMode)에 아직 반영되지
+    /// 않았을 수 있는 상태. dirty 동안 activateApp의 "TIS 우선" 규칙을 스킵해, clientless
+    /// flip(또는 selectMode 디바운스 창)에서 TIS가 구 모드로 남아 있어도 방금 한 전환이
+    /// 롤백·per-app 영구 덮어쓰기되지 않도록 한다. activateApp에서 systemMode == 엔진 모드가
+    /// 관측되면 청산된 것으로 보고 내린다.
+    private(set) var tisDirty = false
+
     // MARK: - Read-only
 
     var mode: InputMode { engine.getMode() }
@@ -43,6 +50,9 @@ final class InputStateCoordinator: FocusStealModeController {
     /// - `syncCapsLock: false`는 CapsLock 누름 자체가 모드 변경을 일으킨 경로에서 사용:
     ///   하드웨어가 이미 LED를 변경했으므로 재설정은 echo만 만듦 (shouldHandle이 걸러내긴 하지만 불필요).
     private func setMode(_ mode: InputMode, syncCapsLock: Bool = true) {
+        // 실제 모드가 바뀔 때만 TIS dirty — no-op set(같은 모드 재설정)에 dirty를 세우면
+        // 정상 상태에서 "메뉴바 직접 전환" 감지(activateApp 우선순위 1)가 영구 무력화된다.
+        if engine.getMode() != mode { tisDirty = true }
         engine.setMode(mode: mode)
         KeyEventTap.currentInputMode = mode
         if syncCapsLock
@@ -58,6 +68,7 @@ final class InputStateCoordinator: FocusStealModeController {
     private func toggleEngineMode() -> ProcessResult {
         let result = engine.toggleMode()
         let mode = engine.getMode()
+        tisDirty = true  // toggle은 항상 모드 변경
         KeyEventTap.currentInputMode = mode
         if KeyEventTap.toggleKey == .capsLock
             && CapsLockHIDMonitor.shared.mode == .cgEventTapAuthority {
@@ -94,6 +105,7 @@ final class InputStateCoordinator: FocusStealModeController {
         // English Lock 우선
         if lockStore.isLocked(bundleId) {
             setMode(.english)
+            if systemMode == .english { tisDirty = false }  // TIS 동기 관측 (doc 34)
             return StateEffect(
                 lockOverlay: isAppSwitch ? .show(locked: true) : nil
             )
@@ -101,11 +113,14 @@ final class InputStateCoordinator: FocusStealModeController {
 
         // 모드 결정 우선순위:
         // 1. systemMode가 현재 엔진 모드와 다르면 → 사용자가 메뉴바에서 직접 전환. TIS 우선.
+        //    단 tisDirty 동안은 스킵 (doc 34): 엔진이 flip됐지만 selectMode가 아직 TIS에
+        //    반영되지 않은 상태라, 이 mismatch는 사용자 행위가 아니다. 스킵하지 않으면
+        //    방금 한 전환이 구 모드로 롤백되고 아래 saveMode가 per-app에 영구 기록한다.
         // 2. per-app 저장 모드 → 앱별 기억 복원.
         // 3. systemMode (fallback) → 최초 활성화 시 TIS 따름.
         // 4. .english (최종 기본값).
         let mode: InputMode
-        if let systemMode, systemMode != engine.getMode() {
+        if !tisDirty, let systemMode, systemMode != engine.getMode() {
             mode = systemMode
         } else if let stored = perAppStore.savedMode(for: bundleId) {
             mode = stored
@@ -121,6 +136,9 @@ final class InputStateCoordinator: FocusStealModeController {
         let flushResult = (!isAppSwitch && engine.getMode() == .korean && mode == .english)
             ? engine.flush() : nil
         setMode(mode)
+        // TIS가 최종 결정 모드와 일치하면 동기화 관측 → dirty 청산 (doc 34).
+        // rule 1로 TIS를 채택한 경우도 여기서 자연히 청산된다.
+        if systemMode == mode { tisDirty = false }
         perAppStore.saveMode(mode, for: bundleId)
 
         // 앱 전환 시 이전 앱과 모드가 다르면 아이콘 동기화
@@ -200,6 +218,7 @@ final class InputStateCoordinator: FocusStealModeController {
     func setModeFromExternal(_ mode: InputMode, for bundleId: String?) -> ProcessResult? {
         let flushResult = (self.mode == .korean) ? engine.flush() : nil
         setMode(mode)
+        tisDirty = false  // 시스템(TIS) 발 변경 → 엔진이 방금 TIS에 맞춰졌으므로 동기 상태 (doc 34)
         if let bundleId { perAppStore.saveMode(mode, for: bundleId) }
         return flushResult
     }

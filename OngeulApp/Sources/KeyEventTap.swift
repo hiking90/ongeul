@@ -284,11 +284,20 @@ class KeyEventTap {
                     if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
                         os_log("capsLock flagsChanged: capsLockOn=%{public}d (user)",
                                log: log, type: .debug, capsLockOn)
-                        if let controller = KeyEventTap.resolvedController,
-                           !controller.isCurrentAppLocked() {
-                            // 동기 호출: CapsLock은 key press 시점에 발생하므로
-                            // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
-                            controller.performCapsLockModeSet(korean: capsLockOn)
+                        if let controller = KeyEventTap.resolvedController {
+                            if !controller.isCurrentAppLocked() {
+                                // 동기 호출: CapsLock은 key press 시점에 발생하므로
+                                // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
+                                controller.performCapsLockModeSet(korean: capsLockOn)
+                            }
+                        } else if OngeulInputController.isOngeulActiveInputSource() {
+                            // 컨트롤러 부재(IMK 세션 공백)에도 SET은 수행 (doc 34).
+                            // 이 flagsChanged 경로는 IMK 폴백이 없어(handleFlagsChanged가
+                            // 탭 설치 시 스킵) 여기서 놓치면 블랙홀이다.
+                            os_log("capsLock: no controller → static SET",
+                                   log: log, type: .error)
+                            OngeulInputController.performStaticCapsLockModeSet(
+                                korean: capsLockOn)
                         }
                     } else {
                         os_log("capsLock flagsChanged: capsLockOn=%{public}d (echo, filtered)",
@@ -309,11 +318,24 @@ class KeyEventTap {
                     )
                     switch action {
                     case .toggle:
-                        if let controller = KeyEventTap.resolvedController,
-                           !controller.isCurrentAppLocked() {
-                            os_log("modifier tap intercepted, toggling", log: log, type: .debug)
+                        if let controller = KeyEventTap.resolvedController {
+                            if !controller.isCurrentAppLocked() {
+                                os_log("modifier tap intercepted, toggling%{public}@",
+                                       log: log, type: .default,
+                                       KeyEventTap.activeController == nil
+                                           ? " [lastController fallback]" : "")
+                                DispatchQueue.main.async {
+                                    controller.performToggleFromTap()
+                                }
+                            }
+                        } else if OngeulInputController.isOngeulActiveInputSource() {
+                            // 컨트롤러 부재(앱 자가업데이트 후 IMK 세션 공백 등)에도 flip은
+                            // 수행 (doc 34). modifier 경로는 이벤트를 소비하지 않지만 IMK
+                            // 폴백이 탭 설치 시 차단되므로, 여기서 놓치면 토글이 조용히 죽는다.
+                            os_log("modifier tap: no controller → static flip",
+                                   log: log, type: .error)
                             DispatchQueue.main.async {
-                                controller.performToggleFromTap()
+                                OngeulInputController.performStaticToggleFromTap()
                             }
                         }
                     case .englishLockToggle:
@@ -322,6 +344,11 @@ class KeyEventTap {
                             DispatchQueue.main.async {
                                 controller.performEnglishLockToggleFromTap()
                             }
+                        } else {
+                            // Lock 토글은 컨트롤러(bundleId·lock 캐시 갱신)가 필요해 정적
+                            // 경로를 두지 않는다 — 무시하되 진단 가능하게 로그만 남긴다 (doc 34).
+                            os_log("4-key English Lock: no controller, ignored",
+                                   log: log, type: .error)
                         }
                     case .none:
                         break

@@ -932,35 +932,37 @@ class OngeulInputController: IMKInputController {
 
     // MARK: - Private: Toggle / Lock / Vim Escape (KeyEventTap entry points)
 
+    /// doc 34: flip은 client와 무관하게 수행한다 (엔진은 전역 싱글턴). client는 부수 효과
+    /// (조합 flush 삽입, selectMode)에만 필요하며, 없으면 applyEffect가 폐기/이연 처리한다.
+    /// 예전처럼 client() guard로 flip 자체를 막으면 IMK 세션 공백(앱 자가업데이트 후 재실행
+    /// 등)에서 토글이 로그 없이 죽는다.
     func performToggleFromTap() {
-        guard let client: any IMKTextInput = self.client(),
-              let effect = coordinator.toggleMode(for: currentBundleId)
-        else { return }
-        applyEffect(effect, to: client)
+        guard let effect = coordinator.toggleMode(for: currentBundleId) else { return }
+        applyEffect(effect, to: self.client())
     }
 
     /// KeyEventTap의 CapsLock flagsChanged 분기에서 호출 (doc 30 SET 의미론).
     /// `korean: true` ⇒ 한글 모드 SET, `false` ⇒ 영문 모드 SET.
     /// 사용자가 CapsLock을 누른 결과 LED 상태를 입력 모드에 반영하는 단방향 SET.
+    /// client 없이도 SET은 수행한다 (doc 34).
     func performCapsLockModeSet(korean: Bool) {
-        guard let client: any IMKTextInput = self.client(),
-              let effect = coordinator.setModeFromCapsLockPress(
-                  korean: korean, for: currentBundleId
-              )
-        else { return }
-        applyEffect(effect, to: client)
+        guard let effect = coordinator.setModeFromCapsLockPress(
+            korean: korean, for: currentBundleId
+        ) else { return }
+        applyEffect(effect, to: self.client())
     }
 
     /// CapsLockHIDMonitor의 길게-누름 임계 발화에서 호출 (doc 32).
     /// 본연 CapsLock 활성화 = 영문 모드 SET + alpha-lock ON.
     /// macOS native parity: 길게 누르면 항상 *uppercase English* 환경 (현재 모드 무관).
+    /// client 없이도 SET+LED는 수행한다 (doc 34) — 호출자인 HID 모니터는 이미 자기 상태
+    /// 머신을 realLockOn으로 전이시킨 뒤라, 여기서 중단하면 모니터/엔진/LED가 drift한다.
     func performEnterRealCapsLock() {
-        guard let client: any IMKTextInput = self.client() else { return }
         // 영문 모드로 SET (현재 모드 무관). setMode가 syncCapsLock=false라 LED 안 건드림.
         if let effect = coordinator.setModeFromCapsLockPress(
             korean: false, for: currentBundleId
         ) {
-            applyEffect(effect, to: client)
+            applyEffect(effect, to: self.client())
         }
         // .hidRealLockOn 게이트가 active이므로 doc 30 mode-sync는 LED를 안 건드림 →
         // 본연 CapsLock LED를 직접 ON으로 set.
@@ -971,17 +973,42 @@ class OngeulInputController: IMKInputController {
     /// 진입 직전 모드로 복원 + LED OFF.
     /// 예: "한글 → 길게 → 영문+caps → 짧은 탭"이 한국어 + LED OFF로 환원되어 단일 동작 시퀀스 완결.
     /// LED는 HID 모드에서 *본연 CapsLock 활성 여부* 만을 표현하므로, 복원된 모드와 무관하게 항상 OFF.
+    /// client 없이도 복원+LED는 수행한다 (doc 34) — enter와 동일한 drift 방지.
     func performExitRealCapsLock(restoreMode: InputMode) {
-        guard let client: any IMKTextInput = self.client() else { return }
         let korean = (restoreMode == .korean)
         // 모드 복원 (setMode가 syncCapsLock=false + HID 모드라 LED는 안 만짐).
         if let effect = coordinator.setModeFromCapsLockPress(
             korean: korean, for: currentBundleId
         ) {
-            applyEffect(effect, to: client)
+            applyEffect(effect, to: self.client())
         }
         // LED는 항상 OFF — HID 모드에서 LED = realLockOn 표시 전용.
         CapsLockSync.setState(false)
+    }
+
+    /// 탭 콜백에서 resolvedController가 전혀 없을 때의 정적 flip 경로 (doc 34).
+    /// 엔진은 전역 싱글턴이므로 flip에 컨트롤러/client가 불필요하다. English Lock은
+    /// coordinator.isLocked가 판정하고(`isLocked(nil) == false`), 조합 flush 결과는 죽은
+    /// 세션의 것이므로 폐기해도 안전하다(doc 34 안전성 증명). TIS/아이콘 동기화는 tisDirty
+    /// 플래그를 통해 다음 activateServer가 청산한다.
+    static func performStaticToggleFromTap() {
+        guard let effect = coordinator.toggleMode(for: coordinator.activeAppBundleId)
+        else { return }
+        os_log("static flip (no controller): mode → %{public}@ (dropped commit=%d)",
+               log: log, type: .default,
+               coordinator.mode == .korean ? "korean" : "english",
+               effect.processResult?.committed != nil ? 1 : 0)
+    }
+
+    /// CapsLock flagsChanged의 정적 SET 경로 (doc 34). performStaticToggleFromTap과 동일 근거.
+    static func performStaticCapsLockModeSet(korean: Bool) {
+        guard let effect = coordinator.setModeFromCapsLockPress(
+            korean: korean, for: coordinator.activeAppBundleId
+        ) else { return }
+        os_log("static capsLock SET (no controller): mode → %{public}@ (dropped commit=%d)",
+               log: log, type: .default,
+               coordinator.mode == .korean ? "korean" : "english",
+               effect.processResult?.committed != nil ? 1 : 0)
     }
 
     func performVimEscapeFromTap() {
@@ -1204,9 +1231,18 @@ class OngeulInputController: IMKInputController {
         }
     }
 
-    private func applyEffect(_ effect: StateEffect, to client: any IMKTextInput) {
+    /// client가 nil이어도 호출 가능 (doc 34): flip/전역 상태는 이미 coordinator에서 완료된
+    /// 뒤이므로, client가 필요한 부수 효과만 폐기(조합 flush)하거나 이연(selectMode —
+    /// fireSelectMode가 발화 시점에 client를 재확인)한다.
+    private func applyEffect(_ effect: StateEffect, to client: (any IMKTextInput)?) {
         if let result = effect.processResult {
-            applyResult(result, to: client)
+            if let client {
+                applyResult(result, to: client)
+            } else {
+                // client 없음 = 그 조합이 속한 세션이 죽음 (doc 34 안전성 증명) → 폐기 안전.
+                os_log("applyEffect without client: flush dropped (committed=%d)",
+                       log: log, type: .error, result.committed != nil ? 1 : 0)
+            }
         }
         if effect.modeChanged {
             os_log("mode → %{public}@", log: log, type: .default,

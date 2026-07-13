@@ -11,6 +11,9 @@ enum KeyCode {
     static let leftOption: UInt16 = 58
     static let rightShift: UInt16 = 60
     static let rightOption: UInt16 = 61
+    /// 한/영 키 (kVK_JIS_Kana 위치, 0x68). 한국어 전용 외장 키보드의 한영 전환 키가
+    /// 이 키코드를 보낸다. 한자 키는 kVK_JIS_Eisu(0x66=102) — 현재 미사용.
+    static let hangul: UInt16     = 0x68  // 104
     static let leftBracket: UInt16 = 0x21  // [ key
     static let arrowLeft: UInt16  = 123
     static let arrowRight: UInt16 = 124

@@ -5,7 +5,10 @@ fn compare_base(a: &str, b: &str) -> Ordering {
     // 컴포넌트 수를 cap하여 악의적/오류 버전 문자열의 unbounded 할당 방지.
     // 실제 semver는 3~4 컴포넌트이므로 8개면 충분히 여유.
     let parse = |v: &str| -> Vec<u32> {
-        v.split('.').take(8).filter_map(|s| s.parse().ok()).collect()
+        v.split('.')
+            .take(8)
+            .filter_map(|s| s.parse().ok())
+            .collect()
     };
     let a_parts = parse(a);
     let b_parts = parse(b);

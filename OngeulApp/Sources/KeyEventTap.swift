@@ -239,6 +239,34 @@ class KeyEventTap {
                     return nil
                 }
 
+                // === 한/영 전용 키 처리 (hangulKey 모드) ===
+                // 한국어 전용 외장 키보드의 한/영 키(kVK_JIS_Kana, keycode 104)를 한영 토글로 사용.
+                // shiftSpace와 동일 구조: keyDown에서 토글하고, keyDown/keyUp을 모두 소비해
+                // keycode 104가 앱이나 시스템 입력 소스 전환으로 누출되지 않게 한다.
+                // 살아있는 client가 없으면 통과 → IMK handle() → routeKeyDown(.hangulKeyToggle)
+                // 폴백이 진짜 포커스된 세션에서 처리한다 (doc 33).
+                if KeyEventTap.toggleKey == .hangulKey
+                    && keyCode == Int64(KeyCode.hangul) {
+                    let controller = KeyEventTap.resolvedController
+                    guard let controller, controller.hasLiveClient else {
+                        if type == .keyDown {
+                            os_log("Hangul key: no live controller → IMK fallback",
+                                   log: log, type: .error)
+                        }
+                        return Unmanaged.passUnretained(event)
+                    }
+                    // English Lock 중에는 토글하지 않되, 한/영 키는 다른 기능이 없으므로 소비한다.
+                    if type == .keyDown && !controller.isCurrentAppLocked() {
+                        os_log("Hangul key intercepted (keyDown), toggling%{public}@",
+                               log: log, type: .default,
+                               KeyEventTap.activeController == nil ? " [lastController fallback]" : "")
+                        DispatchQueue.main.async {
+                            controller.performToggleFromTap()
+                        }
+                    }
+                    return nil
+                }
+
                 // === flagsChanged: CapsLock 기반 한영 TOGGLE ===
                 // CapsLock은 하드웨어 토글이므로 ToggleDetector를 사용하지 않고
                 // flagsChanged에서 직접 감지하되, 다른 전환 키와 동일한 TOGGLE로 처리한다.
@@ -256,11 +284,20 @@ class KeyEventTap {
                     if CapsLockSync.shouldHandle(capsLockOn: capsLockOn) {
                         os_log("capsLock flagsChanged: capsLockOn=%{public}d (user)",
                                log: log, type: .debug, capsLockOn)
-                        if let controller = KeyEventTap.resolvedController,
-                           !controller.isCurrentAppLocked() {
-                            // 동기 호출: CapsLock은 key press 시점에 발생하므로
-                            // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
-                            controller.performCapsLockModeSet(korean: capsLockOn)
+                        if let controller = KeyEventTap.resolvedController {
+                            if !controller.isCurrentAppLocked() {
+                                // 동기 호출: CapsLock은 key press 시점에 발생하므로
+                                // async를 사용하면 다음 keyDown이 모드 전환 전에 도착할 수 있다.
+                                controller.performCapsLockModeSet(korean: capsLockOn)
+                            }
+                        } else if OngeulInputController.isOngeulActiveInputSource() {
+                            // 컨트롤러 부재(IMK 세션 공백)에도 SET은 수행 (doc 34).
+                            // 이 flagsChanged 경로는 IMK 폴백이 없어(handleFlagsChanged가
+                            // 탭 설치 시 스킵) 여기서 놓치면 블랙홀이다.
+                            os_log("capsLock: no controller → static SET",
+                                   log: log, type: .error)
+                            OngeulInputController.performStaticCapsLockModeSet(
+                                korean: capsLockOn)
                         }
                     } else {
                         os_log("capsLock flagsChanged: capsLockOn=%{public}d (echo, filtered)",
@@ -281,11 +318,24 @@ class KeyEventTap {
                     )
                     switch action {
                     case .toggle:
-                        if let controller = KeyEventTap.resolvedController,
-                           !controller.isCurrentAppLocked() {
-                            os_log("modifier tap intercepted, toggling", log: log, type: .debug)
+                        if let controller = KeyEventTap.resolvedController {
+                            if !controller.isCurrentAppLocked() {
+                                os_log("modifier tap intercepted, toggling%{public}@",
+                                       log: log, type: .default,
+                                       KeyEventTap.activeController == nil
+                                           ? " [lastController fallback]" : "")
+                                DispatchQueue.main.async {
+                                    controller.performToggleFromTap()
+                                }
+                            }
+                        } else if OngeulInputController.isOngeulActiveInputSource() {
+                            // 컨트롤러 부재(앱 자가업데이트 후 IMK 세션 공백 등)에도 flip은
+                            // 수행 (doc 34). modifier 경로는 이벤트를 소비하지 않지만 IMK
+                            // 폴백이 탭 설치 시 차단되므로, 여기서 놓치면 토글이 조용히 죽는다.
+                            os_log("modifier tap: no controller → static flip",
+                                   log: log, type: .error)
                             DispatchQueue.main.async {
-                                controller.performToggleFromTap()
+                                OngeulInputController.performStaticToggleFromTap()
                             }
                         }
                     case .englishLockToggle:
@@ -294,6 +344,11 @@ class KeyEventTap {
                             DispatchQueue.main.async {
                                 controller.performEnglishLockToggleFromTap()
                             }
+                        } else {
+                            // Lock 토글은 컨트롤러(bundleId·lock 캐시 갱신)가 필요해 정적
+                            // 경로를 두지 않는다 — 무시하되 진단 가능하게 로그만 남긴다 (doc 34).
+                            os_log("4-key English Lock: no controller, ignored",
+                                   log: log, type: .error)
                         }
                     case .none:
                         break

@@ -430,13 +430,15 @@
 <h2 id="오른쪽-command-기본값"><a class="header" href="#오른쪽-command-기본값">오른쪽 Command (기본값)</a></h2>
 <ul>
 <li><strong>오른쪽 Command</strong> 키를 <strong>단독으로 누른 뒤 떼면</strong> 한/영이 전환됩니다.</li>
-<li>다른 키와 함께 누르면 (예: Cmd+C) 전환되지 않고 일반 Command 키로 동작합니다.</li>
 <li>500ms 이내에 떼야 전환됩니다. 오래 누르고 있으면 전환되지 않습니다.</li>
+<li>기본값에서는 오른쪽 Command가 <strong>한/영 전용 키</strong>가 되어 단축키를 만들지 않습니다. 전환 직후 이어 친 글자가 <code>⌘A</code> 같은 단축키로 새는 것을 막기 위해서입니다. 단축키는 <strong>왼쪽 Command</strong> 로 그대로 사용합니다.</li>
+<li>오른쪽 Command로도 단축키를 쓰려면 설정에서 <a href="user/features/../preferences.html#%EC%98%A4%EB%A5%B8%EC%AA%BD-%EB%A5%BC-%ED%95%9C%EC%98%81-%EC%A0%84%EC%9A%A9%EC%9C%BC%EB%A1%9C-%EC%82%AC%EC%9A%A9">오른쪽 ⌘/⌥를 한/영 전용으로 사용</a>을 끄면 됩니다. 이때는 다른 키와 함께 누르면(예: Cmd+C) 전환되지 않고 일반 Command 키로 동작합니다.</li>
 </ul>
 <h2 id="오른쪽-option"><a class="header" href="#오른쪽-option">오른쪽 Option</a></h2>
 <ul>
 <li><strong>오른쪽 Option</strong> 키를 <strong>단독으로 누른 뒤 떼면</strong> 한/영이 전환됩니다.</li>
 <li>한국어 키보드의 한/영 키 위치와 동일합니다.</li>
+<li>오른쪽 Command와 마찬가지로 기본값에서는 한/영 전용 키가 됩니다. 왼쪽 Option은 그대로 특수문자 입력에 쓸 수 있습니다.</li>
 </ul>
 <h2 id="왼쪽--오른쪽-shift-단독"><a class="header" href="#왼쪽--오른쪽-shift-단독">왼쪽 / 오른쪽 Shift (단독)</a></h2>
 <ul>
@@ -463,7 +465,7 @@
 <ul>
 <li><strong>ESC</strong> 키를 누르면 자동으로 영문 모드로 전환됩니다.</li>
 <li>Vim 사용자를 위한 편의 기능으로, Normal 모드 진입 시 별도로 한/영 전환을 하지 않아도 됩니다.</li>
-<li><a href="user/features/../preferences.html">설정</a>에서 이 기능을 켜거나 끌 수 있습니다. 기본값은 꺼짐입니다.</li>
+<li><a href="user/features/../preferences.html">설정</a>에서 이 기능을 켜거나 끌 수 있습니다. 기본값은 켜짐입니다.</li>
 </ul>
 <h2 id="전환-키-변경"><a class="header" href="#전환-키-변경">전환 키 변경</a></h2>
 <p><a href="user/features/../preferences.html">설정</a>에서 <strong>전환 키</strong> 항목을 변경할 수 있습니다.</p>
@@ -547,8 +549,8 @@
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="입력기-고정"><a class="header" href="#입력기-고정">입력기 고정</a></h1>
 <p>macOS에서는 특정 상황에서 입력 소스가 자동으로 ABC 등 다른 키보드 레이아웃으로 전환될 수 있습니다. <strong>입력기 고정</strong> 기능을 활성화하면 Ongeul이 자동으로 다시 선택되어, 의도치 않은 입력 소스 전환을 방지합니다.</p>
-<h2 id="활성화-방법"><a class="header" href="#활성화-방법">활성화 방법</a></h2>
-<p><a href="user/features/../preferences.html">설정</a>에서 <strong>"입력기 고정"</strong> 체크박스를 켜세요. 기본값은 꺼짐입니다.</p>
+<h2 id="켜고-끄기"><a class="header" href="#켜고-끄기">켜고 끄기</a></h2>
+<p><a href="user/features/../preferences.html">설정</a>의 <strong>"입력기 고정"</strong> 체크박스로 켜고 끕니다. 기본값은 켜짐입니다.</p>
 <h2 id="동작-방식-3"><a class="header" href="#동작-방식-3">동작 방식</a></h2>
 <ul>
 <li>macOS 입력 소스 변경 알림을 감시합니다.</li>
@@ -589,15 +591,22 @@
 <h3 id="키보드-레이아웃-1"><a class="header" href="#키보드-레이아웃-1">키보드 레이아웃</a></h3>
 <p>한글 키보드 레이아웃을 선택합니다.</p>
 <ul>
-<li><strong>두벌식 표준</strong> — 가장 널리 사용되는 배열</li>
+<li><strong>두벌식 표준</strong> (기본값) — 가장 널리 사용되는 배열</li>
 <li><strong>세벌식 390</strong> — 초/중/종 분리 배치, 숫자열 리매핑</li>
 <li><strong>세벌식 최종</strong> — 세벌식 최종 자판</li>
 </ul>
 <p>레이아웃을 변경하면 즉시 적용됩니다.</p>
 <h3 id="esc-키로-영문-전환-1"><a class="header" href="#esc-키로-영문-전환-1">ESC 키로 영문 전환</a></h3>
-<p>ESC 키(또는 Ctrl+[)를 누르면 자동으로 영문 모드로 전환합니다. Vim 사용자를 위한 편의 기능입니다. 기본값은 꺼짐입니다.</p>
+<p>ESC 키(또는 Ctrl+[)를 누르면 자동으로 영문 모드로 전환합니다. Vim 사용자를 위한 편의 기능입니다. 기본값은 켜짐입니다.</p>
 <h3 id="입력기-고정-1"><a class="header" href="#입력기-고정-1">입력기 고정</a></h3>
-<p>다른 입력 소스(ABC 등)로의 자동 전환을 방지합니다. 기본값은 꺼짐입니다. 자세한 내용은 <a href="user/features/input-source-lock.html">입력기 고정</a>을 참고하세요.</p>
+<p>다른 입력 소스(ABC 등)로의 자동 전환을 방지합니다. 기본값은 켜짐입니다. 자세한 내용은 <a href="user/features/input-source-lock.html">입력기 고정</a>을 참고하세요.</p>
+<h3 id="오른쪽-를-한영-전용으로-사용"><a class="header" href="#오른쪽-를-한영-전용으로-사용">오른쪽 ⌘/⌥를 한/영 전용으로 사용</a></h3>
+<p><strong>오른쪽 Command</strong> 또는 <strong>오른쪽 Option</strong> 을 전환 키로 쓸 때, 그 키의 modifier(단축키) 역할을 끕니다. 기본값은 켜짐입니다.</p>
+<p>끄면 한/영을 전환하고 곧바로 다음 글자를 칠 때 두 키가 겹치면서 그 글자가 <code>⌘A</code> 같은 단축키로 새어 나갈 수 있습니다. 켜 두면 오른쪽 Command/Option이 순수한 한/영 키가 되고, <strong>왼쪽 Command/Option은 그대로 단축키로 동작</strong>하므로 잃는 기능이 없습니다.</p>
+<ul>
+<li>전환 키가 Shift 계열 · Shift+Space · CapsLock · 한/영 키이면 이 설정은 아무 효과가 없습니다(선택할 수 없게 표시됩니다).</li>
+<li>손쉬운 사용(Accessibility) 권한이 필요합니다.</li>
+</ul>
 <h2 id="업데이트-확인"><a class="header" href="#업데이트-확인">업데이트 확인</a></h2>
 <p>메뉴 막대의 Ongeul 아이콘에서 <strong>"업데이트 확인..."</strong> 을 선택하면 최신 버전이 있는지 확인할 수 있습니다.</p>
 <ul>

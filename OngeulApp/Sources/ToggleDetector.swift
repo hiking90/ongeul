@@ -24,10 +24,27 @@ struct ToggleDetector {
     ]
 
     /// keyDown 시 호출하여 진행 중인 감지 상태를 초기화한다.
-    mutating func cancelOnKeyDown() {
+    ///
+    /// - Parameters:
+    ///   - rescuePendingToggle: 전환 키의 modifier 기능이 억제된 경우 true (doc 35).
+    ///     억제 중이면 그 키는 단축키를 만들 수 없으므로, tap 판정이 살아 있는 동안
+    ///     들어온 keyDown은 "단축키 조합"이 아니라 *전환 직후 롤오버*로만 해석된다.
+    ///     이때 취소 대신 `.toggle`을 돌려주어, 호출자가 이 키가 IMK에 도달하기
+    ///     **전에** 모드를 바꾸게 한다 (issue #22). 억제가 불가능한 폴백 경로에서는
+    ///     false여야 한다 — 거기서 토글하면 단축키는 단축키대로 발화하고 모드까지
+    ///     바뀌어 더 나빠진다.
+    ///   - now: 현재 시각 (테스트에서 주입 가능)
+    /// - Returns: 구제된 경우 `.toggle`, 아니면 `.none`
+    @discardableResult
+    mutating func cancelOnKeyDown(
+        rescuePendingToggle: Bool = false,
+        now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
+    ) -> ToggleAction {
+        let rescued = rescuePendingToggle && pendingKeyCode != nil && now < expiredAt
         pendingKeyCode = nil
         fourKeysSeen.removeAll()
         allFourReached = false
+        return rescued ? .toggle : .none
     }
 
     /// flagsChanged 이벤트를 처리하여 토글 동작을 판정한다.

@@ -41,6 +41,10 @@
 /* Input Source Lock */
 "prefs.inputSourceLock" = "Lock input source (prevent switching to other input methods)";
 
+/* Toggle-key modifier suppression (doc 35, issue #22) */
+"prefs.toggleModifierSuppression" = "Use right ⌘/⌥ for Korean/English only";
+"prefs.toggleModifierSuppression.tip" = "When Right Command/Option is the toggle key, this stops the next character you type from leaking through as a shortcut such as ⌘A. Left Command/Option keep working. Requires the Accessibility permission.";
+
 /* Layout */
 "prefs.layout.label" = "Korean Layout:";
 "prefs.layout.2standard" = "2-Set Standard";

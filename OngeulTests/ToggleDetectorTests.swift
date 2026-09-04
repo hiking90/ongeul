@@ -44,13 +44,67 @@ class ToggleDetectorTests: XCTestCase {
             keyCode: KeyCode.rightCommand, flags: .command,
             toggleKey: .rightCommand, now: now
         )
-        detector.cancelOnKeyDown()
+        XCTAssertEqual(detector.cancelOnKeyDown(), .none)
 
         let r = detector.handleFlagsChanged(
             keyCode: KeyCode.rightCommand, flags: [],
             toggleKey: .rightCommand, now: now + 0.1
         )
         XCTAssertEqual(r, .none)
+    }
+
+    // MARK: - Rollover Rescue (doc 35, issue #22)
+
+    /// 억제 중이면 tap 판정이 살아 있는 동안 온 keyDown은 롤오버이므로 그 자리에서
+    /// 토글하고, 뒤따르는 release가 다시 토글하지 않아야 한다.
+    func testRollover_rescuesToggleOnceAndNotAgainOnRelease() {
+        let now: CFAbsoluteTime = 1000.0
+        let _ = detector.handleFlagsChanged(
+            keyCode: KeyCode.rightCommand, flags: .command,
+            toggleKey: .rightCommand, now: now
+        )
+
+        let rescued = detector.cancelOnKeyDown(
+            rescuePendingToggle: true, now: now + 0.04)
+        XCTAssertEqual(rescued, .toggle)
+        XCTAssertNil(detector.pendingKeyCode)
+
+        let release = detector.handleFlagsChanged(
+            keyCode: KeyCode.rightCommand, flags: [],
+            toggleKey: .rightCommand, now: now + 0.1
+        )
+        XCTAssertEqual(release, .none)
+    }
+
+    /// 0.5s를 넘겨 누르고 있었다면 tap이 아니므로 구제하지 않는다.
+    func testRollover_expiredPendingIsNotRescued() {
+        let now: CFAbsoluteTime = 1000.0
+        let _ = detector.handleFlagsChanged(
+            keyCode: KeyCode.rightCommand, flags: .command,
+            toggleKey: .rightCommand, now: now
+        )
+        XCTAssertEqual(
+            detector.cancelOnKeyDown(rescuePendingToggle: true, now: now + 0.6),
+            .none)
+    }
+
+    /// pending이 없으면(전환 키를 누른 적 없음) 억제 중이어도 구제할 것이 없다.
+    func testRollover_noPendingIsNotRescued() {
+        XCTAssertEqual(
+            detector.cancelOnKeyDown(rescuePendingToggle: true, now: 1000.0),
+            .none)
+    }
+
+    /// 억제가 꺼진(또는 폴백) 경로에서는 기존대로 취소만 한다.
+    func testRollover_notRescuedWhenSuppressionOff() {
+        let now: CFAbsoluteTime = 1000.0
+        let _ = detector.handleFlagsChanged(
+            keyCode: KeyCode.rightCommand, flags: .command,
+            toggleKey: .rightCommand, now: now
+        )
+        XCTAssertEqual(
+            detector.cancelOnKeyDown(rescuePendingToggle: false, now: now + 0.04),
+            .none)
     }
 
     // MARK: - Multi-modifier Guard

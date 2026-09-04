@@ -126,6 +126,7 @@ private final class PreferencesPanel {
     private let layoutPopup: NSPopUpButton
     private let escapeCheckbox: NSButton
     private let inputSourceLockCheckbox: NSButton
+    private let toggleModifierSuppressionCheckbox: NSButton
     private let toggleKeyTitles: [(ToggleKey, String)]
 
     private init() {
@@ -192,6 +193,14 @@ private final class PreferencesPanel {
             checkboxWithTitle: NSLocalizedString("prefs.inputSourceLock", comment: ""),
             target: nil, action: nil
         )
+
+        // -- 전환 키의 modifier 기능 억제 (doc 35) --
+        toggleModifierSuppressionCheckbox = NSButton(
+            checkboxWithTitle: NSLocalizedString("prefs.toggleModifierSuppression", comment: ""),
+            target: nil, action: nil
+        )
+        toggleModifierSuppressionCheckbox.toolTip =
+            NSLocalizedString("prefs.toggleModifierSuppression.tip", comment: "")
 
         // -- 버전 및 개발자 정보 --
         let separator = NSBox()
@@ -263,7 +272,9 @@ private final class PreferencesPanel {
         container.addArrangedSubview(headerGroup)
 
         // 그리드 + 체크박스를 하나의 설정 그룹으로 묶어 정렬
-        let checkboxGroup = NSStackView(views: [escapeCheckbox, inputSourceLockCheckbox])
+        let checkboxGroup = NSStackView(views: [
+            escapeCheckbox, inputSourceLockCheckbox, toggleModifierSuppressionCheckbox,
+        ])
         checkboxGroup.orientation = .vertical
         checkboxGroup.alignment = .leading
         checkboxGroup.spacing = 8
@@ -295,6 +306,16 @@ private final class PreferencesPanel {
         projectLink.target = self
         cancelButton.target = self
         okButton.target = self
+        togglePopup.target = self
+        togglePopup.action = #selector(toggleKeyChanged(_:))
+    }
+
+    /// 전환 키 선택이 바뀌면 modifier 억제 체크박스의 활성 여부를 맞춘다 (doc 35).
+    /// 억제 대상이 아닌 키(Shift 계열·Shift+Space·CapsLock·한/영 키)에서는 아무 효과가
+    /// 없으므로 회색으로 보여준다.
+    @objc private func toggleKeyChanged(_ sender: Any?) {
+        toggleModifierSuppressionCheckbox.isEnabled =
+            toggleKeyTitles[togglePopup.indexOfSelectedItem].0.suppressesModifier
     }
 
     func show() {
@@ -310,6 +331,11 @@ private final class PreferencesPanel {
 
         escapeCheckbox.state = OngeulInputController.escapeToEnglish ? .on : .off
         inputSourceLockCheckbox.state = OngeulInputController.inputSourceLock ? .on : .off
+        toggleModifierSuppressionCheckbox.state =
+            OngeulInputController.toggleModifierSuppression ? .on : .off
+        // 억제 대상이 아닌 전환 키에서는 아무 효과가 없으므로 비활성화해 보여준다.
+        toggleModifierSuppressionCheckbox.isEnabled =
+            OngeulInputController.toggleKey.suppressesModifier
 
         panel.center()
         panel.orderFrontRegardless()
@@ -363,12 +389,21 @@ private final class PreferencesPanel {
         OngeulInputController.savedLayoutId = newLayout
         OngeulInputController.escapeToEnglish = escapeCheckbox.state == .on
         OngeulInputController.inputSourceLock = inputSourceLockCheckbox.state == .on
+        // 억제 대상이 아닌 전환 키에서는 체크박스가 비활성이므로 그 상태를 저장하지 않고
+        // 기존 설정을 유지한다 (Shift 계열을 골랐다가 되돌려도 설정이 살아남는다).
+        if toggleModifierSuppressionCheckbox.isEnabled {
+            OngeulInputController.toggleModifierSuppression =
+                toggleModifierSuppressionCheckbox.state == .on
+        }
 
-        os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d",
+        os_log("Settings saved: toggleKey=%{public}@ layoutId=%{public}@ escapeToEnglish=%{public}d suppressToggleModifier=%{public}d",
                log: log, type: .default,
-               OngeulInputController.toggleKey.rawValue, newLayout, OngeulInputController.escapeToEnglish)
+               OngeulInputController.toggleKey.rawValue, newLayout,
+               OngeulInputController.escapeToEnglish,
+               OngeulInputController.toggleModifierSuppression)
 
         KeyEventTap.toggleKey = OngeulInputController.toggleKey
+        KeyEventTap.suppressToggleModifier = OngeulInputController.toggleModifierSuppression
         KeyEventTap.shared.install()
 
         // HID 모니터 lifecycle (toggleKey 전이 시)
@@ -560,6 +595,7 @@ class OngeulInputController: IMKInputController {
     private static let layoutIdKey = "layoutId"
     private static let escapeToEnglishKey = "escapeToEnglish"
     private static let inputSourceLockKey = "inputSourceLock"
+    private static let toggleModifierSuppressionKey = "toggleModifierSuppression"
 
     fileprivate static var toggleKey: ToggleKey {
         get {
@@ -605,6 +641,20 @@ class OngeulInputController: IMKInputController {
                 InputSourceLock.shared.stop()
             }
         }
+    }
+
+    /// 전환 키(오른쪽 ⌘/⌥)를 순수 한/영 키로 쓸지 (doc 35, issue #22).
+    /// 기본값 켬 — 오른쪽 ⌘를 한/영 키로 고른 사용자는 그 키의 단축키 역할을 포기한
+    /// 것이고, 켜두지 않으면 전환 직후 롤오버가 ⌘A 같은 파괴적 단축키로 발화한다.
+    /// 왼쪽 ⌘/⌥는 그대로 동작하므로 잃는 것이 없다.
+    fileprivate static var toggleModifierSuppression: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: toggleModifierSuppressionKey) == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: toggleModifierSuppressionKey)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: toggleModifierSuppressionKey) }
     }
 
     private static var hasPromptedAccessibility = false
@@ -655,6 +705,7 @@ class OngeulInputController: IMKInputController {
             }
         } else {
             KeyEventTap.toggleKey = Self.toggleKey
+            KeyEventTap.suppressToggleModifier = Self.toggleModifierSuppression
             KeyEventTap.shared.install()
         }
 

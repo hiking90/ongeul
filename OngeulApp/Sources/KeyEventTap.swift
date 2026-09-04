@@ -24,7 +24,24 @@ class KeyEventTap {
         if let active = activeController { return active }
         return OngeulInputController.isOngeulActiveInputSource() ? lastController : nil
     }
+    /// Ongeul이 지금 입력을 담당하고 있는지.
+    ///
+    /// 탭은 **전역**이고 `uninstall()`은 호출되지 않으므로, 사용자가 ABC 등 다른 입력
+    /// 소스로 바꿔도 콜백은 계속 돈다. 다른 입력기를 쓰는 동안 키를 건드리면 안 되는
+    /// 경로는 반드시 이 게이트를 통과시켜야 한다 (doc 33 #1).
+    ///
+    /// `resolvedController`와 달리 컨트롤러 객체를 요구하지 않는다 — IMK 세션이 아직
+    /// 없어도(로그인 직후, 텍스트 없는 앱) Ongeul이 활성이면 참이며, 이는 컨트롤러
+    /// 없이도 flip을 수행하는 doc 34 경로와 같은 판정이다.
+    /// activeController가 있으면 TIS 조회 없이 끝난다.
+    static var ongeulOwnsInput: Bool {
+        activeController != nil || OngeulInputController.isOngeulActiveInputSource()
+    }
     static var toggleKey: ToggleKey = .rightCommand
+    /// 전환 키(오른쪽 ⌘/⌥)의 modifier 기능을 앱에서 지울지 (doc 35, issue #22).
+    /// OngeulInputController가 UserDefaults에서 읽어 주입한다. toggleKey가 억제
+    /// 대상이 아니면 아무 효과가 없다.
+    static var suppressToggleModifier: Bool = true
     private static var toggleDetector = ToggleDetector()
 
     // Focus-steal correction: 키 버퍼 (activateServer에서 초기화)
@@ -102,6 +119,27 @@ class KeyEventTap {
                 let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
                 var flags = event.flags
 
+                // === 전환 키의 modifier 기능 억제 (doc 35, issue #22) ===
+                // 오른쪽 ⌘를 한/영 키로 쓰면, 전환 직후 롤오버로 겹친 다음 글자가
+                // ⌘A 같은 단축키로 발화한다. 앱에 전달되는 flags에서 그 키의 비트를
+                // 지워 순수 한/영 키로 만든다. 판정(tap press/release, 4키 English
+                // Lock)은 실제 하드웨어 상태가 필요하므로 항상 rawFlags를 쓴다.
+                //
+                // 게이트 순서가 중요하다: ongeulOwnsInput은 전환 modifier가 실제로 눌린
+                // 이벤트에서만(= apply가 non-nil) 평가된다. 다른 입력 소스를 쓰는 동안
+                // 매 키마다 TIS를 조회하지 않으면서도, 그 입력기의 오른쪽 ⌘를 죽이지 않는다.
+                let rawFlags = flags
+                let toggleModifierSuppressible =
+                    KeyEventTap.suppressToggleModifier
+                    && KeyEventTap.toggleKey.suppressesModifier
+                if toggleModifierSuppressible,
+                   let suppressed = ToggleModifierSuppression.apply(
+                       to: flags, toggleKey: KeyEventTap.toggleKey),
+                   KeyEventTap.ongeulOwnsInput {
+                    event.flags = suppressed
+                    flags = suppressed
+                }
+
                 // keyDown → modifier tap 판정 취소 + 마지막 키 기록
                 if type == .keyDown {
                     // CapsLock 방어 (영문 모드 한정): 영문 통과 경로에서 stale
@@ -128,7 +166,35 @@ class KeyEventTap {
                         event.flags = flags
                     }
 
-                    KeyEventTap.toggleDetector.cancelOnKeyDown()
+                    // 억제 중이라면 진행 중인 tap 판정을 취소하는 대신 여기서 토글한다
+                    // (doc 35). 동기 호출이어야 이 keyDown이 IMK에 도달하기 전에 모드가
+                    // 바뀌어 글자가 올바른 모드로 들어간다 — CapsLock 경로와 동일한 이유.
+                    //
+                    // pending이 살아 있다는 것 자체가 "전환 키가 눌린 채"라는 뜻이므로
+                    // (release는 pending을 지운다) device 비트를 다시 볼 필요가 없다.
+                    // pending 가드를 앞에 둬서 ongeulOwnsInput의 TIS 조회를 롤오버
+                    // 후보에서만 치른다.
+                    let rescuePendingToggle =
+                        toggleModifierSuppressible
+                        && KeyEventTap.toggleDetector.pendingKeyCode != nil
+                        && KeyEventTap.ongeulOwnsInput
+                    if KeyEventTap.toggleDetector.cancelOnKeyDown(
+                        rescuePendingToggle: rescuePendingToggle) == .toggle {
+                        if let controller = KeyEventTap.resolvedController {
+                            if !controller.isCurrentAppLocked() {
+                                os_log("modifier tap + rollover keyDown, toggling",
+                                       log: log, type: .default)
+                                controller.performToggleFromTap()
+                            }
+                        } else {
+                            // resolvedController가 nil인데 여기 왔다는 건 rescuePendingToggle의
+                            // ongeulOwnsInput이 이미 참이었다는 뜻이므로(= Ongeul 활성, 컨트롤러만
+                            // 부재) 입력 소스를 다시 조회하지 않고 바로 flip 한다 (doc 34).
+                            os_log("modifier tap rollover: no controller → static flip",
+                                   log: log, type: .error)
+                            OngeulInputController.performStaticToggleFromTap()
+                        }
+                    }
 
                     // focus-steal 키 버퍼 기록은 한글 모드에서만 의미가 있다.
                     // 소비처(activateServer)가 keyBufferWasKoreanMode로 게이트하므로 영문 모드
@@ -310,7 +376,7 @@ class KeyEventTap {
                 // modifier flagsChanged는 소비하지 않고 통과시킨다.
                 // 소비하면 앱이 modifier를 눌린 상태로 오인하는 치명적 버그 발생.
                 if type == .flagsChanged {
-                    let nsFlags = NSEvent.ModifierFlags(rawValue: UInt(flags.rawValue))
+                    let nsFlags = NSEvent.ModifierFlags(rawValue: UInt(rawFlags.rawValue))
                     let action = KeyEventTap.toggleDetector.handleFlagsChanged(
                         keyCode: UInt16(keyCode),
                         flags: nsFlags,

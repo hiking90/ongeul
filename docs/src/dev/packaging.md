@@ -85,19 +85,28 @@ hardened runtime(`--options runtime`)은 공증의 전제 조건이라 Developer
 > 다시 줘야 합니다. 로컬 개발에서는 `ONGEUL_SIGN_ID`를 켜고 끄지 말고 하나로 고정하는
 > 편이 편합니다.
 
-### CI
+### 릴리스
 
-`release.yml`의 `build` job이 `release` environment의 시크릿으로 같은 일을 합니다.
-인증서는 job 안에서 만든 임시 키체인에 import하고 끝나면 삭제하며, 공증은 App Store
-Connect API 키(`--key`)를 씁니다 — Apple ID 비밀번호를 CI에 두지 않기 위해서입니다.
+**서명·공증은 로컬에서만 합니다.** Developer ID 개인 키를 GitHub에 두지 않기 위해서입니다.
+Actions 시크릿은 영지식이 아니고(복호화 키를 GitHub이 가집니다), 애초에 GitHub 호스티드
+러너에서 서명하면 키가 그 VM에 평문으로 존재하게 됩니다. 키가 유출돼 Apple이 인증서를
+폐기하면 이미 설치된 사용자들의 Ongeul까지 Gatekeeper가 막습니다.
 
-| 시크릿 | 내용 |
-|--------|------|
-| `MACOS_APP_CERT_P12` / `MACOS_APP_CERT_PASSWORD` | Developer ID Application `.p12` (base64) + 비밀번호 |
-| `MACOS_INSTALLER_CERT_P12` / `MACOS_INSTALLER_CERT_PASSWORD` | Developer ID Installer `.p12` (base64) + 비밀번호 |
-| `APPLE_API_KEY_P8` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER_ID` | App Store Connect API 키 (base64) 및 식별자 |
+`release.yml`은 태그에 맞춰 **문서만** 배포하며 시크릿을 쓰지 않습니다.
 
 ```bash
-# .p12 / .p8를 시크릿 값으로 변환
-base64 -i DeveloperIDApplication.p12 | pbcopy
+git tag v0.4.0-rc1 && git push origin v0.4.0-rc1   # 문서 배포 트리거
+./scripts/release.sh v0.4.0-rc1                    # 빌드 → 서명 → 공증 → 발행
 ```
+
+`release.sh`가 수행하는 일:
+
+1. **사전 검증** — 도구(`gh`, `git-cliff`), 서명 환경 변수, 깨끗한 작업 트리,
+   태그가 origin에 있고 HEAD와 같은 커밋인지, 같은 이름의 릴리스가 이미 없는지.
+   서명·공증에 수 분이 걸리므로 실패 조건은 전부 여기서 걸러냅니다.
+2. **빌드·서명·공증** — `package.sh` 호출
+3. **Gatekeeper 검증** — `spctl -a -t install`이 통과해야 진행합니다.
+   공증이나 stapling이 빠지면 여기서 멈춥니다.
+4. **릴리스 노트** — `git-cliff --latest` + 설치 가이드 링크 + SHA-256
+5. **발행** — `gh release create`. 태그에 `-`가 있으면 pre-release로 올려
+   rc가 "Latest"를 차지하지 않게 합니다.

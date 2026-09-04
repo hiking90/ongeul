@@ -8,118 +8,20 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 
+# 릴리스 아티팩트는 여기서 만들지 않는다.
+#
+# .pkg 서명에는 Developer ID 개인 키가 필요한데, 그 키를 GitHub에 두면
+# (시크릿에 넣든 안 넣든) 서명이 GitHub 소유 러너에서 일어나는 동안 키가
+# 평문으로 그 VM에 존재하게 된다. GitHub Actions 시크릿은 영지식이 아니라
+# 복호화 키를 GitHub이 쥐고 있으므로 "암호화 저장"이 그 사실을 바꾸지 못한다.
+#
+# 그래서 빌드·서명·공증·릴리스 발행은 전부 로컬에서 한다:
+#
+#     ./scripts/release.sh v0.4.0-rc1
+#
+# 이 워크플로는 태그에 맞춰 문서만 배포한다 — 시크릿이 필요 없다.
+
 jobs:
-  build:
-    runs-on: macos-15
-    permissions:
-      contents: write
-    # 서명·공증 자격 증명은 이 environment에만 붙인다. 다른 워크플로(포크 PR로
-    # 도는 ci.yml 포함)에서는 보이지 않는다. 저장소 설정에서 required reviewers를
-    # 켜면 태그를 밀어도 사람이 승인해야 서명이 시작된다.
-    environment: release
-    steps:
-      # 서드파티 액션은 커밋 SHA로 고정한다. 이 job은 Developer ID 개인 키를
-      # 환경에 들고 있으므로, 태그가 옮겨가면 남의 코드가 그 키를 보게 된다.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-
-      # 임시 키체인을 만들어 인증서를 넣고, job이 끝나면 통째로 지운다.
-      # 로그인 키체인을 건드리지 않으므로 러너 이미지에 잔여물이 남지 않는다.
-      - name: Import signing certificates
-        env:
-          APP_CERT_P12: ${{ secrets.MACOS_APP_CERT_P12 }}
-          APP_CERT_PASSWORD: ${{ secrets.MACOS_APP_CERT_PASSWORD }}
-          INSTALLER_CERT_P12: ${{ secrets.MACOS_INSTALLER_CERT_P12 }}
-          INSTALLER_CERT_PASSWORD: ${{ secrets.MACOS_INSTALLER_CERT_PASSWORD }}
-        run: |
-          set -euo pipefail
-          KEYCHAIN="$RUNNER_TEMP/ongeul-signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 3600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-
-          # base64는 파일로만 흘린다 — 어디에서도 echo 하지 않는다.
-          printf '%s' "$APP_CERT_P12" | base64 --decode > "$RUNNER_TEMP/app.p12"
-          security import "$RUNNER_TEMP/app.p12" -k "$KEYCHAIN" -P "$APP_CERT_PASSWORD" \
-            -T /usr/bin/codesign
-          printf '%s' "$INSTALLER_CERT_P12" | base64 --decode > "$RUNNER_TEMP/installer.p12"
-          security import "$RUNNER_TEMP/installer.p12" -k "$KEYCHAIN" -P "$INSTALLER_CERT_PASSWORD" \
-            -T /usr/bin/productbuild
-          rm -f "$RUNNER_TEMP/app.p12" "$RUNNER_TEMP/installer.p12"
-
-          # codesign/productbuild가 UI 프롬프트 없이 키를 쓰게 한다.
-          security set-key-partition-list -S apple-tool:,apple: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-
-          # 서명 도구가 identity를 찾으려면 키체인이 검색 목록에 있어야 한다.
-          # 기존 목록을 유지한 채 앞에 붙인다 (덮어쓰면 러너의 시스템 인증서가 사라진다).
-          EXISTING_KEYCHAINS=$(security list-keychains -d user | sed -e 's/^ *"//' -e 's/"$//')
-          # shellcheck disable=SC2086
-          security list-keychains -d user -s "$KEYCHAIN" $EXISTING_KEYCHAINS
-
-          # identity 이름을 secret으로 관리하지 않고 키체인에서 직접 뽑는다.
-          # SHA-1 해시로 지정하면 이름이 같은 인증서가 여러 개여도 모호하지 않다.
-          APP_ID=$(security find-identity -v -p codesigning "$KEYCHAIN" \
-            | awk '/Developer ID Application/ {print $2; exit}')
-          INSTALLER_ID=$(security find-identity -v "$KEYCHAIN" \
-            | awk '/Developer ID Installer/ {print $2; exit}')
-          if [[ -z "$APP_ID" || -z "$INSTALLER_ID" ]]; then
-            echo "::error::Developer ID Application/Installer identity not found in the keychain"
-            security find-identity -v "$KEYCHAIN" || true
-            exit 1
-          fi
-          echo "ONGEUL_SIGN_ID=$APP_ID" >> "$GITHUB_ENV"
-          echo "ONGEUL_INSTALLER_ID=$INSTALLER_ID" >> "$GITHUB_ENV"
-          echo "ONGEUL_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
-
-      - name: Build and notarize package
-        env:
-          NOTARY_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
-          ONGEUL_NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          ONGEUL_NOTARY_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-        run: |
-          set -euo pipefail
-          export ONGEUL_NOTARY_KEY_PATH="$RUNNER_TEMP/asc-key.p8"
-          printf '%s' "$NOTARY_KEY_P8" | base64 --decode > "$ONGEUL_NOTARY_KEY_PATH"
-          trap 'rm -f "$ONGEUL_NOTARY_KEY_PATH"' EXIT
-          VERSION="${GITHUB_REF_NAME#v}"
-          ./scripts/package.sh "$VERSION"
-
-      # 실패해도 반드시 지운다 — 러너는 재사용되지 않지만 캐시·아티팩트로 새는 것을 막는다.
-      - name: Clean up keychain
-        if: always()
-        run: security delete-keychain "$ONGEUL_KEYCHAIN" || true
-
-      - name: Generate changelog
-        uses: orhun/git-cliff-action@3d96a18cc4ec17e9dc69ddcc424ccafaf1f78ce2 # v4
-        id: changelog
-        with:
-          args: --latest --strip header
-        env:
-          OUTPUT: CHANGES.md
-
-      - name: Create Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          PKG_FILE="build/Ongeul-${VERSION}.pkg"
-          SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
-          NOTES=$(cat CHANGES.md)
-          DOCS_VERSION="${VERSION%%-*}"
-          DOCS_URL="https://hiking90.github.io/ongeul/${DOCS_VERSION}/user/installation.html"
-          FOOTER=$(printf '\n\n---\n📖 [설치 가이드](%s)\n**SHA-256:** `%s`\nVerify: `shasum -a 256 Ongeul-%s.pkg`' "$DOCS_URL" "$SHA256" "$VERSION")
-          gh release create "$GITHUB_REF_NAME" \
-            "$PKG_FILE" \
-            --title "Ongeul ${VERSION}" \
-            --notes "${NOTES}${FOOTER}"
-
   deploy-docs:
     runs-on: ubuntu-latest
     permissions:

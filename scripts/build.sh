@@ -158,11 +158,25 @@ echo "    Bundle: $APP_BUNDLE"
 echo "    Resources:"
 ls "$APP_CONTENTS/Resources/"
 
-# ── 5. 코드 서명 (ad-hoc) ──
+# ── 5. 코드 서명 ──
+#
+# ONGEUL_SIGN_ID가 있으면 Developer ID로, 없으면 ad-hoc으로 서명한다.
+# ad-hoc 빌드는 개발 루프용이다 — 배포물은 package.sh가 서명·공증까지 맡는다.
+#
+# 서명 identity를 바꾸면 macOS의 TCC 부여(손쉬운 사용·입력 모니터링)가 무효화되므로,
+# 로컬에서 ONGEUL_SIGN_ID를 켰다 껐다 하면 그때마다 권한을 다시 줘야 한다.
 
-echo "=== [5/5] Code signing (ad-hoc) ==="
-
-codesign --force --sign - "$APP_BUNDLE"
+if [[ -n "${ONGEUL_SIGN_ID:-}" ]]; then
+    echo "=== [5/5] Code signing (Developer ID) ==="
+    echo "    Identity: $ONGEUL_SIGN_ID"
+    codesign --force --timestamp --options runtime \
+        --entitlements "$PROJECT_ROOT/OngeulApp/Ongeul.entitlements" \
+        --sign "$ONGEUL_SIGN_ID" "$APP_BUNDLE"
+    codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+else
+    echo "=== [5/5] Code signing (ad-hoc) ==="
+    codesign --force --sign - "$APP_BUNDLE"
+fi
 
 echo "=== Build complete ==="
 echo "    $APP_BUNDLE"

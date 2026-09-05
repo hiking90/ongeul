@@ -8,29 +8,14 @@
    - **시스템 전체 설치**: `/Library/Input Methods`에 설치됩니다 (관리자 권한 필요).
    - **현재 사용자만**: `~/Library/Input Methods`에 설치됩니다.
 
-### 실행 권한 (Gatekeeper)
+### 서명과 공증
 
-Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 설치 파일과 앱 실행을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.
+0.4.0부터 Ongeul은 Apple Developer ID 인증서로 서명되고 Apple의 공증(notarization)을
+받습니다. Gatekeeper 경고 없이 바로 설치할 수 있으며, 별도의 우회 절차가 필요 없습니다.
 
-#### .pkg 파일 열기
-
-다운로드한 `.pkg` 파일을 더블클릭하면 다음과 같은 경고가 표시될 수 있습니다.
-
-<p align="center">
-<img src="images/gatekeeper-pkg-warning.png" alt="Gatekeeper .pkg 차단 경고" width="265">
-</p>
-
-1. 경고 다이얼로그에서 **완료** 를 클릭합니다.
-2. **시스템 설정** → **개인 정보 보호 및 보안** 으로 이동합니다.
-3. 하단의 보안 섹션에서 **"Ongeul-x.x.x.pkg이(가) Mac을 보호하기 위해 차단되었습니다"** 메시지를 확인하고 **확인 없이 열기** 를 클릭합니다.
-
-<p align="center">
-<img src="images/gatekeeper-open-anyway.png" alt="개인 정보 보호 및 보안에서 확인 없이 열기" width="500">
-</p>
-
-4. macOS가 다시 확인을 요청하면 **열기** 를 클릭합니다.
-
-> Ongeul은 공증(notarization)되어 있지 않으므로, **업데이트할 때마다** 이 과정이 필요합니다.
+> **0.3.x 이하에서 업데이트하는 경우**: 서명 방식이 바뀌었기 때문에 이전에 부여한
+> **손쉬운 사용**·**입력 모니터링** 권한이 한 번 초기화됩니다. 업데이트 후 아래 절차대로
+> 권한을 다시 부여해 주세요. 이번 한 번만 필요하며, 이후 업데이트부터는 권한이 유지됩니다.
 
 ### 입력기 등록
 
@@ -103,7 +88,7 @@ Ongeul을 입력 소스로 등록하고 처음 활성화하면, 다음과 같은
 3. 목록에서 **Ongeul** 을 찾아 토글을 켭니다.
 4. 목록에 Ongeul이 보이지 않는 경우, 하단의 **+** 버튼을 클릭하고 `/Library/Input Methods/Ongeul.app` (시스템 전체 설치) 또는 `~/Library/Input Methods/Ongeul.app` (현재 사용자 설치)을 선택합니다.
 
-> **업데이트 시 참고**: Ongeul을 업데이트하면 앱이 재서명되어 기존 Accessibility 권한이 자동으로 초기화됩니다. 업데이트 후 Ongeul을 처음 활성화하면 권한 요청 다이얼로그가 다시 표시되므로, 위 절차에 따라 권한을 다시 부여해 주세요.
+> **업데이트 시 참고**: 0.4.0부터는 Developer ID 서명이 고정되므로 업데이트해도 Accessibility 권한이 유지됩니다. 다만 **0.3.x 이하에서 0.4.0으로 올라올 때는 한 번** 초기화되므로, 그때는 위 절차에 따라 권한을 다시 부여해 주세요.
 
 ## 소스에서 빌드
 

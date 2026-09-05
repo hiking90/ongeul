@@ -26,8 +26,9 @@ rustup target add x86_64-apple-darwin
 2. **aarch64 빌드**: `build.sh aarch64-apple-darwin`
 3. **x86_64 빌드**: `build.sh x86_64-apple-darwin`
 4. **Universal 바이너리**: `lipo`로 양쪽 아키텍처 바이너리를 합침
-5. **코드 서명**: ad-hoc 서명
-6. **패키지 생성**: `pkgbuild` → `productbuild`
+5. **코드 서명**: `ONGEUL_SIGN_ID`가 있으면 Developer ID + hardened runtime, 없으면 ad-hoc
+6. **패키지 생성**: `pkgbuild` → `productbuild` (`ONGEUL_INSTALLER_ID`가 있으면 서명)
+7. **공증**: 자격 증명이 있으면 `notarytool submit --wait` → `stapler staple`
 
 ## 패키지 구조
 
@@ -48,23 +49,71 @@ scripts/pkg/
 
 ## 코드 서명 및 공증
 
-Developer ID 인증서가 있는 경우, 배포 전에 코드 서명과 공증을 수행할 수 있습니다:
+`package.sh`가 서명·공증·stapling까지 수행합니다. 환경 변수로 자격 증명을 넘기며,
+설정하지 않으면 ad-hoc 서명으로 떨어져 로컬 테스트에는 그대로 쓸 수 있습니다
+(단, 그 산출물은 다른 Mac에서 Gatekeeper에 막힙니다).
+
+| 변수 | 용도 |
+|------|------|
+| `ONGEUL_SIGN_ID` | Developer ID **Application** identity (이름 또는 SHA-1 해시) |
+| `ONGEUL_INSTALLER_ID` | Developer ID **Installer** identity — `.pkg` 서명용 |
+| `ONGEUL_NOTARY_PROFILE` | `notarytool store-credentials`로 만든 키체인 프로필 이름 |
+| `ONGEUL_SKIP_NOTARIZE` | `1`이면 공증 생략 |
+
+인증서는 두 종류가 모두 필요합니다. 앱만 서명하고 `.pkg`를 빼면 설치 시점에 다시 막힙니다.
 
 ```bash
-# 코드 서명
-codesign --force --sign "Developer ID Application: <이름>" build/universal/Ongeul.app
+# 최초 1회: 공증 자격 증명을 키체인에 저장
+xcrun notarytool store-credentials ongeul-notary \
+    --apple-id <Apple ID> --team-id <Team ID> --password <앱 전용 비밀번호>
 
-# 패키지 서명
-productsign --sign "Developer ID Installer: <이름>" \
-    build/Ongeul-<version>.pkg \
-    build/Ongeul-<version>-signed.pkg
+# identity 이름 확인
+security find-identity -v | grep "Developer ID"
 
-# 공증
-xcrun notarytool submit build/Ongeul-<version>-signed.pkg \
-    --apple-id <Apple ID> \
-    --team-id <Team ID> \
-    --password <앱 전용 비밀번호> \
-    --wait
+# 서명 + 공증까지 한 번에
+export ONGEUL_SIGN_ID="Developer ID Application: <이름> (<Team ID>)"
+export ONGEUL_INSTALLER_ID="Developer ID Installer: <이름> (<Team ID>)"
+export ONGEUL_NOTARY_PROFILE="ongeul-notary"
+./scripts/package.sh 0.4.0
 ```
 
-공증이 완료되면 Gatekeeper 경고 없이 설치할 수 있습니다.
+hardened runtime(`--options runtime`)은 공증의 전제 조건이라 Developer ID 서명 시 항상
+함께 켭니다.
+
+> **서명 identity를 바꾸면 TCC 권한이 초기화됩니다.** macOS는 손쉬운 사용·입력 모니터링
+> 부여를 코드 서명에 묶어 관리하므로, ad-hoc ↔ Developer ID를 오가면 그때마다 권한을
+> 다시 줘야 합니다. 로컬 개발에서는 `ONGEUL_SIGN_ID`를 켜고 끄지 말고 하나로 고정하는
+> 편이 편합니다.
+
+### 릴리스
+
+**서명·공증은 로컬에서만 합니다.** Developer ID 개인 키를 GitHub에 두지 않기 위해서입니다.
+Actions 시크릿은 영지식이 아니고(복호화 키를 GitHub이 가집니다), 애초에 GitHub 호스티드
+러너에서 서명하면 키가 그 VM에 평문으로 존재하게 됩니다. 키가 유출돼 Apple이 인증서를
+폐기하면 이미 설치된 사용자들의 Ongeul까지 Gatekeeper가 막습니다.
+
+`release.yml`은 태그에 맞춰 **문서만** 배포하며 시크릿을 쓰지 않습니다.
+
+```bash
+git tag v0.4.0-rc1 && git push origin v0.4.0-rc1   # 문서 배포 트리거
+./scripts/release.sh v0.4.0-rc1                    # 빌드 → 서명 → 공증 → 발행
+```
+
+`release.sh`가 수행하는 일:
+
+1. **사전 검증** — 도구(`gh`, `git-cliff`), 서명 환경 변수, 깨끗한 작업 트리,
+   빌드 입력에 추적되지 않은 파일이 없는지, 태그가 origin에 있고 HEAD와 같은
+   커밋인지, 같은 이름의 릴리스가 이미 없는지.
+   서명·공증에 수 분이 걸리므로 실패 조건은 전부 여기서 걸러냅니다.
+
+   빌드는 **태그의 트리가 아니라 작업 트리에서** 일어납니다. 별도 폴더로 export하지
+   않습니다. "깨끗한 트리 + HEAD == 태그 + 빌드 입력에 untracked 없음" 세 조건이
+   함께 그 둘의 동등성을 보장합니다. `build.sh`가 소스를 glob으로 훑기 때문에
+   마지막 조건이 필요합니다 — 추적되지 않은 `.swift` 하나가 태그에 없는 코드를
+   서명·공증된 릴리스에 실어 보낼 수 있습니다.
+2. **빌드·서명·공증** — `package.sh` 호출
+3. **Gatekeeper 검증** — `spctl -a -t install`이 통과해야 진행합니다.
+   공증이나 stapling이 빠지면 여기서 멈춥니다.
+4. **릴리스 노트** — `git-cliff --latest` + 설치 가이드 링크 + SHA-256
+5. **발행** — `gh release create`. 태그에 `-`가 있으면 pre-release로 올려
+   rc가 "Latest"를 차지하지 않게 합니다.

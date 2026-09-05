@@ -65,6 +65,21 @@ fi
 git -C "$PROJECT_ROOT" diff-index --quiet HEAD -- \
     || fail "작업 트리가 깨끗하지 않습니다. 릴리스는 커밋된 상태에서만 만듭니다."
 
+# diff-index는 **추적 파일만** 본다. build.sh는 소스를 glob으로 훑으므로
+# (find OngeulApp/Sources -name '*.swift') 추적되지 않은 .swift 하나가 태그에 없는
+# 코드를 서명·공증된 릴리스에 실어 보낼 수 있다. 빌드는 태그의 트리가 아니라 작업
+# 트리에서 일어나므로, "깨끗한 트리 + HEAD == 태그"로만 동등성을 보장하는데 이 검사가
+# 없으면 그 보장에 구멍이 난다.
+# design/·CLAUDE.md 등이 이 저장소에서 상시 untracked라 전체 검사는 못 하고 빌드
+# 입력 경로만 본다. OngeulApp/Generated는 .gitignore 대상이라 자동으로 빠진다.
+UNTRACKED=$(git -C "$PROJECT_ROOT" ls-files --others --exclude-standard \
+    -- OngeulApp ongeul-automata ongeul-update scripts Cargo.toml Cargo.lock)
+if [[ -n "$UNTRACKED" ]]; then
+    echo "Error: 빌드 입력에 추적되지 않은 파일이 있습니다 — 태그와 다른 것이 빌드됩니다:" >&2
+    printf '%s\n' "$UNTRACKED" | sed 's/^/       /' >&2
+    exit 1
+fi
+
 git -C "$PROJECT_ROOT" rev-parse -q --verify "refs/tags/$TAG" > /dev/null \
     || fail "태그 $TAG 가 없습니다. 먼저 'git tag $TAG && git push origin $TAG'."
 

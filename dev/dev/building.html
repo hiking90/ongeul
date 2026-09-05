@@ -225,7 +225,14 @@ scripts/
 <ol>
 <li><strong>Rust 빌드</strong>: <code>cargo build</code>로 <code>libongeul_automata.a</code> 정적 라이브러리 생성</li>
 <li><strong>UniFFI 바인딩</strong>: Rust 라이브러리에서 Swift 바인딩 코드 자동 생성</li>
-<li><strong>Swift 컴파일</strong>: <code>swiftc</code>로 Swift 소스 및 Obj-C 소스 컴파일</li>
+<li><strong>Swift 컴파일</strong>: <code>swiftc</code>로 Swift 소스 및 Obj-C 소스 컴파일
+<ul>
+<li><code>-O -wmo</code>로 최적화합니다. 배포 바이너리와 개발 빌드가 같은 코드로 나오도록
+디버그/릴리스를 나누지 않습니다 (전체 빌드가 10초 미만입니다).</li>
+<li><code>-file-prefix-map</code>으로 <code>#file</code> 리터럴과 디버그 정보의 빌드 경로를 <code>/ongeul</code>로
+바꿉니다 — 릴리스를 로컬에서 빌드하므로 홈 디렉터리 구조가 새어나가지 않도록.</li>
+</ul>
+</li>
 <li><strong>앱 번들</strong>: <code>Ongeul.app</code> 번들 구조 생성 (Info.plist, 리소스 복사)</li>
 <li><strong>코드 서명</strong>: ad-hoc 서명</li>
 </ol>

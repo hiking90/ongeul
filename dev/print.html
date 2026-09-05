@@ -218,26 +218,13 @@
 </ul>
 </li>
 </ol>
-<h3 id="실행-권한-gatekeeper"><a class="header" href="#실행-권한-gatekeeper">실행 권한 (Gatekeeper)</a></h3>
-<p>Ongeul은 오픈소스 프로젝트로, Apple Developer 인증서로 서명되거나 공증(notarization)되어 있지 않습니다. 이 때문에 macOS Gatekeeper가 설치 파일과 앱 실행을 차단합니다. 이는 보안 위협이 아니라 Apple 개발자 프로그램에 등록되지 않은 소프트웨어에 대한 macOS의 기본 정책입니다.</p>
-<h4 id="pkg-파일-열기"><a class="header" href="#pkg-파일-열기">.pkg 파일 열기</a></h4>
-<p>다운로드한 <code>.pkg</code> 파일을 더블클릭하면 다음과 같은 경고가 표시될 수 있습니다.</p>
-<p align="center">
-<img src="user/images/gatekeeper-pkg-warning.png" alt="Gatekeeper .pkg 차단 경고" width="265">
-</p>
-<ol>
-<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
-<li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
-<li>하단의 보안 섹션에서 <strong>"Ongeul-x.x.x.pkg이(가) Mac을 보호하기 위해 차단되었습니다"</strong> 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
-</ol>
-<p align="center">
-<img src="user/images/gatekeeper-open-anyway.png" alt="개인 정보 보호 및 보안에서 확인 없이 열기" width="500">
-</p>
-<ol start="4">
-<li>macOS가 다시 확인을 요청하면 <strong>열기</strong> 를 클릭합니다.</li>
-</ol>
+<h3 id="서명과-공증"><a class="header" href="#서명과-공증">서명과 공증</a></h3>
+<p>0.4.0부터 Ongeul은 Apple Developer ID 인증서로 서명되고 Apple의 공증(notarization)을
+받습니다. Gatekeeper 경고 없이 바로 설치할 수 있으며, 별도의 우회 절차가 필요 없습니다.</p>
 <blockquote>
-<p>Ongeul은 공증(notarization)되어 있지 않으므로, <strong>업데이트할 때마다</strong> 이 과정이 필요합니다.</p>
+<p><strong>0.3.x 이하에서 업데이트하는 경우</strong>: 서명 방식이 바뀌었기 때문에 이전에 부여한
+<strong>손쉬운 사용</strong>·<strong>입력 모니터링</strong> 권한이 한 번 초기화됩니다. 업데이트 후 아래 절차대로
+권한을 다시 부여해 주세요. 이번 한 번만 필요하며, 이후 업데이트부터는 권한이 유지됩니다.</p>
 </blockquote>
 <h3 id="입력기-등록"><a class="header" href="#입력기-등록">입력기 등록</a></h3>
 <p><code>.pkg</code> 설치가 완료되면, macOS에 Ongeul을 입력 소스로 등록해야 합니다. 등록하지 않으면 Ongeul이 설치되어 있어도 입력기로 사용할 수 없습니다.</p>
@@ -306,7 +293,7 @@
 <li>목록에 Ongeul이 보이지 않는 경우, 하단의 <strong>+</strong> 버튼을 클릭하고 <code>/Library/Input Methods/Ongeul.app</code> (시스템 전체 설치) 또는 <code>~/Library/Input Methods/Ongeul.app</code> (현재 사용자 설치)을 선택합니다.</li>
 </ol>
 <blockquote>
-<p><strong>업데이트 시 참고</strong>: Ongeul을 업데이트하면 앱이 재서명되어 기존 Accessibility 권한이 자동으로 초기화됩니다. 업데이트 후 Ongeul을 처음 활성화하면 권한 요청 다이얼로그가 다시 표시되므로, 위 절차에 따라 권한을 다시 부여해 주세요.</p>
+<p><strong>업데이트 시 참고</strong>: 0.4.0부터는 Developer ID 서명이 고정되므로 업데이트해도 Accessibility 권한이 유지됩니다. 다만 <strong>0.3.x 이하에서 0.4.0으로 올라올 때는 한 번</strong> 초기화되므로, 그때는 위 절차에 따라 권한을 다시 부여해 주세요.</p>
 </blockquote>
 <h2 id="소스에서-빌드"><a class="header" href="#소스에서-빌드">소스에서 빌드</a></h2>
 <p>개발 환경에서 직접 빌드하려면 <a href="user/../dev/building.html">빌드</a> 페이지를 참고하세요.</p>
@@ -618,14 +605,18 @@
 <p><strong>원인</strong>: macOS는 입력기 목록을 로그인 시점에 캐시합니다.</p>
 <p><strong>해결</strong>: 로그아웃 후 재로그인하세요. 설치 직후에는 반드시 이 과정이 필요합니다.</p>
 <h2 id="gatekeeper가-pkg-또는-앱-실행을-차단함"><a class="header" href="#gatekeeper가-pkg-또는-앱-실행을-차단함">Gatekeeper가 .pkg 또는 앱 실행을 차단함</a></h2>
-<p><strong>원인</strong>: Ongeul은 오픈소스 프로젝트로 Apple Developer 인증서로 서명되어 있지 않아, macOS Gatekeeper가 <code>.pkg</code> 설치 파일이나 앱 실행을 차단합니다.</p>
-<p><strong>해결</strong>:</p>
-<ol>
-<li>경고 다이얼로그에서 <strong>완료</strong> 를 클릭합니다.</li>
-<li><strong>시스템 설정</strong> → <strong>개인 정보 보호 및 보안</strong> 으로 이동합니다.</li>
-<li>하단 보안 섹션에서 차단 메시지를 확인하고 <strong>확인 없이 열기</strong> 를 클릭합니다.</li>
-</ol>
-<p>자세한 내용은 <a href="user/installation.html#%EC%8B%A4%ED%96%89-%EA%B6%8C%ED%95%9C-gatekeeper">설치 &gt; 실행 권한</a>을 참고하세요.</p>
+<p><strong>원인</strong>: 0.3.x 이하는 Developer ID 서명과 공증이 없어 macOS Gatekeeper가 차단합니다.</p>
+<p><strong>해결</strong>: <a href="https://github.com/hiking90/ongeul/releases">0.4.0 이상</a>으로 업데이트하세요.
+0.4.0부터는 서명·공증되어 경고 없이 설치됩니다. 자세한 내용은
+<a href="user/installation.html#%EC%84%9C%EB%AA%85%EA%B3%BC-%EA%B3%B5%EC%A6%9D">설치 &gt; 서명과 공증</a>을 참고하세요.</p>
+<p>0.4.0 이상인데도 차단된다면 다운로드가 손상됐을 수 있습니다. 릴리스 노트의 SHA-256과
+<code>shasum -a 256 Ongeul-&lt;버전&gt;.pkg</code> 결과를 비교해 보세요.</p>
+<h2 id="업데이트-후-손쉬운-사용-권한이-풀림"><a class="header" href="#업데이트-후-손쉬운-사용-권한이-풀림">업데이트 후 손쉬운 사용 권한이 풀림</a></h2>
+<p><strong>원인</strong>: macOS는 손쉬운 사용·입력 모니터링 권한을 앱의 코드 서명에 묶어 관리합니다.
+0.3.x 이하에서 0.4.0으로 올라오면 ad-hoc 서명에서 Developer ID 서명으로 바뀌므로
+기존 부여가 한 번 무효화됩니다.</p>
+<p><strong>해결</strong>: <a href="user/installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치 &gt; 손쉬운 사용 권한</a> 절차대로
+다시 부여하세요. 0.4.0 이후 업데이트부터는 서명이 고정되어 권한이 유지됩니다.</p>
 <h2 id="한글-조합이-되지-않음"><a class="header" href="#한글-조합이-되지-않음">한글 조합이 되지 않음</a></h2>
 <p>다음 사항을 확인하세요:</p>
 <ol>
@@ -716,7 +707,14 @@ scripts/
 <ol>
 <li><strong>Rust 빌드</strong>: <code>cargo build</code>로 <code>libongeul_automata.a</code> 정적 라이브러리 생성</li>
 <li><strong>UniFFI 바인딩</strong>: Rust 라이브러리에서 Swift 바인딩 코드 자동 생성</li>
-<li><strong>Swift 컴파일</strong>: <code>swiftc</code>로 Swift 소스 및 Obj-C 소스 컴파일</li>
+<li><strong>Swift 컴파일</strong>: <code>swiftc</code>로 Swift 소스 및 Obj-C 소스 컴파일
+<ul>
+<li><code>-O -wmo</code>로 최적화합니다. 배포 바이너리와 개발 빌드가 같은 코드로 나오도록
+디버그/릴리스를 나누지 않습니다 (전체 빌드가 10초 미만입니다).</li>
+<li><code>-file-prefix-map</code>으로 <code>#file</code> 리터럴과 디버그 정보의 빌드 경로를 <code>/ongeul</code>로
+바꿉니다 — 릴리스를 로컬에서 빌드하므로 홈 디렉터리 구조가 새어나가지 않도록.</li>
+</ul>
+</li>
 <li><strong>앱 번들</strong>: <code>Ongeul.app</code> 번들 구조 생성 (Info.plist, 리소스 복사)</li>
 <li><strong>코드 서명</strong>: ad-hoc 서명</li>
 </ol>
@@ -821,8 +819,9 @@ rm -rf ~/Library/Input\ Methods/Ongeul.app
 <li><strong>aarch64 빌드</strong>: <code>build.sh aarch64-apple-darwin</code></li>
 <li><strong>x86_64 빌드</strong>: <code>build.sh x86_64-apple-darwin</code></li>
 <li><strong>Universal 바이너리</strong>: <code>lipo</code>로 양쪽 아키텍처 바이너리를 합침</li>
-<li><strong>코드 서명</strong>: ad-hoc 서명</li>
-<li><strong>패키지 생성</strong>: <code>pkgbuild</code> → <code>productbuild</code></li>
+<li><strong>코드 서명</strong>: <code>ONGEUL_SIGN_ID</code>가 있으면 Developer ID + hardened runtime, 없으면 ad-hoc</li>
+<li><strong>패키지 생성</strong>: <code>pkgbuild</code> → <code>productbuild</code> (<code>ONGEUL_INSTALLER_ID</code>가 있으면 서명)</li>
+<li><strong>공증</strong>: 자격 증명이 있으면 <code>notarytool submit --wait</code> → <code>stapler staple</code></li>
 </ol>
 <h2 id="패키지-구조"><a class="header" href="#패키지-구조">패키지 구조</a></h2>
 <pre><code>scripts/pkg/
@@ -839,23 +838,75 @@ rm -rf ~/Library/Input\ Methods/Ongeul.app
 <li>설치 위치: <code>/Library/Input Methods</code> (시스템) 또는 <code>~/Library/Input Methods</code> (사용자)</li>
 </ul>
 <h2 id="코드-서명-및-공증"><a class="header" href="#코드-서명-및-공증">코드 서명 및 공증</a></h2>
-<p>Developer ID 인증서가 있는 경우, 배포 전에 코드 서명과 공증을 수행할 수 있습니다:</p>
-<pre><code class="language-bash"># 코드 서명
-codesign --force --sign "Developer ID Application: &lt;이름&gt;" build/universal/Ongeul.app
+<p><code>package.sh</code>가 서명·공증·stapling까지 수행합니다. 환경 변수로 자격 증명을 넘기며,
+설정하지 않으면 ad-hoc 서명으로 떨어져 로컬 테스트에는 그대로 쓸 수 있습니다
+(단, 그 산출물은 다른 Mac에서 Gatekeeper에 막힙니다).</p>
+<div class="table-wrapper"><table><thead><tr><th>변수</th><th>용도</th></tr></thead><tbody>
+<tr><td><code>ONGEUL_SIGN_ID</code></td><td>Developer ID <strong>Application</strong> identity (이름 또는 SHA-1 해시)</td></tr>
+<tr><td><code>ONGEUL_INSTALLER_ID</code></td><td>Developer ID <strong>Installer</strong> identity — <code>.pkg</code> 서명용</td></tr>
+<tr><td><code>ONGEUL_NOTARY_PROFILE</code></td><td><code>notarytool store-credentials</code>로 만든 키체인 프로필 이름</td></tr>
+<tr><td><code>ONGEUL_SKIP_NOTARIZE</code></td><td><code>1</code>이면 공증 생략</td></tr>
+</tbody></table>
+</div>
+<p>인증서는 두 종류가 모두 필요합니다. 앱만 서명하고 <code>.pkg</code>를 빼면 설치 시점에 다시 막힙니다.</p>
+<pre><code class="language-bash"># 최초 1회: 공증 자격 증명을 키체인에 저장
+xcrun notarytool store-credentials ongeul-notary \
+    --apple-id &lt;Apple ID&gt; --team-id &lt;Team ID&gt; --password &lt;앱 전용 비밀번호&gt;
 
-# 패키지 서명
-productsign --sign "Developer ID Installer: &lt;이름&gt;" \
-    build/Ongeul-&lt;version&gt;.pkg \
-    build/Ongeul-&lt;version&gt;-signed.pkg
+# identity 이름 확인
+security find-identity -v | grep "Developer ID"
 
-# 공증
-xcrun notarytool submit build/Ongeul-&lt;version&gt;-signed.pkg \
-    --apple-id &lt;Apple ID&gt; \
-    --team-id &lt;Team ID&gt; \
-    --password &lt;앱 전용 비밀번호&gt; \
-    --wait
+# 서명 + 공증까지 한 번에
+export ONGEUL_SIGN_ID="Developer ID Application: &lt;이름&gt; (&lt;Team ID&gt;)"
+export ONGEUL_INSTALLER_ID="Developer ID Installer: &lt;이름&gt; (&lt;Team ID&gt;)"
+export ONGEUL_NOTARY_PROFILE="ongeul-notary"
+./scripts/package.sh 0.4.0
 </code></pre>
-<p>공증이 완료되면 Gatekeeper 경고 없이 설치할 수 있습니다.</p>
+<p>hardened runtime(<code>--options runtime</code>)은 공증의 전제 조건이라 Developer ID 서명 시 항상
+함께 켭니다.</p>
+<blockquote>
+<p><strong>서명 identity를 바꾸면 TCC 권한이 초기화됩니다.</strong> macOS는 손쉬운 사용·입력 모니터링
+부여를 코드 서명에 묶어 관리하므로, ad-hoc ↔ Developer ID를 오가면 그때마다 권한을
+다시 줘야 합니다. 로컬 개발에서는 <code>ONGEUL_SIGN_ID</code>를 켜고 끄지 말고 하나로 고정하는
+편이 편합니다.</p>
+</blockquote>
+<h3 id="릴리스"><a class="header" href="#릴리스">릴리스</a></h3>
+<p><strong>서명·공증은 로컬에서만 합니다.</strong> Developer ID 개인 키를 GitHub에 두지 않기 위해서입니다.
+Actions 시크릿은 영지식이 아니고(복호화 키를 GitHub이 가집니다), 애초에 GitHub 호스티드
+러너에서 서명하면 키가 그 VM에 평문으로 존재하게 됩니다. 키가 유출돼 Apple이 인증서를
+폐기하면 이미 설치된 사용자들의 Ongeul까지 Gatekeeper가 막습니다.</p>
+<p><code>release.yml</code>은 태그에 맞춰 <strong>문서만</strong> 배포하며 시크릿을 쓰지 않습니다.</p>
+<pre><code class="language-bash">git tag v0.4.0-rc1 &amp;&amp; git push origin v0.4.0-rc1   # 문서 배포 트리거
+./scripts/release.sh v0.4.0-rc1                    # 빌드 → 서명 → 공증 → 발행
+</code></pre>
+<p><code>release.sh</code>가 수행하는 일:</p>
+<ol>
+<li>
+<p><strong>사전 검증</strong> — 도구(<code>gh</code>, <code>git-cliff</code>), 서명 환경 변수, 깨끗한 작업 트리,
+빌드 입력에 추적되지 않은 파일이 없는지, 태그가 origin에 있고 HEAD와 같은
+커밋인지, 같은 이름의 릴리스가 이미 없는지.
+서명·공증에 수 분이 걸리므로 실패 조건은 전부 여기서 걸러냅니다.</p>
+<p>빌드는 <strong>태그의 트리가 아니라 작업 트리에서</strong> 일어납니다. 별도 폴더로 export하지
+않습니다. "깨끗한 트리 + HEAD == 태그 + 빌드 입력에 untracked 없음" 세 조건이
+함께 그 둘의 동등성을 보장합니다. <code>build.sh</code>가 소스를 glob으로 훑기 때문에
+마지막 조건이 필요합니다 — 추적되지 않은 <code>.swift</code> 하나가 태그에 없는 코드를
+서명·공증된 릴리스에 실어 보낼 수 있습니다.</p>
+</li>
+<li>
+<p><strong>빌드·서명·공증</strong> — <code>package.sh</code> 호출</p>
+</li>
+<li>
+<p><strong>Gatekeeper 검증</strong> — <code>spctl -a -t install</code>이 통과해야 진행합니다.
+공증이나 stapling이 빠지면 여기서 멈춥니다.</p>
+</li>
+<li>
+<p><strong>릴리스 노트</strong> — <code>git-cliff --latest</code> + 설치 가이드 링크 + SHA-256</p>
+</li>
+<li>
+<p><strong>발행</strong> — <code>gh release create</code>. 태그에 <code>-</code>가 있으면 pre-release로 올려
+rc가 "Latest"를 차지하지 않게 합니다.</p>
+</li>
+</ol>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="기여-가이드"><a class="header" href="#기여-가이드">기여 가이드</a></h1>
 <p>Ongeul 프로젝트에 기여해 주셔서 감사합니다!</p>
 <h2 id="개발-환경-설정"><a class="header" href="#개발-환경-설정">개발 환경 설정</a></h2>

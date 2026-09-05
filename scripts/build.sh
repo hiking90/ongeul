@@ -112,7 +112,15 @@ while IFS= read -r -d '' f; do
     SWIFT_SOURCES+=("$f")
 done < <(find "$PROJECT_ROOT/OngeulApp/Sources" -name '*.swift' -print0)
 
+# -O: 배포 바이너리에 최적화를 켠다. Rust는 --release로 빌드하는데 Swift만 기본값
+#     (-Onone)으로 나가고 있었다. CGEventTap 콜백은 매 키 이벤트마다 도는 Swift 코드다.
+# -wmo: 파일 경계를 넘는 최적화. 파일당 컴파일(기본)로는 얻지 못한다.
+# -file-prefix-map: #file 리터럴과 디버그 정보에 박히는 빌드 머신 절대 경로를 지운다.
+#     Swift 런타임 트랩 메시지가 소스 경로를 그대로 노출하는데, 릴리스를 로컬에서
+#     빌드하므로(design: 서명은 CI에 두지 않는다) 그 경로가 홈 디렉터리 구조가 된다.
 swiftc \
+    -O -wmo \
+    -file-prefix-map "$PROJECT_ROOT=/ongeul" \
     -target "$APPLE_TARGET" \
     -sdk "$SDK_PATH" \
     -import-objc-header "$BRIDGING_HEADER" \

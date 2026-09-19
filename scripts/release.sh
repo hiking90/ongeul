@@ -122,7 +122,14 @@ echo ""
 # ── 4. 릴리스 노트 ──
 
 echo "=== [4/5] Generating changelog ==="
-NOTES=$(cd "$PROJECT_ROOT" && git-cliff --latest --strip header)
+# --latest는 직전 tag부터 범위를 잡는다. cliff.toml의 tag_pattern은 rc tag도 맞추므로,
+# 정식 릴리스에서 그대로 쓰면 마지막 rc 이후 commit만 노트에 들어간다 — 0.3.0 노트가
+# 실제 65개 중 rc9 이후 항목만 담았다. 정식 릴리스는 rc tag를 경계에서 빼서 직전
+# 정식 릴리스부터 모은다. rc는 직전 rc부터가 맞으므로 기존 동작을 유지한다.
+CLIFF_TAG_PATTERN=""
+[[ -z "$PRERELEASE_FLAG" ]] && CLIFF_TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+$'
+NOTES=$(cd "$PROJECT_ROOT" && git-cliff --latest --strip header \
+    ${CLIFF_TAG_PATTERN:+--tag-pattern "$CLIFF_TAG_PATTERN"})
 SHA256=$(shasum -a 256 "$PKG_FILE" | awk '{print $1}')
 DOCS_VERSION="${VERSION%%-*}"
 DOCS_URL="https://hiking90.github.io/ongeul/${DOCS_VERSION}/user/installation.html"

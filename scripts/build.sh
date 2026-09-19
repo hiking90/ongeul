@@ -90,7 +90,13 @@ echo "=== [3/5] Compiling Swift sources ==="
 
 mkdir -p "$APP_CONTENTS/MacOS"
 
-SDK_PATH=$(xcrun --show-sdk-path)
+# --sdk macosx: swiftc와 같은 개발자 디렉터리(xcode-select)의 SDK를 쓴다.
+# --sdk 없이 호출하면 xcrun은 host OS 버전의 SDK를 찾아 CommandLineTools까지 내려간다.
+# host가 macOS 27이고 Xcode 26.6에 27 SDK가 없을 때 CLT의 27.0 SDK(Swift 6.4)가
+# 잡혀, Xcode의 swiftc 6.3이 "this SDK is not supported by the compiler"로 실패했다.
+# SDKROOT를 주면 그 값을 그대로 쓴다.
+SDK_PATH="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path)}"
+echo "    SDK: $SDK_PATH"
 
 BRIDGING_HEADER="$PROJECT_ROOT/OngeulApp/Sources/Ongeul-Bridging-Header.h"
 OBJC_SOURCES_DIR="$PROJECT_ROOT/OngeulApp/Sources"

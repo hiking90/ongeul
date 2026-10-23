@@ -675,6 +675,15 @@ class OngeulInputController: IMKInputController {
     /// KeyEventTap이 activeController 폴백을 "Ongeul이 실제 활성일 때만" 적용하기 위해 사용 (doc 33 #1).
     static func isOngeulActiveInputSource() -> Bool { currentSystemInputMode() != nil }
 
+    /// 진단 로그용. nil은 TIS가 Ongeul이 아님(ABC 등)을 뜻한다.
+    private static func modeName(_ mode: InputMode?) -> String {
+        switch mode {
+        case .korean: return "korean"
+        case .english: return "english"
+        case nil: return "other"
+        }
+    }
+
     private var currentBundleId: String?
 
     /// currentBundleId의 English Lock 상태 캐시.
@@ -753,7 +762,11 @@ class OngeulInputController: IMKInputController {
         // 입력이 deactivate 틈으로 유실된다. 모드가 실제로 어긋났을 때만 1회 갱신하면,
         // 갱신 직후 systemMode가 일치하게 되어 다음 activate에서 루프가 끊긴다.
         cancelSelectMode()
-        if systemMode != coordinator.mode, let client = sender as? (any IMKTextInput) {
+        let needsSelectMode = systemMode != coordinator.mode
+        os_log("activateServer: %{public}@ tis=%{public}@ → mode=%{public}@ tisDirty=%d selectMode=%d",
+               log: log, type: .default, bundleId, Self.modeName(systemMode),
+               Self.modeName(coordinator.mode), coordinator.tisDirty ? 1 : 0, needsSelectMode ? 1 : 0)
+        if needsSelectMode, let client = sender as? (any IMKTextInput) {
             let modeId = InputModeID.from(coordinator.mode)
             client.selectMode(modeId)
         }
@@ -814,6 +827,9 @@ class OngeulInputController: IMKInputController {
         }
 
         focusSteal.cancel()
+        os_log("deactivateServer: %{public}@ tis=%{public}@ mode=%{public}@",
+               log: log, type: .default, currentBundleId ?? "nil",
+               Self.modeName(Self.currentSystemInputMode()), Self.modeName(coordinator.mode))
         // 보류된 selectMode를 지금 호출 — 입력은 끝났으니 stall이 더 이상 의미 없다.
         flushSelectMode()
 
@@ -829,6 +845,8 @@ class OngeulInputController: IMKInputController {
             }
         }
         super.deactivateServer(sender)
+        // ABC 전환 알림을 받고 이 deactivate를 기다리던 복귀가 있으면 진행시킨다.
+        InputSourceLock.shared.sessionDidDeactivate()
     }
 
     // MARK: - Menu
@@ -1111,6 +1129,9 @@ class OngeulInputController: IMKInputController {
         cancelSelectMode()
 
         let targetMode: InputMode = (modeId == InputModeID.english) ? .english : .korean
+        os_log("setValue(imim): %{public}@ %{public}@ → %{public}@",
+               log: log, type: .default, currentBundleId ?? "nil",
+               Self.modeName(coordinator.mode), Self.modeName(targetMode))
 
         // re-entrancy 방지: 이미 동일 모드면 무시
         guard coordinator.mode != targetMode else { return }
@@ -1357,6 +1378,7 @@ class OngeulInputController: IMKInputController {
         pendingSelectModeTask = nil
         pendingSelectModeId = nil
         guard let modeId, let client: any IMKTextInput = self.client() else { return }
+        os_log("fireSelectMode: %{public}@", log: log, type: .default, modeId)
         client.selectMode(modeId)
     }
 

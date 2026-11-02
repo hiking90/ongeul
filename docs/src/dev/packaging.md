@@ -117,3 +117,12 @@ git tag v0.4.0-rc1 && git push origin v0.4.0-rc1   # 문서 배포 트리거
 4. **릴리스 노트** — `git-cliff --latest` + 설치 가이드 링크 + SHA-256
 5. **발행** — `gh release create`. 태그에 `-`가 있으면 pre-release로 올려
    rc가 "Latest"를 차지하지 않게 합니다.
+
+> **태그 push 후 문서 URL을 직접 확인하세요.** `docs/**`를 변경한 merge commit에 그대로
+> 태그를 찍으면 `docs.yml`과 `release.yml`이 같은 SHA로 Pages를 배포합니다. `v0.4.1`에서는
+> 두 번째 배포가 성공으로 끝났는데도 사이트 내용이 바뀌지 않아 `/0.4.1/` 경로가 404를
+> 반환했습니다. `gh-pages` 브랜치에는 파일이 정상적으로 들어가므로 workflow 결과만으로는
+> 알 수 없습니다.
+>
+> 이때는 `docs/**`를 변경하는 새 커밋을 `main`에 넣습니다. `docs.yml`이 새 SHA로 배포하면서
+> `gh-pages`에 있는 버전별 문서를 함께 복원합니다.

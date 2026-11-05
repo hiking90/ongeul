@@ -211,20 +211,18 @@
 <ol>
 <li><a href="https://github.com/hiking90/ongeul/releases">GitHub Releases</a> 페이지에서 최신 <code>.pkg</code> 파일을 다운로드합니다.</li>
 <li>다운로드한 <code>.pkg</code> 파일을 더블클릭합니다.</li>
-<li>Installer의 안내에 따라 설치합니다.
-<ul>
-<li><strong>시스템 전체 설치</strong>: <code>/Library/Input Methods</code>에 설치됩니다 (관리자 권한 필요).</li>
-<li><strong>현재 사용자만</strong>: <code>~/Library/Input Methods</code>에 설치됩니다.</li>
-</ul>
-</li>
+<li>Installer의 안내에 따라 설치합니다. <code>/Library/Input Methods</code>에 설치되며 관리자 권한이 필요합니다.</li>
 </ol>
+<blockquote>
+<p><strong>0.4.1 이하에서 "현재 사용자만"으로 설치한 경우</strong>: 업데이트하면 <code>~/Library/Input Methods</code>의 설치본이 삭제되고 <code>/Library/Input Methods</code>로 옮겨집니다. 입력 소스 목록에 Ongeul이 보이지 않으면 로그아웃 후 다시 로그인하세요. 이전에 추가한 입력 소스는 이때 그대로 복원됩니다.</p>
+</blockquote>
 <h3 id="서명과-공증"><a class="header" href="#서명과-공증">서명과 공증</a></h3>
 <p>0.4.0부터 Ongeul은 Apple Developer ID 인증서로 서명되고 Apple의 공증(notarization)을
 받습니다. Gatekeeper 경고 없이 바로 설치할 수 있으며, 별도의 우회 절차가 필요 없습니다.</p>
 <blockquote>
 <p><strong>0.3.x 이하에서 업데이트하는 경우</strong>: 서명 방식이 바뀌었기 때문에 이전에 부여한
 <strong>손쉬운 사용</strong>·<strong>입력 모니터링</strong> 권한이 한 번 초기화됩니다. 업데이트 후 아래 절차대로
-권한을 다시 부여해 주세요. 이번 한 번만 필요하며, 이후 업데이트부터는 권한이 유지됩니다.</p>
+권한을 다시 부여해 주세요.</p>
 </blockquote>
 <h3 id="입력기-등록"><a class="header" href="#입력기-등록">입력기 등록</a></h3>
 <p><code>.pkg</code> 설치가 완료되면, macOS에 Ongeul을 입력 소스로 등록해야 합니다. 등록하지 않으면 Ongeul이 설치되어 있어도 입력기로 사용할 수 없습니다.</p>
@@ -251,6 +249,12 @@
 <p align="center">
 <img src="user/images/add-input-source.png" alt="입력 소스 추가에서 Korean > Ongeul 선택" width="450">
 </p>
+<ol start="6">
+<li>다시 <strong>+</strong> 버튼을 클릭하고, 왼쪽 언어 목록의 <strong>영어</strong>에서 **온글 (영어)**를 선택해 추가합니다. 시스템 언어가 영어이면 **Ongeul (English)**로 표시됩니다.</li>
+</ol>
+<blockquote>
+<p>**온글 (영어)**가 없으면 한/영 전환 시 커서 옆에 한/A가 표시되지 않고, <a href="user/features/input-source-lock.html">입력기 고정</a>이 영문 모드 대신 한글 모드로 복원합니다.</p>
+</blockquote>
 <h4 id="기존-입력-소스-정리"><a class="header" href="#기존-입력-소스-정리">기존 입력 소스 정리</a></h4>
 <p>Ongeul은 한글과 영문을 모두 하나의 입력기에서 처리하므로, 기존 한글 입력기(예: 2-Set Korean)는 제거하는 것을 권장합니다.</p>
 <ol>
@@ -290,10 +294,10 @@
 <li><strong>시스템 설정</strong> 을 엽니다.</li>
 <li><strong>개인 정보 보호 및 보안</strong> → <strong>손쉬운 사용</strong> 을 선택합니다.</li>
 <li>목록에서 <strong>Ongeul</strong> 을 찾아 토글을 켭니다.</li>
-<li>목록에 Ongeul이 보이지 않는 경우, 하단의 <strong>+</strong> 버튼을 클릭하고 <code>/Library/Input Methods/Ongeul.app</code> (시스템 전체 설치) 또는 <code>~/Library/Input Methods/Ongeul.app</code> (현재 사용자 설치)을 선택합니다.</li>
+<li>목록에 Ongeul이 보이지 않는 경우, 하단의 <strong>+</strong> 버튼을 클릭하고 <code>/Library/Input Methods/Ongeul.app</code>을 선택합니다.</li>
 </ol>
 <blockquote>
-<p><strong>업데이트 시 참고</strong>: 0.4.0부터는 Developer ID 서명이 고정되므로 업데이트해도 Accessibility 권한이 유지됩니다. 다만 <strong>0.3.x 이하에서 0.4.0으로 올라올 때는 한 번</strong> 초기화되므로, 그때는 위 절차에 따라 권한을 다시 부여해 주세요.</p>
+<p><strong>업데이트 시 참고</strong>: 0.4.2 설치 패키지부터는 같은 Developer ID로 서명된 버전에서 업데이트하면 Accessibility 권한이 유지됩니다. 0.4.1 이하의 설치 패키지는 업데이트할 때마다 권한을 초기화하므로, 그 버전으로 올라온 뒤 권한이 풀렸다면 위 절차에 따라 다시 부여해 주세요. <strong>0.3.x 이하에서 올라올 때도</strong> 서명이 바뀌므로 한 번 초기화됩니다.</p>
 </blockquote>
 <h2 id="소스에서-빌드"><a class="header" href="#소스에서-빌드">소스에서 빌드</a></h2>
 <p>개발 환경에서 직접 빌드하려면 <a href="user/../dev/building.html">빌드</a> 페이지를 참고하세요.</p>
@@ -316,8 +320,13 @@
 <ol>
 <li><strong>시스템 설정</strong> → <strong>키보드</strong> → <strong>입력 소스</strong> → <strong>편집...</strong> 을 클릭합니다.</li>
 <li>좌측 하단의 <strong>+</strong> 버튼을 클릭합니다.</li>
-<li>목록에서 <strong>Ongeul</strong> 을 찾아 추가합니다.</li>
+<li><strong>한국어</strong>에서 **온글 (한글)**을 찾아 추가합니다.</li>
+<li>다시 <strong>+</strong> 버튼을 클릭하고, <strong>영어</strong>에서 **온글 (영어)**를 찾아 추가합니다.</li>
 </ol>
+<blockquote>
+<p>시스템 언어가 영어이면 <strong>Ongeul (Korean)</strong>, **Ongeul (English)**로 표시됩니다.</p>
+<p>**온글 (영어)**가 없으면 한/영 전환 시 커서 옆에 한/A가 표시되지 않고, <a href="user/features/input-source-lock.html">입력기 고정</a>이 영문 모드 대신 한글 모드로 복원합니다.</p>
+</blockquote>
 <h2 id="3-기존-입력-소스-정리"><a class="header" href="#3-기존-입력-소스-정리">3. 기존 입력 소스 정리</a></h2>
 <p>Ongeul은 한글과 영문을 모두 처리하므로, 기존 <strong>한글 입력기</strong>는 제거합니다. ABC는 macOS 기본 입력기라 삭제되지 않지만, Ongeul이 영문도 처리하므로 그대로 두어도 무방합니다.</p>
 <ol>
@@ -612,11 +621,17 @@
 <p>0.4.0 이상인데도 차단된다면 다운로드가 손상됐을 수 있습니다. 릴리스 노트의 SHA-256과
 <code>shasum -a 256 Ongeul-&lt;버전&gt;.pkg</code> 결과를 비교해 보세요.</p>
 <h2 id="업데이트-후-손쉬운-사용-권한이-풀림"><a class="header" href="#업데이트-후-손쉬운-사용-권한이-풀림">업데이트 후 손쉬운 사용 권한이 풀림</a></h2>
-<p><strong>원인</strong>: macOS는 손쉬운 사용·입력 모니터링 권한을 앱의 코드 서명에 묶어 관리합니다.
-0.3.x 이하에서 0.4.0으로 올라오면 ad-hoc 서명에서 Developer ID 서명으로 바뀌므로
-기존 부여가 한 번 무효화됩니다.</p>
+<p><strong>원인</strong>: 0.4.1 이하의 설치 패키지는 업데이트할 때마다 손쉬운 사용 권한을 초기화합니다.
+또한 macOS는 손쉬운 사용·입력 모니터링 권한을 앱의 코드 서명에 묶어 관리하므로, 0.3.x 이하에서
+올라오면 ad-hoc 서명에서 Developer ID 서명으로 바뀌어 기존 부여가 무효화됩니다.</p>
 <p><strong>해결</strong>: <a href="user/installation.html#%EC%86%90%EC%89%AC%EC%9A%B4-%EC%82%AC%EC%9A%A9accessibility-%EA%B6%8C%ED%95%9C">설치 &gt; 손쉬운 사용 권한</a> 절차대로
-다시 부여하세요. 0.4.0 이후 업데이트부터는 서명이 고정되어 권한이 유지됩니다.</p>
+다시 부여하세요. 0.4.2 설치 패키지부터는 같은 Developer ID로 서명된 버전에서 업데이트하면
+권한이 유지됩니다.</p>
+<h2 id="한영-전환-시-커서-옆에-한a가-표시되지-않음"><a class="header" href="#한영-전환-시-커서-옆에-한a가-표시되지-않음">한/영 전환 시 커서 옆에 한/A가 표시되지 않음</a></h2>
+<p><strong>원인</strong>: <strong>온글 (영어)</strong> 입력 소스가 추가되어 있지 않습니다. 시스템 언어가 영어이면
+**Ongeul (English)**로 표시됩니다.</p>
+<p><strong>해결</strong>: <a href="user/installation.html#%EC%9E%85%EB%A0%A5%EA%B8%B0-%EB%93%B1%EB%A1%9D">설치 &gt; 입력기 등록</a> 절차대로 **온글 (영어)**를
+추가하세요.</p>
 <h2 id="한글-조합이-되지-않음"><a class="header" href="#한글-조합이-되지-않음">한글 조합이 되지 않음</a></h2>
 <p>다음 사항을 확인하세요:</p>
 <ol>
@@ -646,11 +661,9 @@
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="제거"><a class="header" href="#제거">제거</a></h1>
 <h2 id="1-앱-삭제"><a class="header" href="#1-앱-삭제">1. 앱 삭제</a></h2>
-<p>설치 시 선택한 위치에 따라 해당 경로의 <code>Ongeul.app</code>을 삭제합니다.</p>
-<h3 id="시스템-전체-설치를-선택한-경우"><a class="header" href="#시스템-전체-설치를-선택한-경우">시스템 전체 설치를 선택한 경우</a></h3>
 <pre><code class="language-bash">sudo rm -rf "/Library/Input Methods/Ongeul.app"
 </code></pre>
-<h3 id="현재-사용자만-설치를-선택한-경우"><a class="header" href="#현재-사용자만-설치를-선택한-경우">현재 사용자만 설치를 선택한 경우</a></h3>
+<h3 id="041-이하에서-현재-사용자만으로-설치한-경우"><a class="header" href="#041-이하에서-현재-사용자만으로-설치한-경우">0.4.1 이하에서 "현재 사용자만"으로 설치한 경우</a></h3>
 <pre><code class="language-bash">rm -rf ~/Library/Input\ Methods/Ongeul.app
 </code></pre>
 <h2 id="2-입력-소스-제거"><a class="header" href="#2-입력-소스-제거">2. 입력 소스 제거</a></h2>
@@ -829,14 +842,35 @@ rm -rf ~/Library/Input\ Methods/Ongeul.app
   resources/
     welcome.html       # 설치 시작 화면
     conclusion.html    # 설치 완료 화면
-  postinstall          # 설치 후 스크립트
+  preinstall           # 설치 전 스크립트 (프로세스 종료, 설치 전 상태 기록, ~/Library 설치본 정리)
+  postinstall          # 설치 후 스크립트 (TCC 리셋, 입력 소스 등록)
 </code></pre>
 <h3 id="distributionxml"><a class="header" href="#distributionxml">distribution.xml</a></h3>
 <ul>
 <li>설치 대상: macOS 14.0 이상</li>
 <li>아키텍처: x86_64, arm64</li>
-<li>설치 위치: <code>/Library/Input Methods</code> (시스템) 또는 <code>~/Library/Input Methods</code> (사용자)</li>
+<li>설치 위치: <code>/Library/Input Methods</code> (시스템 도메인만 허용)</li>
 </ul>
+<p>사용자 도메인은 0.4.2에서 제거했습니다. 사용자 도메인의 스크립트는 사용자 권한으로 실행되어
+<code>/Library</code>의 기존 앱을 지우지 못하므로, 앱이 두 곳에 남아 TIS 항목이 중복됩니다.</p>
+<h3 id="설치-스크립트"><a class="header" href="#설치-스크립트">설치 스크립트</a></h3>
+<p><code>tccutil reset Accessibility</code>는 기존 앱과 새 앱의 Team ID가 다르거나, 새 앱이 ad-hoc 서명이거나,
+기존 앱이 없을 때만 실행합니다. 기존 앱의 Team ID는 <code>preinstall</code>이 스크립트 디렉터리에 파일로 남기고
+<code>postinstall</code>이 읽습니다. 판단 결과는 <code>/var/log/install.log</code>에 <code>Ongeul:</code>로 시작하는 줄로 남습니다.</p>
+<p><code>--register-input-sources</code>(<code>TISRegisterInputSource</code>)는 기존 앱이 <code>/Library</code>와 <code>~/Library</code> 어디에도
+없는 최초 설치에서만 실행합니다. 설치 직후 TIS 목록에 Ongeul 항목이 없었던 횟수는 다음과 같습니다.</p>
+<div class="table-wrapper"><table><thead><tr><th>설치 경로</th><th>호출함</th><th>호출하지 않음</th></tr></thead><tbody>
+<tr><td>최초 설치 (macOS 26.6.2)</td><td>4회 중 0회</td><td>1회 중 1회</td></tr>
+<tr><td>최초 설치 (macOS 15.7.7)</td><td>2회 중 0회</td><td>1회 중 1회</td></tr>
+<tr><td><code>~/Library</code> 설치본에서 이동 (macOS 26.6.2)</td><td>4회 중 4회</td><td>4회 중 1회</td></tr>
+</tbody></table>
+</div>
+<p>이동 직후 항목이 없어도 활성 상태는 <code>AppleEnabledInputSources</code>에 남아 있으며, 재부팅 후 항목과 함께
+복원됩니다. 호출하지 않아도 항목이 사라지는 경우가 있으므로, 이 경로는 사용자 문서에 재로그인을 안내합니다.</p>
+<p>설치 스크립트는 입력 소스를 활성화하지 않습니다. <code>tsInputModeDefaultStateKey=false</code>인 입력 모드에는
+<code>TISEnableInputSource</code>가 <code>err=0</code>만 반환하고 상태를 바꾸지 않습니다(macOS 15.7.7, 26.6.2에서 측정).
+이 값을 <code>true</code>로 바꾸면 활성화되지만 <code>TISDisableInputSource</code>도 효과가 없어져, 재부팅 후에도 켜진 상태로
+남습니다.</p>
 <h2 id="코드-서명-및-공증"><a class="header" href="#코드-서명-및-공증">코드 서명 및 공증</a></h2>
 <p><code>package.sh</code>가 서명·공증·stapling까지 수행합니다. 환경 변수로 자격 증명을 넘기며,
 설정하지 않으면 ad-hoc 서명으로 떨어져 로컬 테스트에는 그대로 쓸 수 있습니다

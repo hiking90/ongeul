@@ -185,20 +185,18 @@
 <ol>
 <li><a href="https://github.com/hiking90/ongeul/releases">GitHub Releases</a> 페이지에서 최신 <code>.pkg</code> 파일을 다운로드합니다.</li>
 <li>다운로드한 <code>.pkg</code> 파일을 더블클릭합니다.</li>
-<li>Installer의 안내에 따라 설치합니다.
-<ul>
-<li><strong>시스템 전체 설치</strong>: <code>/Library/Input Methods</code>에 설치됩니다 (관리자 권한 필요).</li>
-<li><strong>현재 사용자만</strong>: <code>~/Library/Input Methods</code>에 설치됩니다.</li>
-</ul>
-</li>
+<li>Installer의 안내에 따라 설치합니다. <code>/Library/Input Methods</code>에 설치되며 관리자 권한이 필요합니다.</li>
 </ol>
+<blockquote>
+<p><strong>0.4.1 이하에서 "현재 사용자만"으로 설치한 경우</strong>: 업데이트하면 <code>~/Library/Input Methods</code>의 설치본이 삭제되고 <code>/Library/Input Methods</code>로 옮겨집니다. 입력 소스 목록에 Ongeul이 보이지 않으면 로그아웃 후 다시 로그인하세요. 이전에 추가한 입력 소스는 이때 그대로 복원됩니다.</p>
+</blockquote>
 <h3 id="서명과-공증"><a class="header" href="#서명과-공증">서명과 공증</a></h3>
 <p>0.4.0부터 Ongeul은 Apple Developer ID 인증서로 서명되고 Apple의 공증(notarization)을
 받습니다. Gatekeeper 경고 없이 바로 설치할 수 있으며, 별도의 우회 절차가 필요 없습니다.</p>
 <blockquote>
 <p><strong>0.3.x 이하에서 업데이트하는 경우</strong>: 서명 방식이 바뀌었기 때문에 이전에 부여한
 <strong>손쉬운 사용</strong>·<strong>입력 모니터링</strong> 권한이 한 번 초기화됩니다. 업데이트 후 아래 절차대로
-권한을 다시 부여해 주세요. 이번 한 번만 필요하며, 이후 업데이트부터는 권한이 유지됩니다.</p>
+권한을 다시 부여해 주세요.</p>
 </blockquote>
 <h3 id="입력기-등록"><a class="header" href="#입력기-등록">입력기 등록</a></h3>
 <p><code>.pkg</code> 설치가 완료되면, macOS에 Ongeul을 입력 소스로 등록해야 합니다. 등록하지 않으면 Ongeul이 설치되어 있어도 입력기로 사용할 수 없습니다.</p>
@@ -225,6 +223,12 @@
 <p align="center">
 <img src="images/add-input-source.png" alt="입력 소스 추가에서 Korean > Ongeul 선택" width="450">
 </p>
+<ol start="6">
+<li>다시 <strong>+</strong> 버튼을 클릭하고, 왼쪽 언어 목록의 <strong>영어</strong>에서 **온글 (영어)**를 선택해 추가합니다. 시스템 언어가 영어이면 **Ongeul (English)**로 표시됩니다.</li>
+</ol>
+<blockquote>
+<p>**온글 (영어)**가 없으면 한/영 전환 시 커서 옆에 한/A가 표시되지 않고, <a href="features/input-source-lock.html">입력기 고정</a>이 영문 모드 대신 한글 모드로 복원합니다.</p>
+</blockquote>
 <h4 id="기존-입력-소스-정리"><a class="header" href="#기존-입력-소스-정리">기존 입력 소스 정리</a></h4>
 <p>Ongeul은 한글과 영문을 모두 하나의 입력기에서 처리하므로, 기존 한글 입력기(예: 2-Set Korean)는 제거하는 것을 권장합니다.</p>
 <ol>
@@ -264,10 +268,10 @@
 <li><strong>시스템 설정</strong> 을 엽니다.</li>
 <li><strong>개인 정보 보호 및 보안</strong> → <strong>손쉬운 사용</strong> 을 선택합니다.</li>
 <li>목록에서 <strong>Ongeul</strong> 을 찾아 토글을 켭니다.</li>
-<li>목록에 Ongeul이 보이지 않는 경우, 하단의 <strong>+</strong> 버튼을 클릭하고 <code>/Library/Input Methods/Ongeul.app</code> (시스템 전체 설치) 또는 <code>~/Library/Input Methods/Ongeul.app</code> (현재 사용자 설치)을 선택합니다.</li>
+<li>목록에 Ongeul이 보이지 않는 경우, 하단의 <strong>+</strong> 버튼을 클릭하고 <code>/Library/Input Methods/Ongeul.app</code>을 선택합니다.</li>
 </ol>
 <blockquote>
-<p><strong>업데이트 시 참고</strong>: 0.4.0부터는 Developer ID 서명이 고정되므로 업데이트해도 Accessibility 권한이 유지됩니다. 다만 <strong>0.3.x 이하에서 0.4.0으로 올라올 때는 한 번</strong> 초기화되므로, 그때는 위 절차에 따라 권한을 다시 부여해 주세요.</p>
+<p><strong>업데이트 시 참고</strong>: 0.4.2 설치 패키지부터는 같은 Developer ID로 서명된 버전에서 업데이트하면 Accessibility 권한이 유지됩니다. 0.4.1 이하의 설치 패키지는 업데이트할 때마다 권한을 초기화하므로, 그 버전으로 올라온 뒤 권한이 풀렸다면 위 절차에 따라 다시 부여해 주세요. <strong>0.3.x 이하에서 올라올 때도</strong> 서명이 바뀌므로 한 번 초기화됩니다.</p>
 </blockquote>
 <h2 id="소스에서-빌드"><a class="header" href="#소스에서-빌드">소스에서 빌드</a></h2>
 <p>개발 환경에서 직접 빌드하려면 <a href="../dev/building.html">빌드</a> 페이지를 참고하세요.</p>

@@ -207,14 +207,35 @@
   resources/
     welcome.html       # 설치 시작 화면
     conclusion.html    # 설치 완료 화면
-  postinstall          # 설치 후 스크립트
+  preinstall           # 설치 전 스크립트 (프로세스 종료, 설치 전 상태 기록, ~/Library 설치본 정리)
+  postinstall          # 설치 후 스크립트 (TCC 리셋, 입력 소스 등록)
 </code></pre>
 <h3 id="distributionxml"><a class="header" href="#distributionxml">distribution.xml</a></h3>
 <ul>
 <li>설치 대상: macOS 14.0 이상</li>
 <li>아키텍처: x86_64, arm64</li>
-<li>설치 위치: <code>/Library/Input Methods</code> (시스템) 또는 <code>~/Library/Input Methods</code> (사용자)</li>
+<li>설치 위치: <code>/Library/Input Methods</code> (시스템 도메인만 허용)</li>
 </ul>
+<p>사용자 도메인은 0.4.2에서 제거했습니다. 사용자 도메인의 스크립트는 사용자 권한으로 실행되어
+<code>/Library</code>의 기존 앱을 지우지 못하므로, 앱이 두 곳에 남아 TIS 항목이 중복됩니다.</p>
+<h3 id="설치-스크립트"><a class="header" href="#설치-스크립트">설치 스크립트</a></h3>
+<p><code>tccutil reset Accessibility</code>는 기존 앱과 새 앱의 Team ID가 다르거나, 새 앱이 ad-hoc 서명이거나,
+기존 앱이 없을 때만 실행합니다. 기존 앱의 Team ID는 <code>preinstall</code>이 스크립트 디렉터리에 파일로 남기고
+<code>postinstall</code>이 읽습니다. 판단 결과는 <code>/var/log/install.log</code>에 <code>Ongeul:</code>로 시작하는 줄로 남습니다.</p>
+<p><code>--register-input-sources</code>(<code>TISRegisterInputSource</code>)는 기존 앱이 <code>/Library</code>와 <code>~/Library</code> 어디에도
+없는 최초 설치에서만 실행합니다. 설치 직후 TIS 목록에 Ongeul 항목이 없었던 횟수는 다음과 같습니다.</p>
+<div class="table-wrapper"><table><thead><tr><th>설치 경로</th><th>호출함</th><th>호출하지 않음</th></tr></thead><tbody>
+<tr><td>최초 설치 (macOS 26.6.2)</td><td>4회 중 0회</td><td>1회 중 1회</td></tr>
+<tr><td>최초 설치 (macOS 15.7.7)</td><td>2회 중 0회</td><td>1회 중 1회</td></tr>
+<tr><td><code>~/Library</code> 설치본에서 이동 (macOS 26.6.2)</td><td>4회 중 4회</td><td>4회 중 1회</td></tr>
+</tbody></table>
+</div>
+<p>이동 직후 항목이 없어도 활성 상태는 <code>AppleEnabledInputSources</code>에 남아 있으며, 재부팅 후 항목과 함께
+복원됩니다. 호출하지 않아도 항목이 사라지는 경우가 있으므로, 이 경로는 사용자 문서에 재로그인을 안내합니다.</p>
+<p>설치 스크립트는 입력 소스를 활성화하지 않습니다. <code>tsInputModeDefaultStateKey=false</code>인 입력 모드에는
+<code>TISEnableInputSource</code>가 <code>err=0</code>만 반환하고 상태를 바꾸지 않습니다(macOS 15.7.7, 26.6.2에서 측정).
+이 값을 <code>true</code>로 바꾸면 활성화되지만 <code>TISDisableInputSource</code>도 효과가 없어져, 재부팅 후에도 켜진 상태로
+남습니다.</p>
 <h2 id="코드-서명-및-공증"><a class="header" href="#코드-서명-및-공증">코드 서명 및 공증</a></h2>
 <p><code>package.sh</code>가 서명·공증·stapling까지 수행합니다. 환경 변수로 자격 증명을 넘기며,
 설정하지 않으면 ad-hoc 서명으로 떨어져 로컬 테스트에는 그대로 쓸 수 있습니다

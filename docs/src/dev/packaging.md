@@ -38,14 +38,41 @@ scripts/pkg/
   resources/
     welcome.html       # 설치 시작 화면
     conclusion.html    # 설치 완료 화면
-  postinstall          # 설치 후 스크립트
+  preinstall           # 설치 전 스크립트 (프로세스 종료, 설치 전 상태 기록, ~/Library 설치본 정리)
+  postinstall          # 설치 후 스크립트 (TCC 리셋, 입력 소스 등록)
 ```
 
 ### distribution.xml
 
 - 설치 대상: macOS 14.0 이상
 - 아키텍처: x86_64, arm64
-- 설치 위치: `/Library/Input Methods` (시스템) 또는 `~/Library/Input Methods` (사용자)
+- 설치 위치: `/Library/Input Methods` (시스템 도메인만 허용)
+
+사용자 도메인은 0.4.2에서 제거했습니다. 사용자 도메인의 스크립트는 사용자 권한으로 실행되어
+`/Library`의 기존 앱을 지우지 못하므로, 앱이 두 곳에 남아 TIS 항목이 중복됩니다.
+
+### 설치 스크립트
+
+`tccutil reset Accessibility`는 기존 앱과 새 앱의 Team ID가 다르거나, 새 앱이 ad-hoc 서명이거나,
+기존 앱이 없을 때만 실행합니다. 기존 앱의 Team ID는 `preinstall`이 스크립트 디렉터리에 파일로 남기고
+`postinstall`이 읽습니다. 판단 결과는 `/var/log/install.log`에 `Ongeul:`로 시작하는 줄로 남습니다.
+
+`--register-input-sources`(`TISRegisterInputSource`)는 기존 앱이 `/Library`와 `~/Library` 어디에도
+없는 최초 설치에서만 실행합니다. 설치 직후 TIS 목록에 Ongeul 항목이 없었던 횟수는 다음과 같습니다.
+
+| 설치 경로 | 호출함 | 호출하지 않음 |
+|---|---|---|
+| 최초 설치 (macOS 26.6.2) | 4회 중 0회 | 1회 중 1회 |
+| 최초 설치 (macOS 15.7.7) | 2회 중 0회 | 1회 중 1회 |
+| `~/Library` 설치본에서 이동 (macOS 26.6.2) | 4회 중 4회 | 4회 중 1회 |
+
+이동 직후 항목이 없어도 활성 상태는 `AppleEnabledInputSources`에 남아 있으며, 재부팅 후 항목과 함께
+복원됩니다. 호출하지 않아도 항목이 사라지는 경우가 있으므로, 이 경로는 사용자 문서에 재로그인을 안내합니다.
+
+설치 스크립트는 입력 소스를 활성화하지 않습니다. `tsInputModeDefaultStateKey=false`인 입력 모드에는
+`TISEnableInputSource`가 `err=0`만 반환하고 상태를 바꾸지 않습니다(macOS 15.7.7, 26.6.2에서 측정).
+이 값을 `true`로 바꾸면 활성화되지만 `TISDisableInputSource`도 효과가 없어져, 재부팅 후에도 켜진 상태로
+남습니다.
 
 ## 코드 서명 및 공증
 

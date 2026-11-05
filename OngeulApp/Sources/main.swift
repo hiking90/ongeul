@@ -2,39 +2,16 @@ import Cocoa
 import Carbon
 import InputMethodKit
 
-// CLI: --enable-input-sources
-// 설치 스크립트(.pkg postinstall 및 install.sh)에서 호출하여 Ongeul 한/영 입력 소스를 활성화.
-// 런타임 중 자동 등록은 하지 않으므로, 설치 시점에만 이 경로로 등록된다.
-if CommandLine.arguments.contains("--enable-input-sources") {
-    // 최초 설치 직후 TIS 데이터베이스가 아직 번들을 스캔하지 않았을 수 있다.
-    // TISRegisterInputSource로 강제 등록하여 이후 TISCreateInputSourceList에서 찾게 한다.
-    let registerErr = TISRegisterInputSource(Bundle.main.bundleURL as CFURL)
-    if registerErr != noErr {
-        // paramErr(-50) 등은 이미 등록된 경우에도 발생할 수 있으므로 경고만.
-        FileHandle.standardError.write(Data("Ongeul: TISRegisterInputSource warning: err=\(registerErr)\n".utf8))
+// CLI: --register-input-sources
+// .pkg postinstall이 최초 설치 때 호출한다. 이 호출이 없으면 로그아웃 전까지 TIS 목록에 Ongeul이 없다.
+// 등록만 하고 활성화는 하지 않는다. tsInputModeDefaultStateKey=false인 입력 모드에는
+// TISEnableInputSource가 err=0만 반환하고 상태를 바꾸지 않는다 (macOS 15.7.7, 26.6.2에서 측정).
+if CommandLine.arguments.contains("--register-input-sources") {
+    let err = TISRegisterInputSource(Bundle.main.bundleURL as CFURL)
+    if err != noErr {
+        FileHandle.standardError.write(Data("Ongeul: TISRegisterInputSource failed: err=\(err)\n".utf8))
     }
-
-    let ids = [
-        "io.github.hiking90.inputmethod.Ongeul",
-        "io.github.hiking90.inputmethod.Ongeul.English",
-    ]
-    var exitCode: Int32 = 0
-    for id in ids {
-        let filter = [kTISPropertyInputSourceID: id] as CFDictionary
-        guard let sources = TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource],
-              let source = sources.first
-        else {
-            FileHandle.standardError.write(Data("Ongeul: input source not found: \(id)\n".utf8))
-            exitCode = 1
-            continue
-        }
-        let err = TISEnableInputSource(source)
-        if err != noErr {
-            FileHandle.standardError.write(Data("Ongeul: TISEnableInputSource(\(id)) failed: err=\(err)\n".utf8))
-            exitCode = Int32(err)
-        }
-    }
-    exit(exitCode)
+    exit(err == noErr ? 0 : 1)
 }
 
 guard let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String else {

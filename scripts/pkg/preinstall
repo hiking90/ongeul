@@ -1,20 +1,40 @@
 #!/bin/bash
 # Ongeul .pkg preinstall script
-# Installer passes $2 = install location
+# 설치 위치는 /Library/Input Methods 하나다 (distribution.xml이 시스템 도메인만 허용).
+
+SYSTEM_APP="/Library/Input Methods/Ongeul.app"
+
+# postinstall에 넘길 설치 전 상태. 스크립트 디렉터리는 설치가 끝나면 함께 삭제된다.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PREVIOUS_TEAM_FILE="$SCRIPT_DIR/.previous-team-id"
+FIRST_INSTALL_FILE="$SCRIPT_DIR/.first-install"
 
 killall Ongeul 2>/dev/null || true
 sleep 1
 
-INSTALL_LOCATION="$2"
 CONSOLE_USER=$( /usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ { print $3 }' )
-USER_HOME=$( dscl . -read /Users/"$CONSOLE_USER" NFSHomeDirectory | awk '{print $2}' )
+USER_APP=""
+if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "loginwindow" ]; then
+    USER_HOME=$( dscl . -read /Users/"$CONSOLE_USER" NFSHomeDirectory | awk '{print $2}' )
+    [ -n "$USER_HOME" ] && USER_APP="$USER_HOME/Library/Input Methods/Ongeul.app"
+fi
 
-if [[ "$INSTALL_LOCATION" == /Library/* ]]; then
-    # 시스템에 설치 → 사용자 경로 정리
-    rm -rf "$USER_HOME/Library/Input Methods/Ongeul.app"
+# 기존 앱의 Team ID를 남긴다. postinstall이 새 앱과 비교해 TCC 리셋 여부를 정한다.
+PREVIOUS_APP=""
+if [ -d "$SYSTEM_APP" ]; then
+    PREVIOUS_APP="$SYSTEM_APP"
+elif [ -n "$USER_APP" ] && [ -d "$USER_APP" ]; then
+    PREVIOUS_APP="$USER_APP"
+fi
+if [ -n "$PREVIOUS_APP" ]; then
+    /usr/bin/codesign -dv "$PREVIOUS_APP" 2>&1 | sed -n 's/^TeamIdentifier=//p' > "$PREVIOUS_TEAM_FILE"
 else
-    # 사용자에 설치 → 시스템 경로 정리
-    rm -rf "/Library/Input Methods/Ongeul.app"
+    touch "$FIRST_INSTALL_FILE"
+fi
+
+# 0.4.1 이하의 사용자 도메인 설치본이나 install.sh 개발 빌드를 정리한다.
+if [ -n "$USER_APP" ]; then
+    rm -rf "$USER_APP"
 fi
 
 exit 0

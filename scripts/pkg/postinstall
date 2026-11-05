@@ -1,28 +1,39 @@
 #!/bin/bash
 # Ongeul .pkg postinstall script
-# Installer passes $2 = install location (e.g. / for system, user home for per-user)
+# 설치 위치는 /Library/Input Methods 하나다 (distribution.xml이 시스템 도메인만 허용).
 
 BUNDLE_ID="io.github.hiking90.inputmethod.Ongeul"
-INSTALL_LOCATION="$2"
+APP_PATH="/Library/Input Methods/Ongeul.app"
 
-# 앱이 재서명되면 기존 TCC 항목이 무효화되므로 리셋
-tccutil reset Accessibility "$BUNDLE_ID" 2>/dev/null || true
+# preinstall이 남긴 설치 전 상태
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PREVIOUS_TEAM=$(cat "$SCRIPT_DIR/.previous-team-id" 2>/dev/null)
+NEW_TEAM=$(/usr/bin/codesign -dv "$APP_PATH" 2>&1 | sed -n 's/^TeamIdentifier=//p')
 
-# 설치 위치에 따라 실제 .app 경로 결정
-if [[ "$INSTALL_LOCATION" == /Library/* || "$INSTALL_LOCATION" == "/" ]]; then
-    APP_PATH="/Library/Input Methods/Ongeul.app"
+# TCC 항목은 앱의 designated requirement에 묶인다. Developer ID 앱의 requirement는
+# Team ID 기준이므로 같은 Team ID끼리의 업데이트는 기존 권한이 유효하다.
+# ad-hoc 빌드는 Team ID가 없고 빌드마다 서명이 달라지므로 항상 리셋한다.
+if [ -z "$NEW_TEAM" ] || [ "$NEW_TEAM" = "not set" ] || [ "$PREVIOUS_TEAM" != "$NEW_TEAM" ]; then
+    echo "Ongeul: resetting Accessibility (previous team: '$PREVIOUS_TEAM', new team: '$NEW_TEAM')"
+    tccutil reset Accessibility "$BUNDLE_ID" 2>&1 || true
 else
-    APP_PATH="${INSTALL_LOCATION}/Library/Input Methods/Ongeul.app"
+    echo "Ongeul: keeping Accessibility grant (team: '$NEW_TEAM')"
 fi
 
 # 콘솔 사용자 확인 (TIS 호출은 사용자 세션에서 실행되어야 함)
 CONSOLE_USER=$( /usr/sbin/scutil <<< "show State:/Users/ConsoleUser" | awk '/Name :/ { print $3 }' )
 
-# 최초 설치 시 1회: 한/영 입력 소스를 TIS에 등록.
-# 이후 사용자가 시스템 설정에서 제거하면 다시 등록되지 않는다 (Info.plist의 tsInputModeDefaultStateKey=false).
-if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "loginwindow" ] && [ -x "$APP_PATH/Contents/MacOS/Ongeul" ]; then
-    /usr/bin/sudo -u "$CONSOLE_USER" \
-        "$APP_PATH/Contents/MacOS/Ongeul" --enable-input-sources || true
+# 최초 설치에서만 입력 소스를 TIS에 등록한다. 호출하지 않으면 로그아웃 전까지 TIS 목록에 없다.
+# ~/Library 설치본을 옮기는 경우에는 호출하지 않는다. macOS 26.6.2에서 이동 직후 TIS 항목이
+# 사라진 횟수는 호출할 때 4회 중 4회, 호출하지 않을 때 4회 중 1회였다. 사라진 항목은 재부팅으로 복원된다.
+# 활성화는 사용자가 시스템 설정에서 한다 (main.swift 참고).
+if [ -f "$SCRIPT_DIR/.first-install" ] && [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "loginwindow" ] \
+    && [ -x "$APP_PATH/Contents/MacOS/Ongeul" ]; then
+    /bin/launchctl asuser "$(id -u "$CONSOLE_USER")" /usr/bin/sudo -u "$CONSOLE_USER" \
+        "$APP_PATH/Contents/MacOS/Ongeul" --register-input-sources
+    echo "Ongeul: registered input sources for $CONSOLE_USER (exit $?)"
+else
+    echo "Ongeul: skipping input source registration"
 fi
 
 exit 0
